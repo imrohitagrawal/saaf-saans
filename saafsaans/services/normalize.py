@@ -1,0 +1,140 @@
+"""Pure helpers: persona normalization, AQI category, privacy utilities.
+
+Everything here is side-effect free and cheap to unit-test. These functions
+are the single source of truth for how UI labels map to advisory keywords and
+how AQI values map to CPCB categories/colors, so the LLM prompt, the ES search,
+and the UI badge all stay consistent.
+"""
+import hashlib
+import re
+
+# --- Persona label -> advisory keyword maps -------------------------------
+# UI shows human labels; ES search + advisory docs use these keyword values.
+CONDITION_MAP = {
+    "Fit": "any",       # "Fit" = no relevant condition (reads better than "None")
+    "None": "any",      # kept for backward compatibility
+    "Asthma": "asthma",
+    "Heart condition": "heart",
+    "Pregnancy": "pregnancy",
+    "COPD": "copd",
+}
+ACTIVITY_MAP = {
+    "Outdoor exercise": "outdoor_exercise",
+    "Commute": "commute",
+    "School run": "school_run",
+    "Stay home": "stay_home",
+}
+AGE_MAP = {
+    "Child": "child",
+    "Adult": "adult",
+    "Senior": "senior",
+}
+
+
+def norm_condition(label: str) -> str:
+    return CONDITION_MAP.get(label, "any")
+
+
+def norm_activity(label: str) -> str:
+    return ACTIVITY_MAP.get(label, "any")
+
+
+def norm_age(label: str) -> str:
+    return AGE_MAP.get(label, "any")
+
+
+# --- AQI category / color -------------------------------------------------
+# Spec color thresholds: <=100 green, <=200 orange, <=300 red, >300 dark red.
+# CPCB labels: Good / Moderate / Poor / Very Poor / Severe.
+def aqi_category(aqi):
+    """Return ``(label, color_name, hex)`` for an AQI value.
+
+    Defensive: ``None`` -> Unknown/grey. Negative values are clamped for the
+    color decision but the raw value is what the caller displays.
+    """
+    if aqi is None:
+        return ("Unknown", "grey", "#9e9e9e")
+    try:
+        value = int(aqi)
+    except (TypeError, ValueError):
+        return ("Unknown", "grey", "#9e9e9e")
+    value = max(value, 0)
+    if value <= 100:
+        return ("Good", "green", "#2e7d32")
+    if value <= 200:
+        return ("Moderate", "orange", "#ef6c00")
+    if value <= 300:
+        return ("Poor", "red", "#c62828")
+    if value <= 400:
+        return ("Very Poor", "dark red", "#7f0000")
+    return ("Severe", "dark red", "#4a0000")
+
+
+# Plain-language meaning of each AQI category, for lay readers. Keyed by the
+# label returned by aqi_category().
+AQI_MEANING = {
+    "Good": "Air is clean. Outdoor activity is fine for everyone.",
+    "Moderate": "Acceptable for most. Sensitive groups (asthma, heart/lung "
+                "conditions, kids, seniors) should take it easy on heavy exertion.",
+    "Poor": "Unhealthy for sensitive groups. Everyone should cut back on long or "
+            "intense outdoor activity; sensitive people should stay in.",
+    "Very Poor": "Unhealthy for everyone. Avoid outdoor exertion; wear an N95 if "
+                 "you must go out and run a purifier indoors.",
+    "Severe": "Hazardous — a health emergency. Stay indoors, seal windows, run a "
+              "purifier. Even healthy people can feel effects.",
+    "Unknown": "Air-quality reading is unavailable right now. Treat conditions as "
+               "unhealthy until you can confirm.",
+}
+
+
+def aqi_meaning(label: str) -> str:
+    """Plain-language sentence for an AQI category label."""
+    return AQI_MEANING.get(label, AQI_MEANING["Unknown"])
+
+
+# One-sentence, lay-reader definitions of the technical terms shown in the UI.
+# Used for tooltips and the "What these numbers mean" glossary.
+GLOSSARY = {
+    "AQI": "Air Quality Index — a 0-500+ score combining several pollutants. "
+           "Higher is worse; India uses the CPCB scale (Good to Severe).",
+    "PM2.5": "Fine particles under 2.5 micrometres — small enough to reach deep "
+             "into the lungs and bloodstream. The main health concern in Delhi.",
+    "PM10": "Coarser dust particles under 10 micrometres — irritate the airways "
+            "and eyes; includes road and construction dust.",
+    "Dominant pollutant": "The pollutant driving today's AQI (e.g. pm25 = fine "
+                          "particles, pm10 = dust, o3 = ozone, no2 = traffic gas).",
+    "Risk score": "A 0-100 estimate of today's risk FOR YOU, combining the air "
+                  "quality with your age, health condition, and planned activity.",
+}
+
+
+# --- Privacy helpers ------------------------------------------------------
+EXCERPT_MAX = 120
+
+
+def session_hash(session_id: str) -> str:
+    """12-char sha256 of a session id. Raw id is never stored anywhere."""
+    return hashlib.sha256(str(session_id).encode("utf-8")).hexdigest()[:12]
+
+
+def excerpt(text: str, limit: int = EXCERPT_MAX) -> str:
+    """Cap untrusted prompt text before it is logged to security-events."""
+    return (text or "")[:limit]
+
+
+_TOKEN_RE = re.compile(r"(token|api[_-]?key)=([^&\s]+)", re.IGNORECASE)
+
+
+def sanitize_error(exc) -> str:
+    """Turn an exception into a short, secret-free string for telemetry.
+
+    Stores the exception class plus a truncated message with any
+    ``token=``/``api_key=`` query values redacted, so secrets and raw user
+    text never reach the ``app-telemetry`` index.
+    """
+    if exc is None:
+        return ""
+    name = type(exc).__name__
+    msg = _TOKEN_RE.sub(r"\1=REDACTED", str(exc))
+    msg = msg[:200]
+    return f"{name}: {msg}" if msg else name

@@ -1,0 +1,6 @@
+streamlit>=1.30
+elasticsearch>=8
+requests
+python-dotenv
+httpx
+pytest
