@@ -20,6 +20,43 @@ def test_build_message_contains_context_and_data_fence():
     assert "STALE DATA" not in msg
 
 
+def test_build_message_includes_best_window():
+    window = {"window": "Late morning (about 9 AM-12 PM)",
+              "rationale": "Fine particles are the main driver."}
+    msg = llm.build_user_message(READING, PERSONA, ADVISORIES, "When can I exercise?",
+                                 "Rohini", "t", best_window=window)
+    assert "Best-time-to-go-out heuristic" in msg
+    assert "Late morning (about 9 AM-12 PM)" in msg
+
+
+def test_build_message_omits_window_line_when_absent():
+    msg = llm.build_user_message(READING, PERSONA, ADVISORIES, "Safe?", "ITO", "t")
+    assert "Best-time-to-go-out heuristic" not in msg
+
+
+def test_rule_based_fallback_uses_best_window(monkeypatch):
+    monkeypatch.setattr(config, "openrouter_key", lambda: "")
+    window = {"window": "Midday (about 11 AM-3 PM)", "rationale": "Traffic gases peak at rush hour."}
+    text, _, status = llm.answer(READING, PERSONA, ADVISORIES, "When can I jog?",
+                                 best_window=window)
+    assert status == "llm_fallback"
+    assert "Midday (about 11 AM-3 PM)" in text
+
+
+def test_rule_based_fallback_is_activity_aware(monkeypatch):
+    monkeypatch.setattr(config, "openrouter_key", lambda: "")
+    text, _, status = llm.answer(READING, PERSONA, ADVISORIES, "Can I go for swimming?")
+    assert status == "llm_fallback"
+    assert "swimming" in text.lower()
+    assert "pool" in text.lower()  # activity-specific precaution
+
+
+def test_rule_based_fallback_generic_when_no_activity(monkeypatch):
+    monkeypatch.setattr(config, "openrouter_key", lambda: "")
+    text, _, _ = llm.answer(READING, PERSONA, ADVISORIES, "How is the air today?")
+    assert "outdoor activity" in text.lower()
+
+
 def test_build_message_stale_tag():
     msg = llm.build_user_message(STALE_READING, PERSONA, ADVISORIES,
                                  "Safe?", "ITO", "t")

@@ -260,8 +260,6 @@ def handle_message(prompt, persona, reading, waqi_status, client):
     uh = {"user_hash": user_hash} if user_hash else {}  # only the hash, ever
     locality = persona["locality"]
     st.session_state["history"].append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
     start = time.time()
 
@@ -281,35 +279,35 @@ def handle_message(prompt, persona, reading, waqi_status, client):
             "aqi_value": reading.get("aqi"), "locality": locality, "error": "", **uh,
         })
         refusal = ui.refusal_html(pattern)
-        with st.chat_message("assistant"):
-            st.markdown(refusal, unsafe_allow_html=True)
         st.session_state["history"].append({"role": "assistant", "html": refusal})
         _bust_dashboards()
-        return
+        st.rerun()
 
     try:
-        # 2) Retrieve advisories (ES BM25, in-process fallback).
-        advisories = es.search_advisories(
-            reading.get("aqi") or 0,
-            normalize.norm_condition(persona["condition"]),
-            normalize.norm_activity(persona["activity"]),
-            normalize.norm_age(persona["age"]),
-            client=client,
-        )
-        # 3) LLM (or rule-based fallback), then parse into advice-card sections.
-        persona_labels = {"age_group": persona["age"], "condition": persona["condition"],
-                          "activity": persona["activity"]}
-        text, tokens, llm_status = llm.answer(
-            reading, persona_labels, advisories, prompt,
-            locality=locality, timestamp=es.now_iso(),
-        )
-        sections = llm.parse_advice(text)
-        card = ui.advice_card_html(sections)
-        used = _format_used(reading, waqi_status, advisories)
-        with st.chat_message("assistant"):
-            st.markdown(card, unsafe_allow_html=True)
-            with st.expander("What the app used"):
-                st.markdown(used)
+        with st.spinner("Checking the air and preparing your advice…"):
+            # 2) Retrieve advisories (ES BM25, in-process fallback).
+            advisories = es.search_advisories(
+                reading.get("aqi") or 0,
+                normalize.norm_condition(persona["condition"]),
+                normalize.norm_activity(persona["activity"]),
+                normalize.norm_age(persona["age"]),
+                client=client,
+            )
+            # 3) LLM (or rule-based fallback), then parse into advice-card sections.
+            persona_labels = {"age_group": persona["age"], "condition": persona["condition"],
+                              "activity": persona["activity"]}
+            best_window = forecast.best_window(
+                reading.get("aqi"),
+                dominant_pollutant=reading.get("dominant_pollutant"),
+                forecast=reading.get("forecast"),
+            )
+            text, tokens, llm_status = llm.answer(
+                reading, persona_labels, advisories, prompt,
+                locality=locality, timestamp=es.now_iso(), best_window=best_window,
+            )
+            sections = llm.parse_advice(text)
+            card = ui.advice_card_html(sections)
+            used = _format_used(reading, waqi_status, advisories)
         st.session_state["history"].append({"role": "assistant", "html": card, "used": used})
 
         degraded = []
@@ -327,8 +325,6 @@ def handle_message(prompt, persona, reading, waqi_status, client):
     except Exception as exc:  # pragma: no cover - top-level safety net
         fallback = ("Sorry — something went wrong preparing your advice. When in "
                     "doubt, minimise outdoor exposure and wear an N95 outside.")
-        with st.chat_message("assistant"):
-            st.markdown(fallback)
         st.session_state["history"].append({"role": "assistant", "content": fallback})
         es.log_telemetry(client, {
             "@timestamp": es.now_iso(), "session_hash": session_hash,
@@ -338,6 +334,9 @@ def handle_message(prompt, persona, reading, waqi_status, client):
             "error": normalize.sanitize_error(exc), **uh,
         })
     _bust_dashboards()
+    # Re-run so the history loop repaints every message above the pinned chat
+    # input; rendering inline here would place new turns below the input box.
+    st.rerun()
 
 
 def _format_used(reading, waqi_status, advisories):
