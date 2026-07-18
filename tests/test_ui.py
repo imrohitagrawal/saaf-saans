@@ -126,6 +126,37 @@ def test_hero_shows_meaning_and_tooltips():
     assert "PM2.5" in html
 
 
+def test_hero_renders_cpcb_scale_and_band_context():
+    # Full 0-500 CPCB scale bar with all five segments + a positioned marker,
+    # and the band-context class that threads the --c-* triplet into the number.
+    html = ui.aqi_hero_html(
+        {"aqi": 410, "station": "Anand Vihar"},
+        ("Severe", "dark red", "#4a0000"),
+    )
+    assert "ss-scale-bar" in html
+    for seg in ("good", "moderate", "poor", "vpoor", "severe"):
+        assert f"ss-scale-seg--{seg}" in html
+    assert "ss-scale-marker" in html
+    assert "ss-cat-severe" in html          # band context on the card
+    assert "ss-cat-chip" in html            # tint/ink category chip
+    # marker position is clamped to the 0-100% track (410/500 -> 82%)
+    assert "left:82.0%" in html
+
+
+def test_station_card_uses_band_context():
+    html = ui.station_card_html("ITO", 190, ("Moderate", "orange", "#ef6c00"), False)
+    assert "ss-cat-moderate" in html
+    assert "ss-cat-chip" in html
+    assert "190" in html
+
+
+def test_unknown_category_falls_back_safely():
+    # None category must not raise and must land on the neutral band class.
+    html = ui.aqi_hero_html({"aqi": None}, None)
+    assert "ss-cat-unknown" in html
+    assert "ss-scale-marker" not in html    # no marker without a numeric AQI
+
+
 def test_risk_gauge_shows_what_to_do():
     html = ui.risk_gauge_html({"score": 72, "band": "High", "color": "#c62828",
                                "headline": "High risk", "advice": "Skip outdoor exercise.",

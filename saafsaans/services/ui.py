@@ -5,22 +5,24 @@ string ready to hand to ``st.markdown(..., unsafe_allow_html=True)``. There are
 no external assets, fonts, or CDN references: styling is a system font stack
 plus inline SVG, so the app renders identically offline.
 
-Design language: calm neutral base, a single deep-teal accent (#0f766e),
-cards with subtle borders and a soft shadow, crisp typographic hierarchy. The
-theme is dark-aware via ``@media (prefers-color-scheme: dark)`` layered over CSS
-variables. All dynamic text is escaped with ``html.escape`` and every function
-tolerates missing/None fields without raising, so a half-populated dict from an
-upstream failure still renders something sane instead of blowing up the page.
+Design language ("SaafSaans" tokens): a cool neutral canvas, a single deep-teal
+accent (#0c6b62), 14px cards with hairline borders and a soft shadow, mono
+numerals, and the five CPCB AQI category triplets (solid / tint / ink) driving
+every air-quality colour. The theme is dark-aware via
+``@media (prefers-color-scheme: dark)`` layered over ``:root`` CSS variables. All
+dynamic text is escaped with ``html.escape`` and every function tolerates
+missing/None fields without raising, so a half-populated dict from an upstream
+failure still renders something sane instead of blowing up the page.
 """
 import html
 
 # --- Palette --------------------------------------------------------------
 # Kept in one place so the CSS block and any inline SVG stay in sync.
-ACCENT = "#0f766e"          # deep teal, the single professional accent
-VERDICT_GO = "#2e7d32"      # green
-VERDICT_CAUTION = "#b45309" # amber
-VERDICT_NOGO = "#c62828"    # red
-_MUTED = "#64748b"          # slate
+ACCENT = "#0c6b62"          # deep teal, the single professional accent
+VERDICT_GO = "#2e7d32"      # green  (CPCB Good solid)
+VERDICT_CAUTION = "#ef6c00" # amber  (CPCB Moderate solid)
+VERDICT_NOGO = "#4a0000"    # red    (CPCB Severe solid)
+_MUTED = "#4f6069"          # cool slate
 
 
 def _esc(value) -> str:
@@ -50,86 +52,174 @@ def _hex(value, fallback: str = ACCENT) -> str:
 # places but honours it inside st.markdown(unsafe_allow_html=True).
 THEME_CSS = """<style>
 :root {
-  --ss-accent: #0f766e;
-  --ss-bg: #f8fafc;
-  --ss-card: #ffffff;
-  --ss-border: #e2e8f0;
-  --ss-text: #0f172a;
-  --ss-muted: #64748b;
-  --ss-shadow: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.06);
-  --ss-track: #e2e8f0;
+  /* neutrals (cool) */
+  --ss-bg: #f5f7f8;
+  --ss-card: #ffffff;          /* surface */
+  --ss-surface-2: #eef2f4;     /* nested/inset surface */
+  --ss-border: #e2e8eb;
+  --ss-border-strong: #c9d3d8;
+  --ss-text: #1b262c;
+  --ss-text-2: #4f6069;
+  --ss-muted: #6f818a;         /* tertiary / captions (was text-3) */
+  /* accent — teal */
+  --ss-accent: #0c6b62;
+  --ss-accent-hover: #0a564f;
+  --ss-accent-tint: #e3f1ef;
+  --ss-on-accent: #ffffff;
+  /* CPCB AQI category triplets */
+  --ss-cat-good-solid: #2e7d32;     --ss-cat-good-tint: #e4f3e6;     --ss-cat-good-ink: #1d5220;
+  --ss-cat-moderate-solid: #ef6c00; --ss-cat-moderate-tint: #fdeedd; --ss-cat-moderate-ink: #8a4503;
+  --ss-cat-poor-solid: #c62828;     --ss-cat-poor-tint: #fbe7e7;     --ss-cat-poor-ink: #8f1d1d;
+  --ss-cat-vpoor-solid: #7f0000;    --ss-cat-vpoor-tint: #f6e2e2;    --ss-cat-vpoor-ink: #6b0f0f;
+  --ss-cat-severe-solid: #4a0000;   --ss-cat-severe-tint: #f1e3e3;   --ss-cat-severe-ink: #4a0e0e;
+  /* status dots */
+  --ss-status-live: #2e7d32;
+  --ss-status-mock: #b26a00;
+  /* type */
+  --ss-font-ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ss-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* radii + elevation */
+  --ss-r-1: 6px; --ss-r-2: 10px; --ss-r-3: 14px;
+  --ss-shadow: 0 1px 2px rgba(16,32,38,.06);
+  --ss-shadow-md: 0 2px 8px rgba(16,32,38,.08);
+  --ss-track: #eef2f4;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ss-accent: #2dd4bf;
-    --ss-bg: #0b1120;
-    --ss-card: #111827;
-    --ss-border: #1f2937;
-    --ss-text: #e5e7eb;
-    --ss-muted: #94a3b8;
-    --ss-shadow: 0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
-    --ss-track: #1f2937;
+    --ss-bg: #0e1417;
+    --ss-card: #161e22;
+    --ss-surface-2: #1d262b;
+    --ss-border: #27333a;
+    --ss-border-strong: #37454d;
+    --ss-text: #e7edf0;
+    --ss-text-2: #a9b7be;
+    --ss-muted: #7e8e96;
+    --ss-accent: #46b6aa;
+    --ss-accent-hover: #63c6bb;
+    --ss-accent-tint: rgba(70,182,170,.14);
+    --ss-on-accent: #06231f;
+    --ss-cat-good-solid: #4caf50;     --ss-cat-good-tint: rgba(76,175,80,.16);   --ss-cat-good-ink: #8fd694;
+    --ss-cat-moderate-solid: #fb8c00; --ss-cat-moderate-tint: rgba(251,140,0,.15); --ss-cat-moderate-ink: #ffb45e;
+    --ss-cat-poor-solid: #e05353;     --ss-cat-poor-tint: rgba(224,83,83,.15);   --ss-cat-poor-ink: #f09a9a;
+    --ss-cat-vpoor-solid: #b71c1c;    --ss-cat-vpoor-tint: rgba(183,28,28,.2);   --ss-cat-vpoor-ink: #ea9c9c;
+    --ss-cat-severe-solid: #7f1d1d;   --ss-cat-severe-tint: rgba(127,29,29,.28); --ss-cat-severe-ink: #e59a9a;
+    --ss-status-live: #66bb6a;
+    --ss-status-mock: #e0a04a;
+    --ss-shadow: 0 1px 2px rgba(0,0,0,.4);
+    --ss-shadow-md: 0 2px 10px rgba(0,0,0,.45);
+    --ss-track: #1d262b;
   }
 }
+/* --- CPCB band context: each class publishes the active triplet as --c-* --- */
+.ss-cat-good     { --c-solid: var(--ss-cat-good-solid);     --c-tint: var(--ss-cat-good-tint);     --c-ink: var(--ss-cat-good-ink); }
+.ss-cat-moderate { --c-solid: var(--ss-cat-moderate-solid); --c-tint: var(--ss-cat-moderate-tint); --c-ink: var(--ss-cat-moderate-ink); }
+.ss-cat-poor     { --c-solid: var(--ss-cat-poor-solid);     --c-tint: var(--ss-cat-poor-tint);     --c-ink: var(--ss-cat-poor-ink); }
+.ss-cat-vpoor    { --c-solid: var(--ss-cat-vpoor-solid);    --c-tint: var(--ss-cat-vpoor-tint);    --c-ink: var(--ss-cat-vpoor-ink); }
+.ss-cat-severe   { --c-solid: var(--ss-cat-severe-solid);   --c-tint: var(--ss-cat-severe-tint);   --c-ink: var(--ss-cat-severe-ink); }
+.ss-cat-unknown  { --c-solid: #9e9e9e; --c-tint: rgba(158,158,158,.15); --c-ink: #5f6b70; }
+/* --- card / surface --- */
 .ss-card {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--ss-font-ui);
   background: var(--ss-card);
   border: 1px solid var(--ss-border);
-  border-radius: 14px;
+  border-radius: var(--ss-r-3);
   box-shadow: var(--ss-shadow);
   color: var(--ss-text);
-  padding: 18px 20px;
+  padding: 20px 22px;
   margin: 8px 0;
 }
 .ss-card * { box-sizing: border-box; }
+.ss-card--hero { box-shadow: var(--ss-shadow-md); }
 .ss-eyebrow {
   font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--ss-muted); font-weight: 600; margin: 0 0 6px;
+  color: var(--ss-muted); font-weight: 700; margin: 0 0 6px;
 }
+/* --- accent pill (default chip) --- */
 .ss-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 600; line-height: 1;
+  font-size: 12px; font-weight: 650; line-height: 1;
   padding: 5px 10px; border-radius: 999px;
-  background: rgba(15,118,110,.10); color: var(--ss-accent);
-  border: 1px solid rgba(15,118,110,.22);
+  background: var(--ss-accent-tint); color: var(--ss-accent);
+  border: 1px solid var(--ss-accent-tint);
   font-family: inherit;
 }
-.ss-chip--muted { background: var(--ss-track); color: var(--ss-muted); border-color: var(--ss-border); }
-.ss-chip--warn { background: rgba(180,83,9,.12); color: #b45309; border-color: rgba(180,83,9,.28); }
-.ss-chip--danger { background: rgba(198,40,40,.12); color: #c62828; border-color: rgba(198,40,40,.28); }
-.ss-chip--stale { background: rgba(180,83,9,.14); color: #b45309; border-color: rgba(180,83,9,.3); }
-.ss-kpi { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; }
-.ss-kpi-value { font-size: 26px; font-weight: 700; color: var(--ss-text); line-height: 1.1; }
-.ss-kpi-label { font-size: 12px; color: var(--ss-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.ss-kpi-sub { font-size: 12px; color: var(--ss-muted); }
+.ss-chip--muted { background: var(--ss-surface-2); color: var(--ss-text-2); border-color: var(--ss-border); }
+.ss-chip--warn { background: var(--ss-cat-moderate-tint); color: var(--ss-cat-moderate-ink); border-color: transparent; }
+.ss-chip--danger { background: var(--ss-cat-poor-tint); color: var(--ss-cat-poor-ink); border-color: transparent; }
+.ss-chip--stale {
+  background: var(--ss-cat-moderate-tint); color: var(--ss-cat-moderate-ink);
+  border-color: transparent; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 4px 9px;
+}
+/* --- mono metadata pill --- */
+.ss-chip--meta {
+  font-family: var(--ss-font-mono); font-size: 11px; font-weight: 500;
+  padding: 4px 10px; background: var(--ss-surface-2); color: var(--ss-text-2);
+  border: 1px solid var(--ss-border-strong); letter-spacing: 0;
+}
+/* --- CPCB category chip: tint bg + ink text from --c-* context --- */
+.ss-cat-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  padding: 5px 10px; border-radius: 999px;
+  background: var(--c-tint, var(--ss-surface-2));
+  color: var(--c-ink, var(--ss-text-2));
+}
+/* --- KPI tile --- */
+.ss-kpi { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; }
+.ss-kpi-value { font-family: var(--ss-font-mono); font-size: 24px; font-weight: 700; color: var(--ss-text); line-height: 1.1; letter-spacing: -.01em; }
+.ss-kpi-label { font-size: 11px; color: var(--ss-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.ss-kpi-sub { font-size: 12px; color: var(--ss-text-2); }
 .ss-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-.ss-hero-num { font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+/* --- AQI hero --- */
+.ss-hero-num { font-family: var(--ss-font-mono); font-size: 56px; font-weight: 750; line-height: 1; letter-spacing: -.02em; color: var(--c-solid, var(--ss-text)); }
+/* full-scale CPCB bar */
+.ss-scale { position: relative; padding-top: 20px; margin: 14px 0 4px; }
+.ss-scale-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; }
+.ss-scale-seg { flex: 1; }
+.ss-scale-seg--good     { background: var(--ss-cat-good-solid); }
+.ss-scale-seg--moderate { background: var(--ss-cat-moderate-solid); }
+.ss-scale-seg--poor     { background: var(--ss-cat-poor-solid); }
+.ss-scale-seg--vpoor    { background: var(--ss-cat-vpoor-solid); }
+.ss-scale-seg--severe   { background: var(--ss-cat-severe-solid); }
+.ss-scale-marker { position: absolute; top: 0; transform: translateX(-50%); font-family: var(--ss-font-mono); font-size: 10px; font-weight: 700; color: var(--ss-text); white-space: nowrap; }
+/* legacy single band (kept as thin fallback) */
 .ss-band { height: 6px; border-radius: 999px; margin: 12px 0; }
-.ss-metrics { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; }
-.ss-metric-label { font-size: 11px; color: var(--ss-muted); text-transform: uppercase; letter-spacing: .04em; }
-.ss-metric-val { font-size: 16px; font-weight: 700; }
-.ss-gauge-track { height: 12px; border-radius: 999px; background: var(--ss-track); overflow: hidden; }
+.ss-metrics { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; }
+.ss-metric-label { font-size: 11px; color: var(--ss-muted); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.ss-metric-val { font-family: var(--ss-font-mono); font-size: 16px; font-weight: 600; }
+/* --- risk gauge --- */
+.ss-gauge-track { height: 8px; border-radius: 999px; background: var(--ss-surface-2); border: 1px solid var(--ss-border); overflow: hidden; }
 .ss-gauge-fill { height: 100%; border-radius: 999px; }
-.ss-drivers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.ss-verdict { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; padding: 8px 14px; border-radius: 10px; }
-.ss-verdict-go { background: rgba(46,125,50,.12); color: #2e7d32; border: 1px solid rgba(46,125,50,.3); }
-.ss-verdict-caution { background: rgba(180,83,9,.12); color: #b45309; border: 1px solid rgba(180,83,9,.3); }
-.ss-verdict-nogo { background: rgba(198,40,40,.12); color: #c62828; border: 1px solid rgba(198,40,40,.3); }
+.ss-drivers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+/* --- advice verdict chip (3 states) --- */
+.ss-verdict { display: inline-flex; align-items: center; gap: 7px; font-weight: 750; font-size: 12px; letter-spacing: .08em; padding: 6px 13px; border-radius: 999px; }
+.ss-verdict::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.ss-verdict-go { background: var(--ss-cat-good-tint); color: var(--ss-cat-good-ink); }
+.ss-verdict-go::before { background: var(--ss-cat-good-solid); }
+.ss-verdict-caution { background: var(--ss-cat-moderate-tint); color: var(--ss-cat-moderate-ink); }
+.ss-verdict-caution::before { background: var(--ss-cat-moderate-solid); }
+.ss-verdict-nogo { background: var(--ss-cat-severe-tint); color: var(--ss-cat-severe-ink); }
+.ss-verdict-nogo::before { background: var(--ss-cat-severe-solid); }
 .ss-list { margin: 8px 0 0; padding-left: 18px; }
-.ss-list li { font-size: 14px; margin: 3px 0; color: var(--ss-text); }
-.ss-section-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ss-muted); font-weight: 700; margin-top: 14px; }
+.ss-list li { font-size: 14px; margin: 3px 0; color: var(--ss-text-2); }
+.ss-section-label { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ss-muted); font-weight: 700; margin-top: 14px; }
 .ss-disclaimer { font-size: 11px; color: var(--ss-muted); margin-top: 14px; font-style: italic; }
 .ss-station-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.ss-station { padding: 12px 14px; }
+.ss-station { padding: 14px 16px; }
 .ss-station-name { font-size: 13px; font-weight: 600; color: var(--ss-text); }
-.ss-station-aqi { font-size: 22px; font-weight: 800; }
-.ss-dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 6px; }
-.ss-dot--live { background: #2e7d32; }
-.ss-dot--mock { background: #94a3b8; }
+.ss-station-aqi { font-family: var(--ss-font-mono); font-size: 22px; font-weight: 750; color: var(--c-solid, var(--ss-text)); }
+.ss-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 6px; }
+.ss-dot--live { background: var(--ss-status-live); }
+.ss-dot--mock { background: var(--ss-status-mock); }
 .ss-status-row { display: flex; flex-wrap: wrap; gap: 16px; }
 .ss-status-item { font-size: 13px; color: var(--ss-text); display: inline-flex; align-items: center; }
 .ss-headline { font-size: 15px; font-weight: 600; color: var(--ss-text); margin-top: 8px; }
-.ss-refusal { border-left: 4px solid var(--ss-accent); }
+/* --- calm refusal notice --- */
+.ss-refusal { border: 1px solid var(--ss-border); border-radius: var(--ss-r-2); border-top-left-radius: var(--ss-r-1); background: var(--ss-surface-2); padding: 16px 18px; margin: 8px 0; display: flex; gap: 12px; font-family: var(--ss-font-ui); color: var(--ss-text); }
+.ss-refusal-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--ss-accent-tint); color: var(--ss-accent); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex: none; }
+.ss-refusal-title { font-size: 13.5px; font-weight: 700; color: var(--ss-text); }
+.ss-refusal-body { margin: 4px 0 0; font-size: 13px; color: var(--ss-text-2); }
 </style>"""
 
 
@@ -155,8 +245,8 @@ def aqi_hero_html(reading: dict, category: tuple, meaning: str = None) -> str:
     em dash rather than breaking the layout.
     """
     reading = reading or {}
-    label, _color_name, hexcolor = _unpack_category(category)
-    color = _hex(hexcolor)
+    label, _color_name, _hexcolor = _unpack_category(category)
+    cat_cls = _cat_class(label)
     aqi = reading.get("aqi")
     aqi_txt = _esc(aqi) if aqi is not None else "--"
     pm25 = _fmt_num(reading.get("pm25"))
@@ -171,16 +261,24 @@ def aqi_hero_html(reading: dict, category: tuple, meaning: str = None) -> str:
         f'<div class="ss-headline" style="font-weight:500;">{_esc(meaning)}</div>'
         if meaning else ""
     )
+    pct = _scale_pct(aqi)
+    marker = (
+        f'<div class="ss-scale-marker" style="left:{pct:.1f}%;">{aqi_txt} &#9662;</div>'
+        if pct is not None else ""
+    )
+    scale_html = (
+        f'<div class="ss-scale">{marker}'
+        f'<div class="ss-scale-bar">{_SCALE_SEGS}</div></div>'
+    )
     return (
-        '<div class="ss-card">'
+        f'<div class="ss-card ss-card--hero {cat_cls}">'
         '<div class="ss-eyebrow">Air Quality Index</div>'
         f'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">'
-        f'<span class="ss-hero-num" style="color:{color};">{aqi_txt}</span>'
-        f'<span class="ss-chip" style="background:{color}1a;color:{color};'
-        f'border-color:{color}44;">{_esc(label)}</span>'
+        f'<span class="ss-hero-num">{aqi_txt}</span>'
+        f'<span class="ss-cat-chip">{_esc(label)}</span>'
         f'{stale_pill}'
         '</div>'
-        f'<div class="ss-band" style="background:{color};"></div>'
+        f'{scale_html}'
         f'{meaning_html}'
         '<div class="ss-metrics">'
         f'<div><div class="ss-metric-label" title="{_esc(_TIP_PM25)}">PM2.5 &#9432;</div>'
@@ -299,18 +397,17 @@ def kpi_row_html(tiles: list) -> str:
 # --- Station card ---------------------------------------------------------
 def station_card_html(name: str, aqi, category: tuple, stale: bool) -> str:
     """Compact station tile for the monitoring grid."""
-    label, _color_name, hexcolor = _unpack_category(category)
-    color = _hex(hexcolor)
+    label, _color_name, _hexcolor = _unpack_category(category)
+    cat_cls = _cat_class(label)
     aqi_txt = _esc(aqi) if aqi is not None else "--"
     stale_pill = (
         ' <span class="ss-chip ss-chip--stale">STALE</span>' if stale else ""
     )
     return (
-        '<div class="ss-card ss-station">'
+        f'<div class="ss-card ss-station {cat_cls}">'
         f'<div class="ss-station-name">{_esc(name) or "Station"}</div>'
-        f'<div class="ss-station-aqi" style="color:{color};">{aqi_txt}</div>'
-        f'<span class="ss-chip" style="background:{color}1a;color:{color};'
-        f'border-color:{color}44;">{_esc(label)}</span>{stale_pill}'
+        f'<div class="ss-station-aqi">{aqi_txt}</div>'
+        f'<span class="ss-cat-chip">{_esc(label)}</span>{stale_pill}'
         '</div>'
     )
 
@@ -356,13 +453,15 @@ def refusal_html(pattern: str) -> str:
     ``pattern`` is contextual only; we never echo raw user text here.
     """
     return (
-        '<div class="ss-card ss-refusal">'
-        '<div class="ss-eyebrow">Safety Notice</div>'
-        '<div class="ss-headline">Your request was not processed.</div>'
-        '<div class="ss-kpi-sub" style="margin-top:6px;">'
+        '<div class="ss-refusal">'
+        '<div class="ss-refusal-icon" aria-hidden="true">&#10003;</div>'
+        '<div>'
+        '<div class="ss-refusal-title">Your request was not processed.</div>'
+        '<p class="ss-refusal-body">'
         "This assistant focuses on air quality and public health guidance for "
         "Delhi. Please rephrase your question and try again — we're happy "
-        "to help.</div>"
+        "to help.</p>"
+        '</div>'
         '</div>'
     )
 
@@ -394,6 +493,36 @@ def _status_item(name: str, live: bool, detail: str) -> str:
         f'<span class="ss-kpi-sub" style="margin-left:4px;">({_esc(detail)})</span>'
         '</span>'
     )
+
+
+# CPCB label -> band key used for the --c-* triplet context classes.
+_CAT_KEYS = {
+    "Good": "good", "Moderate": "moderate", "Poor": "poor",
+    "Very Poor": "vpoor", "Severe": "severe",
+}
+# Five equal CPCB scale segments, rendered left-to-right.
+_SCALE_SEGS = (
+    '<div class="ss-scale-seg ss-scale-seg--good"></div>'
+    '<div class="ss-scale-seg ss-scale-seg--moderate"></div>'
+    '<div class="ss-scale-seg ss-scale-seg--poor"></div>'
+    '<div class="ss-scale-seg ss-scale-seg--vpoor"></div>'
+    '<div class="ss-scale-seg ss-scale-seg--severe"></div>'
+)
+
+
+def _cat_class(label) -> str:
+    """Map a CPCB label to its band context class (falls back to unknown)."""
+    key = _CAT_KEYS.get(str(label or "").strip())
+    return f"ss-cat-{key}" if key else "ss-cat-unknown"
+
+
+def _scale_pct(aqi):
+    """Marker position on the 0-500 CPCB scale as a clamped percentage, or None."""
+    try:
+        val = float(aqi)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, min(100.0, val / 500.0 * 100.0))
 
 
 def _unpack_category(category):
