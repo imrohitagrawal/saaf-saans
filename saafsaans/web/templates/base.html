@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}SaafSaans{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{# Persona is carried in the query string, so every nav link must preserve it. #}
+{% set qs = "locality=" ~ persona.locality|urlencode ~ "&age=" ~ persona.age|urlencode
+          ~ "&condition=" ~ persona.condition|urlencode ~ "&activity=" ~ persona.activity|urlencode %}
+<div class="shell">
+  <aside class="rail">
+    <div class="eyebrow">Your persona</div>
+    <form method="get" action="{{ action|default('/') }}">
+      <label for="locality">Locality</label>
+      <select id="locality" name="locality" onchange="this.form.submit()">
+        {% for region, locs in regions.items() %}
+        <optgroup label="{{ region }}">
+          {% for loc in locs %}
+          <option value="{{ loc }}" {% if loc == persona.locality %}selected{% endif %}>{{ loc }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+
+      <label for="age">Age group</label>
+      <select id="age" name="age" onchange="this.form.submit()">
+        {% for a in ages %}<option {% if a == persona.age %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+
+      <label for="condition">Health condition</label>
+      <select id="condition" name="condition" onchange="this.form.submit()">
+        {% for c in conditions %}<option {% if c == persona.condition %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+
+      <label for="activity">Planned activity</label>
+      <select id="activity" name="activity" onchange="this.form.submit()">
+        {% for a in activities %}<option {% if a == persona.activity %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+
+      {# Works without JavaScript: the selects auto-submit when JS is on, this
+         button is the fallback when it is not. #}
+      <noscript><button type="submit" style="margin-top:14px">Update</button></noscript>
+    </form>
+
+    <div class="eyebrow" style="margin-top:30px">Service status</div>
+    <div class="svc"><span class="dot" style="background:{{ '#2e7d32' if status.es != 'mock' else '#b26a00' }}"></span>Elasticsearch ({{ status.es }})</div>
+    <div class="svc"><span class="dot" style="background:{{ '#2e7d32' if status.waqi else '#b26a00' }}"></span>Air data ({{ 'live' if status.waqi else 'sample' }})</div>
+    <div class="svc"><span class="dot" style="background:{{ '#2e7d32' if status.llm else '#b26a00' }}"></span>Assistant ({{ 'live' if status.llm else 'rule-based' }})</div>
+
+    <p class="svc" style="margin-top:26px;color:var(--ink-3)">
+      Your persona stays in this session only &mdash; it is never written to any
+      index. Logs store a hashed id, place, and status.
+    </p>
+  </aside>
+
+  <main class="main">
+    <div class="mast">
+      <div class="mark">Saaf<span>Saans</span></div>
+      <div class="meta">{{ persona.locality }}</div>
+    </div>
+    <nav class="tabs">
+      <a href="/?{{ qs }}" {% if active == 'advisor' %}aria-current="page"{% endif %}>Advisor</a>
+      <a href="/city?{{ qs }}" {% if active == 'city' %}aria-current="page"{% endif %}>City Pulse</a>
+    </nav>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

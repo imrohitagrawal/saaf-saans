@@ -1,0 +1,107 @@
+/* SaafSaans design tokens.
+   Structural placeholder: the layout below is deliberately plain so a design
+   returned against docs/design-brief-v1.md can replace it wholesale. Tokens,
+   the severity ramp, and the contrast rules are the parts worth keeping. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap');
+
+:root{
+  color-scheme: light dark;
+  --bg:#fafaf8; --surface:#fff; --surface-2:#f2f2ee;
+  --rule:#e2e4e1; --rule-strong:#c9ccc8;
+  --ink:#141618; --ink-2:#5a6167; --ink-3:#8b9299;
+  --chrome:#0c6b62; --chrome-tint:#e4efed;
+  /* CPCB categories. Severe is the DARKEST step against a light canvas. */
+  --cat-good:#2e7d32; --cat-satisfactory:#5a9e2f; --cat-moderate:#ef6c00;
+  --cat-poor:#c62828; --cat-vpoor:#7f0000; --cat-severe:#4a0000;
+  --font:"IBM Plex Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --font-cond:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1113; --surface:#171b1e; --surface-2:#1e2327;
+    --rule:#272c30; --rule-strong:#3a4147;
+    --ink:#f2f4f3; --ink-2:#a8b0b5; --ink-3:#6e777d;
+    --chrome:#4fd1c0; --chrome-tint:rgba(79,209,192,.14);
+    /* Lightness direction inverts: severe must be the BRIGHTEST step here, so
+       severity tracks contrast-against-background in both themes. */
+    --cat-good:#4e9153; --cat-satisfactory:#7aa83f; --cat-moderate:#e39b3c;
+    --cat-poor:#f2685c; --cat-vpoor:#ff8f7a; --cat-severe:#ffb4a0;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+  font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--chrome)}
+.mono,[data-num]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--font-cond);font-size:11px;font-weight:600;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3)}
+
+.shell{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100dvh}
+@media (max-width:860px){.shell{grid-template-columns:1fr}}
+.rail{border-right:1px solid var(--rule);padding:22px 20px;background:var(--surface-2)}
+.main{padding:22px 32px 80px;max-width:1080px}
+@media (max-width:860px){.main{padding:20px}}
+
+.mast{display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:2px solid var(--ink);padding-bottom:10px}
+.mark{font-weight:700;font-size:19px;letter-spacing:-.02em}
+.mark span{color:var(--chrome)}
+.meta{font-family:var(--mono);font-size:12px;color:var(--ink-2);
+  text-transform:uppercase;letter-spacing:.07em}
+
+nav.tabs{display:flex;gap:22px;border-bottom:1px solid var(--rule);margin-bottom:36px}
+nav.tabs a{padding:11px 0;text-decoration:none;color:var(--ink-2);font-size:14.5px;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.tabs a[aria-current=page]{color:var(--ink);border-bottom-color:var(--chrome);font-weight:600}
+
+label{display:block;font-size:12px;color:var(--ink-2);margin:14px 0 5px;font-weight:500}
+select,input[type=text]{width:100%;padding:8px 10px;font:inherit;font-size:14px;
+  background:var(--surface);color:var(--ink);border:1px solid var(--rule-strong);border-radius:0}
+select:focus,input:focus,button:focus-visible{outline:2px solid var(--chrome);outline-offset:1px}
+button{font:inherit;padding:9px 16px;border:1px solid var(--chrome);border-radius:0;
+  background:var(--chrome);color:var(--bg);cursor:pointer;font-weight:600;font-size:14px}
+button.ghost{background:transparent;color:var(--chrome)}
+
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:44px;align-items:start}
+@media (max-width:860px){.hero{grid-template-columns:1fr;gap:28px}}
+.aqi{font-family:var(--mono);font-weight:500;font-size:clamp(60px,10vw,116px);
+  line-height:.88;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--cat)}
+.band{display:inline-block;font-family:var(--font-cond);font-size:12px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;
+  border:1px solid var(--cat);color:var(--cat)}
+.scale{display:flex;height:9px;margin:18px 0 6px}
+.scale i{flex:1}
+.meaning{color:var(--ink-2);max-width:46ch;margin:14px 0 0}
+
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);margin:38px 0 0}
+.stat{background:var(--bg);padding:14px 16px}
+.stat b{display:block;font-family:var(--mono);font-size:22px;font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.stat small{color:var(--ink-3);font-size:12px}
+
+.sect{margin-top:52px;border-top:1px solid var(--rule-strong);padding-top:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule)}
+.cell{background:var(--bg);padding:12px 14px}
+.cell b{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--cat)}
+.cell span{display:block;font-size:12.5px;color:var(--ink-2)}
+
+.turn{border-top:1px solid var(--rule);padding:20px 0}
+.turn.user{font-weight:600}
+.turn h4{margin:16px 0 4px;font-size:13px;font-family:var(--font-cond);
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.turn p{margin:0 0 8px;max-width:64ch}
+details{margin-top:12px}summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
+.ask{display:flex;gap:10px;margin-top:22px}
+.ask input{flex:1}
+.warn{border-left:3px solid var(--cat-poor);padding-left:14px;color:var(--ink-2)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{text-align:left;font-family:var(--font-cond);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--rule-strong);padding:0 0 7px}
+td{padding:8px 0;border-bottom:1px solid var(--rule);font-family:var(--mono);
+  font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--font)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}
+.svc{font-size:12.5px;color:var(--ink-2);margin-top:6px}

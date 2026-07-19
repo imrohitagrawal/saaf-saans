@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}SaafSaans — {{ persona.locality }}{% endblock %}
+{% set cat = category[0] %}
+{% set catvar = {'Good':'--cat-good','Satisfactory':'--cat-satisfactory','Moderate':'--cat-moderate','Poor':'--cat-poor','Very Poor':'--cat-vpoor','Severe':'--cat-severe'}.get(cat,'--ink-2') %}
+
+{% block content %}
+<section class="hero" style="--cat:var({{ catvar }})">
+  <div>
+    <div class="eyebrow">Air quality index &middot; {{ reading.station or persona.locality }}</div>
+    <div class="aqi">{{ reading.aqi if reading.aqi is not none else '--' }}</div>
+    <div style="margin-top:12px"><span class="band">{{ cat }}</span></div>
+
+    {# The CPCB scale, shown as position rather than as the page's colour system. #}
+    <div class="scale" role="img" aria-label="CPCB scale position: {{ cat }}">
+      <i style="background:var(--cat-good)"></i><i style="background:var(--cat-satisfactory)"></i>
+      <i style="background:var(--cat-moderate)"></i><i style="background:var(--cat-poor)"></i>
+      <i style="background:var(--cat-vpoor)"></i><i style="background:var(--cat-severe)"></i>
+    </div>
+    <div class="meta" style="font-size:11px">0 &nbsp; 50 &nbsp; 100 &nbsp; 200 &nbsp; 300 &nbsp; 400 &nbsp; 500</div>
+    <p class="meaning">{{ meaning }}</p>
+  </div>
+
+  <div>
+    <div class="eyebrow">Personal risk</div>
+    <div style="font-family:var(--mono);font-size:52px;font-weight:600;line-height:1;
+                font-variant-numeric:tabular-nums">{{ risk.score }}<span
+      style="font-size:.35em;color:var(--ink-3)"> / 100</span></div>
+    <div style="margin-top:10px"><span class="band" style="--cat:{{ risk.color }}">{{ risk.band }}</span></div>
+    <p style="margin:14px 0 6px;font-weight:600">{{ risk.headline }}</p>
+    <p style="margin:0;color:var(--ink-2);font-size:14.5px">{{ risk.advice }}</p>
+    <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-2);font-size:13.5px">
+      {% for d in risk.drivers %}<li>{{ d }}</li>{% endfor %}
+    </ul>
+  </div>
+</section>
+
+<div class="stat-row">
+  <div class="stat">
+    <b style="font-size:16px;font-family:var(--font)">{{ window.window }}</b>
+    <small>Best time to go out</small>
+  </div>
+  <div class="stat">
+    <b>{{ reading.pm25|round|int if reading.pm25 is not none else '--' }}</b><small>PM2.5 &micro;g/m&sup3;</small>
+  </div>
+  <div class="stat">
+    <b>{{ reading.pm10|round|int if reading.pm10 is not none else '--' }}</b><small>PM10 &micro;g/m&sup3;</small>
+  </div>
+  <div class="stat">
+    <b style="font-size:16px;font-family:var(--font)">{{ reading.dominant_pollutant }}</b>
+    <small>Dominant pollutant</small>
+  </div>
+  <div class="stat">
+    <b style="font-size:16px;font-family:var(--font)">{{ 'LIVE' if waqi_status == 'ok' else 'CACHED' }}</b>
+    <small>{{ 'from WAQI/CPCB' if waqi_status == 'ok' else 'sample — no live feed' }}</small>
+  </div>
+</div>
+<p style="color:var(--ink-3);font-size:13px;margin-top:10px">{{ window.rationale }}</p>
+
+{% if outlook %}
+<section class="sect">
+  <div class="eyebrow">PM2.5 multi-day outlook</div>
+  <table style="margin-top:16px">
+    <tr>{% for k in outlook[0].keys() %}<th>{{ k|replace('_',' ') }}</th>{% endfor %}</tr>
+    {% for row in outlook %}<tr>{% for v in row.values() %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}
+  </table>
+</section>
+{% endif %}
+
+<section class="sect">
+  <div class="eyebrow">Ask SaafSaans</div>
+  <p style="color:var(--ink-2);font-size:14px;margin:10px 0 0">
+    Next answer is for {{ persona.age|lower }} &middot; {{ persona.condition|lower }}
+    &middot; {{ persona.activity|lower }} &middot; {{ persona.locality }}.
+  </p>
+
+  {% for turn in transcript %}
+    {% if turn.role == 'user' %}
+      <div class="turn user">{{ turn.text }}</div>
+    {% elif turn.refused %}
+      <div class="turn"><p class="warn">That question looked like an attempt to change the
+        assistant's instructions ({{ turn.pattern }}), so it was blocked before reaching the
+        model. Ask about air quality, masks, timing, or symptoms instead.</p></div>
+    {% elif turn.error %}
+      <div class="turn"><p class="warn">Something went wrong preparing your advice. When in
+        doubt, minimise outdoor exposure and wear an N95 outside.</p></div>
+    {% else %}
+      <div class="turn">
+        {% for heading, body in turn.sections.items() %}
+          <h4>{{ heading|replace('_',' ') }}</h4>
+          {% if body is string %}<p>{{ body }}</p>
+          {% else %}<ul>{% for item in body %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+        {% endfor %}
+        <details>
+          <summary>What the app used</summary>
+          <p style="font-size:13.5px;color:var(--ink-2);margin-top:10px">
+            AQI {{ turn.reading.aqi }} ({{ turn.waqi_status }}) &middot;
+            PM2.5 {{ turn.reading.pm25 }} &middot; dominant {{ turn.reading.dominant_pollutant }}
+          </p>
+          <ul style="font-size:13.5px;color:var(--ink-2)">
+            {% for s in turn.sources %}<li><em>{{ s.source }}</em> — {{ s.advice }}</li>{% endfor %}
+          </ul>
+        </details>
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <form class="ask" method="post" action="/ask?{{ qs }}">
+    <input type="text" name="question" required
+           placeholder="Ask about going out, masks, timing, symptoms…"
+           aria-label="Your question">
+    <button type="submit">Ask</button>
+  </form>
+</section>
+
+<section class="sect">
+  <div class="eyebrow">What these numbers mean</div>
+  <dl style="font-size:14px;color:var(--ink-2)">
+    {% for term, definition in glossary.items() %}
+    <dt style="font-weight:600;color:var(--ink);margin-top:12px">{{ term }}</dt>
+    <dd style="margin:2px 0 0">{{ definition }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endblock %}

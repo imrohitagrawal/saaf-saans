@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set action = '/city' %}
+{% block title %}SaafSaans — City Pulse{% endblock %}
+
+{% block content %}
+<div class="eyebrow">Delhi-NCR station grid</div>
+<p style="color:var(--ink-2);margin:10px 0 26px;max-width:60ch">
+  Latest reading per station, read from Elasticsearch. Stations marked
+  <strong>stale</strong> have no recent live reading.
+</p>
+
+{% set catvars = {'Good':'--cat-good','Satisfactory':'--cat-satisfactory','Moderate':'--cat-moderate','Poor':'--cat-poor','Very Poor':'--cat-vpoor','Severe':'--cat-severe'} %}
+{% for region, locs in regions.items() %}
+  <h3 style="font-size:14px;margin:26px 0 10px">{{ region }}</h3>
+  <div class="grid">
+    {% for s in stations if s.name in locs %}
+    <div class="cell" style="--cat:var({{ catvars.get(s.category[0],'--ink-2') }})">
+      <b>{{ s.aqi if s.aqi is not none else '--' }}</b>
+      <span>{{ s.name }}</span>
+      <span style="color:var(--ink-3);font-size:11.5px">
+        {{ s.category[0] }}{% if s.stale %} &middot; stale{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+
+<section class="sect">
+  <div class="eyebrow">24-hour trend &middot; {{ persona.locality }}</div>
+  {% set pts = trend.points or [] %}
+  {% if pts %}
+    {% set vals = pts | map(attribute='aqi') | select('number') | list %}
+    {% set top = (vals | max) if vals else 1 %}
+    <svg viewBox="0 0 720 200" style="width:100%;height:220px;margin-top:18px"
+         role="img" aria-label="AQI over the last 24 hours, peak {{ top }}">
+      <polyline fill="none" stroke="var(--chrome)" stroke-width="2"
+        points="{% for p in pts %}{{ loop.index0 * (720 / (pts|length - 1 if pts|length > 1 else 1)) }},{{ 190 - ((p.aqi or 0) / top * 170) }} {% endfor %}"/>
+      <line x1="0" y1="190" x2="720" y2="190" stroke="var(--rule-strong)" stroke-width="1"/>
+    </svg>
+    <div class="meta" style="font-size:11px">peak {{ top }} &middot; {{ pts|length }} points</div>
+  {% else %}
+    <p style="color:var(--ink-2)">No trend data yet. Run
+      <code>python -m saafsaans.seed_demo_history</code> to backfill, or keep using
+      the app to accumulate live readings.</p>
+  {% endif %}
+</section>
+{% endblock %}
