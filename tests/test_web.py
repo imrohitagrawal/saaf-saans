@@ -151,14 +151,15 @@ def test_transcript_keeps_every_turn_newest_first(client):
 
 
 def test_each_turn_records_the_persona_it_was_answered_for(client):
-    client.post("/ask", params={**PERSONA, "condition": "COPD", "age": "Senior"},
+    client.post("/ask", params={**PERSONA, "condition": "COPD", "age": "Senior",
+                                "activity": "School run"},
                 data={"question": "Can I walk to the shop?"})
     client.post("/ask", params={**PERSONA, "condition": "Fit"},
                 data={"question": "And if I were fit?"})
     body = client.get("/", params=PERSONA).text
     # Answers are persona-locked, so history must say which persona each was for.
-    assert "answered for Senior · copd" in body
-    assert "answered for Adult · outdoor exercise" in body
+    assert "a senior with COPD, planning a school run" in body
+    assert "an adult in good health, planning outdoor exercise" in body
 
 
 def test_provenance_opens_per_turn_independently(client):

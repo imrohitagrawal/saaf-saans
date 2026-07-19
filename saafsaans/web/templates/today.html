@@ -44,12 +44,11 @@
   {# --- Persona. Spans full width while editing so four fields have room. --- #}
   <section class="card {% if persona_open %}wide{% endif %}" aria-label="Your persona" id="persona">
     <div class="row">
-      <span class="kicker">This advice is for</span>
-      <span class="persona-line">{{ persona_line }}</span>
+      <p class="persona-line">This advice is for <strong>{{ persona_line }}</strong>.</p>
       <a class="pill-btn strong" style="margin-left:auto"
          href="/?{{ q_persona_toggle }}#persona"
          aria-expanded="{{ 'true' if persona_open else 'false' }}">
-        {{ 'Done' if persona_open else 'Not you? Change ›' }}
+        {{ 'Done' if persona_open else 'Change details' }}
       </a>
     </div>
 
@@ -192,7 +191,7 @@
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
         <div class="q"><span class="mark">Q ·</span><p>{{ t.question }}</p></div>
-        <p class="answered-for">answered for {{ t.persona_line }}</p>
+        <p class="answered-for">Answered for {{ t.persona_line }}</p>
 
         {% if t.kind == 'refusal' %}
           {# Flat, no red, no icon: a blocked prompt is routine, not an accusation. #}

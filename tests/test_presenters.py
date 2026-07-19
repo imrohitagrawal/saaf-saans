@@ -18,18 +18,35 @@ def test_verdict_falls_back_to_the_cautious_line():
 
 
 # --- Persona ---------------------------------------------------------------
-def test_persona_kicker_matches_the_design():
+def test_persona_reads_as_a_sentence_not_a_database_row():
+    """Dot-joined values ("Senior · copd · school run · Noida") describe a record,
+    not a person. Every surface must read as prose."""
+    assert p.persona_line(PERSONA) == \
+        "an adult with asthma, planning outdoor exercise in Anand Vihar"
     assert p.persona_kicker(PERSONA) == \
         "FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE"
+    assert "·" not in p.persona_line(PERSONA)
 
 
-def test_persona_kicker_omits_a_neutral_condition():
-    fit = {**PERSONA, "condition": "Fit"}
-    assert p.persona_kicker(fit) == "FOR AN ADULT, PLANNING OUTDOOR EXERCISE"
+def test_persona_sentence_uses_correct_articles_for_every_combination():
+    cases = {
+        ("Senior", "COPD", "School run"): "a senior with COPD, planning a school run",
+        ("Adult", "Fit", "Outdoor exercise"): "an adult in good health, planning outdoor exercise",
+        ("Child", "Asthma", "Commute"): "a child with asthma, planning a commute",
+        ("Adult", "Pregnancy", "Stay home"): "an adult who is pregnant, planning to stay home",
+        ("Senior", "Heart condition", "Commute"): "a senior with a heart condition, planning a commute",
+    }
+    for (age, cond, act), expected in cases.items():
+        got = p.persona_sentence({"age": age, "condition": cond, "activity": act},
+                                 with_place=False)
+        assert got == expected, got
 
 
-def test_persona_line_matches_the_design():
-    assert p.persona_line(PERSONA) == "Adult · asthma · outdoor exercise · Anand Vihar"
+def test_persona_sentence_place_is_optional_and_junk_is_survivable():
+    assert p.persona_sentence(PERSONA).endswith("in Anand Vihar")
+    assert "in " not in p.persona_sentence(PERSONA, with_place=False).split(",")[-1][:4]
+    assert p.persona_sentence({}) == "an adult in good health"
+    assert p.persona_sentence(None) == "an adult in good health"
 
 
 # --- Comparison ------------------------------------------------------------

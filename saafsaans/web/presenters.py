@@ -28,32 +28,53 @@ def verdict_for(band: str) -> str:
 
 
 # --- Persona ---------------------------------------------------------------
-_ARTICLE = {"Adult": "AN ADULT", "Child": "A CHILD", "Senior": "A SENIOR"}
+# The persona appears in three places and must read as a sentence in all of
+# them. Joining the raw values with dots ("Senior · copd · school run · Noida")
+# reads as a database row, not as a description of a person.
+_AGE_PHRASE = {"Child": "a child", "Adult": "an adult", "Senior": "a senior"}
+_CONDITION_PHRASE = {
+    "Fit": "in good health",
+    "None": "in good health",
+    "Asthma": "with asthma",
+    "Heart condition": "with a heart condition",
+    "Pregnancy": "who is pregnant",
+    "COPD": "with COPD",
+}
+_ACTIVITY_PHRASE = {
+    "Outdoor exercise": "planning outdoor exercise",
+    "Commute": "planning a commute",
+    "School run": "planning a school run",
+    "Stay home": "planning to stay home",
+}
 _NEUTRAL_CONDITIONS = {"Fit", "None", None, ""}
 
 
-def persona_kicker(persona: dict) -> str:
-    """e.g. 'FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE'."""
-    who = _ARTICLE.get(persona.get("age"), "AN ADULT")
-    parts = [f"FOR {who}"]
-    condition = persona.get("condition")
-    if condition not in _NEUTRAL_CONDITIONS:
-        parts.append(f"WITH {condition.upper()}")
-    activity = persona.get("activity")
+def persona_sentence(persona: dict, with_place: bool = True) -> str:
+    """e.g. 'a senior with COPD, planning a school run in Noida'.
+
+    Reads as prose so it can be dropped into a sentence anywhere it is needed.
+    """
+    persona = persona or {}
+    who = _AGE_PHRASE.get(persona.get("age"), "an adult")
+    condition = _CONDITION_PHRASE.get(persona.get("condition"), "in good health")
+    activity = _ACTIVITY_PHRASE.get(persona.get("activity"))
+    parts = f"{who} {condition}"
     if activity:
-        return ", ".join([" ".join(parts), f"PLANNING {activity.upper()}"])
-    return " ".join(parts)
+        parts += f", {activity}"
+    place = persona.get("locality")
+    if with_place and place:
+        parts += f" in {place}"
+    return parts
+
+
+def persona_kicker(persona: dict) -> str:
+    """The hero's small-caps line. Place is omitted -- the hero already shows it."""
+    return "FOR " + persona_sentence(persona, with_place=False).upper()
 
 
 def persona_line(persona: dict) -> str:
-    """e.g. 'Adult · asthma · outdoor exercise · Anand Vihar'."""
-    condition = persona.get("condition")
-    bits = [persona.get("age", "Adult")]
-    if condition not in _NEUTRAL_CONDITIONS:
-        bits.append(condition.lower())
-    bits.append(str(persona.get("activity", "")).lower())
-    bits.append(persona.get("locality", ""))
-    return " · ".join(b for b in bits if b)
+    """The persona as a readable phrase, for the card and the transcript."""
+    return persona_sentence(persona)
 
 
 def _reasons(persona: dict) -> str:

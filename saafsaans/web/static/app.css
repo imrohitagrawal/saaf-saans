@@ -147,7 +147,9 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 
 /* --------------------------------------------------------------- persona -- */
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.persona-line { font-size: 13.5px; font-weight: 600; }
+.persona-line { margin: 0; font-size: 14.5px; font-weight: 400;
+                 color: var(--text-2); flex: 1 1 260px; text-wrap: pretty; }
+.persona-line strong { color: var(--text); font-weight: 600; }
 .pill-btn { border: 1px solid var(--border-s); background: none; color: var(--accent);
             font-family: var(--mono); font-size: 11px; padding: 4px 12px;
             border-radius: 999px; cursor: pointer; text-decoration: none; }
@@ -309,8 +311,7 @@ select, input[type="text"] {
 .thread { list-style: none; margin: 22px 0 0; padding: 0;
           display: flex; flex-direction: column; gap: 20px; }
 .thread .turn { border-top: 1px solid var(--border); padding-top: 18px; }
-.answered-for { margin: 6px 0 0; font-family: var(--mono); font-size: 10.5px;
-                letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.answered-for { margin: 6px 0 0; font-size: 12.5px; color: var(--text-3); }
 .prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
 .prov-body > div + div { margin-top: 4px; }
 
