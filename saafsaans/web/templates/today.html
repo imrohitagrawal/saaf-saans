@@ -207,7 +207,7 @@
             <div class="answer-body">
               {% for b in t.blocks %}
               <div>
-                <h4>{{ b.heading }}</h4>
+                <h3>{{ b.heading }}</h3>
                 {% if b.text %}<p {% if b.lead %}class="lead"{% endif %}>{{ b.text }}</p>{% endif %}
                 {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
               </div>

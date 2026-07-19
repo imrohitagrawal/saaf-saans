@@ -29,7 +29,12 @@
   --border: #2B303B; --border-s: #3D4350;
   --text: #E8E6E1; --text-2: #ABA79E; --text-3: #8B877E;
   --accent: #8FB8DC; --accent-tint: #1C2938; --on-accent: #12151C;
-  --g1: #7FB2E8; --g2: #7FBFCB; --g3: #E0A94F; --g4: #E88650; --g5: #EE7B70; --g6: #F3B7A5;
+  /* Re-valued from the handoff's dark ramp, which was not monotonic in
+     luminance (g2 sat brighter than g3-g5, so a Poor reading receded while a
+     Satisfactory one advanced). Same hue families; luminance now climbs with
+     severity, so severity tracks contrast-against-background in both themes.
+     Measured against --surface: 3.89 / 5.04 / 5.81 / 6.23 / 7.36 / 10.76 : 1. */
+  --g1: #4A7FB0; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
   --n1: #1C2938; --n2: #1B2C31; --n3: #322815; --n4: #362216; --n5: #351D1B; --n6: #3A1F18;
   --gx: #8B877E; --nx: #232834;
 }
@@ -200,7 +205,7 @@ select, input[type="text"] {
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
 .answer { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .answer-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
-.answer h4 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
+.answer h3 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
              letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .answer p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .answer .lead { font-weight: 600; font-size: 14.5px; color: var(--text); }

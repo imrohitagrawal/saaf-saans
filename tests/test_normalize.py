@@ -69,3 +69,32 @@ def test_glossary_has_core_terms():
     for term in ("AQI", "PM2.5", "PM10", "Dominant pollutant", "Risk score"):
         assert term in normalize.GLOSSARY
         assert len(normalize.GLOSSARY[term]) > 20
+
+
+def test_dark_severity_ramp_is_monotonic_in_luminance():
+    """Severity must track contrast-against-background in BOTH themes.
+
+    A sequential scale whose luminance wanders is not a scale -- it was the
+    specific defect that made the official CPCB ramp unusable here, so the
+    replacement must not repeat it.
+    """
+    import re
+    from pathlib import Path
+
+    css = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
+    text = css.read_text()
+
+    def lum(h):
+        h = h.lstrip("#")
+        chans = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(chans[0]) + 0.7152 * f(chans[1]) + 0.0722 * f(chans[2])
+
+    def ramp(block):
+        chunk = text.split(block, 1)[1]
+        return [re.search(rf"--g{n}: (#[0-9A-Fa-f]{{6}})", chunk).group(1) for n in range(1, 7)]
+
+    light = [lum(c) for c in ramp(":root {")]
+    dark = [lum(c) for c in ramp('[data-theme="dark"] {')]
+    assert light == sorted(light, reverse=True), "light ramp must darken with severity"
+    assert dark == sorted(dark), "dark ramp must brighten with severity"
