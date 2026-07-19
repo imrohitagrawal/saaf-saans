@@ -225,3 +225,15 @@ def test_no_control_is_left_without_a_label(client):
     assert not re.search(r"<(a|button)[^>]*>\s*</(a|button)>", body)
     # Every select is wrapped by a label element.
     assert body.count("<select") == body.count("<label>")
+
+
+def test_guide_band_table_shows_a_colour_swatch_per_band():
+    """The bands table is the one place all six colours appear together; the
+    swatch needs a real rule, not one scoped to the station list."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css").read_text()
+    assert "\n.dot {" in css, "standalone .dot rule missing -- swatches collapse to zero size"
+    with TestClient(app) as c:
+        body = c.get("/guide", params=PERSONA).text
+    for slug in ("g1", "g2", "g3", "g4", "g5", "g6"):
+        assert f'class="band-{slug}"' in body

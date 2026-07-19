@@ -243,7 +243,9 @@ select, input[type="text"] {
 .station:first-child { border-top: none; }
 .station[aria-current="true"] { background: var(--accent-tint); }
 .station[aria-current="true"] .nm { font-weight: 600; }
-.station .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); flex: none; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+       background: var(--ink); margin-right: 8px; vertical-align: baseline; }
+.station .dot { margin-right: 0; flex: none; }
 .station .nm { flex: 1; min-width: 0; }
 .station .tag { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 .station .n { font-family: var(--mono); font-weight: 600; }
