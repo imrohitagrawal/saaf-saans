@@ -1,14 +1,18 @@
 """Enterprise UI toolkit: pure functions returning self-contained HTML strings.
 
 Every function here is side-effect free (except ``inject_theme``) and returns a
-string ready to hand to ``st.markdown(..., unsafe_allow_html=True)``. There are
-no external assets, fonts, or CDN references: styling is a system font stack
-plus inline SVG, so the app renders identically offline.
+string ready to hand to ``st.markdown(..., unsafe_allow_html=True)``. The only
+external asset is the IBM Plex webfont, requested with ``display=swap`` behind a
+full system-font fallback — offline the app renders in system fonts rather than
+breaking.
 
-Design language ("SaafSaans" tokens): a cool neutral canvas, a single deep-teal
-accent (#0c6b62), 14px cards with hairline borders and a soft shadow, mono
-numerals, and the five CPCB AQI category triplets (solid / tint / ink) driving
-every air-quality colour. The theme is dark-aware via
+Design language ("SaafSaans" tokens): a warm-neutral canvas, a single deep-teal
+accent (#0c6b62) reserved for chrome and interactive affordances, flat surfaces
+separated by hairline rules rather than shadows, IBM Plex Mono for every figure,
+and the five CPCB AQI category triplets (solid / tint / ink) driving every
+air-quality colour. Severity always correlates with contrast-against-background,
+so the category ramp inverts its lightness direction between themes. The theme is
+dark-aware via
 ``@media (prefers-color-scheme: dark)`` layered over ``:root`` CSS variables. All
 dynamic text is escaped with ``html.escape`` and every function tolerates
 missing/None fields without raising, so a half-populated dict from an upstream
@@ -17,12 +21,10 @@ failure still renders something sane instead of blowing up the page.
 import html
 
 # --- Palette --------------------------------------------------------------
-# Kept in one place so the CSS block and any inline SVG stay in sync.
-ACCENT = "#0c6b62"          # deep teal, the single professional accent
-VERDICT_GO = "#2e7d32"      # green  (CPCB Good solid)
-VERDICT_CAUTION = "#ef6c00" # amber  (CPCB Moderate solid)
-VERDICT_NOGO = "#4a0000"    # red    (CPCB Severe solid)
-_MUTED = "#4f6069"          # cool slate
+# Every colour lives in the CSS custom properties below. This constant is the
+# lone exception: _hex() needs a literal fallback for colours interpolated into
+# inline style attributes, where a var() reference would not resolve.
+ACCENT = "#0c6b62"          # deep teal — chrome and interactive affordances only
 
 
 def _esc(value) -> str:
@@ -51,63 +53,70 @@ def _hex(value, fallback: str = ACCENT) -> str:
 # [data-theme] hooks flip the variables. Streamlit strips <style> from most
 # places but honours it inside st.markdown(unsafe_allow_html=True).
 THEME_CSS = """<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap');
 :root {
-  /* neutrals (cool) */
-  --ss-bg: #f5f7f8;
+  /* neutrals — warm-neutral canvas, shared with the v2 exposure ledger */
+  --ss-bg: #fafaf8;
   --ss-card: #ffffff;          /* surface */
-  --ss-surface-2: #eef2f4;     /* nested/inset surface */
-  --ss-border: #e2e8eb;
-  --ss-border-strong: #c9d3d8;
-  --ss-text: #1b262c;
-  --ss-text-2: #4f6069;
-  --ss-muted: #6f818a;         /* tertiary / captions (was text-3) */
-  /* accent — teal */
+  --ss-surface-2: #f2f2ee;     /* nested/inset surface */
+  --ss-border: #e2e4e1;
+  --ss-border-strong: #c9ccc8;
+  --ss-text: #141618;
+  --ss-text-2: #5a6167;
+  --ss-muted: #8b9299;         /* tertiary / captions */
+  /* accent — teal. Chrome and interactive affordances ONLY: teal never means severity. */
   --ss-accent: #0c6b62;
   --ss-accent-hover: #0a564f;
-  --ss-accent-tint: #e3f1ef;
+  --ss-accent-tint: #e4efed;
   --ss-on-accent: #ffffff;
-  /* CPCB AQI category triplets */
-  --ss-cat-good-solid: #2e7d32;     --ss-cat-good-tint: #e4f3e6;     --ss-cat-good-ink: #1d5220;
-  --ss-cat-moderate-solid: #ef6c00; --ss-cat-moderate-tint: #fdeedd; --ss-cat-moderate-ink: #8a4503;
-  --ss-cat-poor-solid: #c62828;     --ss-cat-poor-tint: #fbe7e7;     --ss-cat-poor-ink: #8f1d1d;
-  --ss-cat-vpoor-solid: #7f0000;    --ss-cat-vpoor-tint: #f6e2e2;    --ss-cat-vpoor-ink: #6b0f0f;
-  --ss-cat-severe-solid: #4a0000;   --ss-cat-severe-tint: #f1e3e3;   --ss-cat-severe-ink: #4a0e0e;
+  /* CPCB AQI category triplets. v1 encodes CPCB *categories*, so it keeps the
+     official hues; the accessibility fix is in the dark block below. */
+  --ss-cat-good-solid: #2e7d32;     --ss-cat-good-tint: #e6f0e7;     --ss-cat-good-ink: #1d5220;
+  --ss-cat-moderate-solid: #ef6c00; --ss-cat-moderate-tint: #fbeade; --ss-cat-moderate-ink: #8a4503;
+  --ss-cat-poor-solid: #c62828;     --ss-cat-poor-tint: #f8e6e5;     --ss-cat-poor-ink: #8f1d1d;
+  --ss-cat-vpoor-solid: #7f0000;    --ss-cat-vpoor-tint: #f3e2e1;    --ss-cat-vpoor-ink: #6b0f0f;
+  --ss-cat-severe-solid: #4a0000;   --ss-cat-severe-tint: #eee2e1;   --ss-cat-severe-ink: #4a0e0e;
   /* status dots */
   --ss-status-live: #2e7d32;
   --ss-status-mock: #b26a00;
-  /* type */
-  --ss-font-ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --ss-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  /* radii + elevation */
-  --ss-r-1: 6px; --ss-r-2: 10px; --ss-r-3: 14px;
-  --ss-shadow: 0 1px 2px rgba(16,32,38,.06);
-  --ss-shadow-md: 0 2px 8px rgba(16,32,38,.08);
-  --ss-track: #eef2f4;
+  /* type — IBM Plex, loaded above; system stack is the offline fallback */
+  --ss-font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ss-font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", -apple-system, sans-serif;
+  --ss-font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* radii + elevation — Swiss flatness: hairline rules carry structure, not shadows */
+  --ss-r-1: 0px; --ss-r-2: 2px; --ss-r-3: 2px;
+  --ss-shadow: none;
+  --ss-shadow-md: none;
+  --ss-track: #ecece7;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ss-bg: #0e1417;
-    --ss-card: #161e22;
-    --ss-surface-2: #1d262b;
-    --ss-border: #27333a;
-    --ss-border-strong: #37454d;
-    --ss-text: #e7edf0;
-    --ss-text-2: #a9b7be;
-    --ss-muted: #7e8e96;
-    --ss-accent: #46b6aa;
-    --ss-accent-hover: #63c6bb;
-    --ss-accent-tint: rgba(70,182,170,.14);
+    --ss-bg: #0e1113;
+    --ss-card: #171b1e;
+    --ss-surface-2: #1e2327;
+    --ss-border: #272c30;
+    --ss-border-strong: #3a4147;
+    --ss-text: #f2f4f3;
+    --ss-text-2: #a8b0b5;
+    --ss-muted: #6e777d;
+    --ss-accent: #4fd1c0;
+    --ss-accent-hover: #6fdccd;
+    --ss-accent-tint: rgba(79,209,192,.14);
     --ss-on-accent: #06231f;
-    --ss-cat-good-solid: #4caf50;     --ss-cat-good-tint: rgba(76,175,80,.16);   --ss-cat-good-ink: #8fd694;
-    --ss-cat-moderate-solid: #fb8c00; --ss-cat-moderate-tint: rgba(251,140,0,.15); --ss-cat-moderate-ink: #ffb45e;
-    --ss-cat-poor-solid: #e05353;     --ss-cat-poor-tint: rgba(224,83,83,.15);   --ss-cat-poor-ink: #f09a9a;
-    --ss-cat-vpoor-solid: #b71c1c;    --ss-cat-vpoor-tint: rgba(183,28,28,.2);   --ss-cat-vpoor-ink: #ea9c9c;
-    --ss-cat-severe-solid: #7f1d1d;   --ss-cat-severe-tint: rgba(127,29,29,.28); --ss-cat-severe-ink: #e59a9a;
+    /* Lightness DIRECTION INVERTS in dark mode: severity must correlate with
+       contrast-against-background in BOTH themes. The old values made Severe
+       (#7f1d1d on #0e1417) the *least* visible band — the exact opposite of
+       what an air-quality scale must do. Mild is now dim, severe is bright. */
+    --ss-cat-good-solid: #4e9153;     --ss-cat-good-tint: rgba(78,145,83,.16);   --ss-cat-good-ink: #86bd8b;
+    --ss-cat-moderate-solid: #e39b3c; --ss-cat-moderate-tint: rgba(227,155,60,.15); --ss-cat-moderate-ink: #edb96f;
+    --ss-cat-poor-solid: #f2685c;     --ss-cat-poor-tint: rgba(242,104,92,.15);  --ss-cat-poor-ink: #f79288;
+    --ss-cat-vpoor-solid: #ff8f7a;    --ss-cat-vpoor-tint: rgba(255,143,122,.18); --ss-cat-vpoor-ink: #ffab9c;
+    --ss-cat-severe-solid: #ffb4a0;   --ss-cat-severe-tint: rgba(255,180,160,.22); --ss-cat-severe-ink: #ffc8b9;
     --ss-status-live: #66bb6a;
     --ss-status-mock: #e0a04a;
-    --ss-shadow: 0 1px 2px rgba(0,0,0,.4);
-    --ss-shadow-md: 0 2px 10px rgba(0,0,0,.45);
-    --ss-track: #1d262b;
+    --ss-shadow: none;
+    --ss-shadow-md: none;
+    --ss-track: #1e2327;
   }
 }
 /* --- CPCB band context: each class publishes the active triplet as --c-* --- */
@@ -129,6 +138,8 @@ THEME_CSS = """<style>
   margin: 8px 0;
 }
 .ss-card * { box-sizing: border-box; }
+.ss-hero-num, .ss-kpi-value, .ss-metric-val, .ss-station-aqi, .ss-scale-marker,
+.ss-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 .ss-card--hero { box-shadow: var(--ss-shadow-md); }
 .ss-eyebrow {
   font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
@@ -138,7 +149,7 @@ THEME_CSS = """<style>
 .ss-chip {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 650; line-height: 1;
-  padding: 5px 10px; border-radius: 999px;
+  padding: 5px 10px; border-radius: 2px;
   background: var(--ss-accent-tint); color: var(--ss-accent);
   border: 1px solid var(--ss-accent-tint);
   font-family: inherit;
@@ -161,13 +172,20 @@ THEME_CSS = """<style>
 .ss-cat-chip {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 700; line-height: 1;
-  padding: 5px 10px; border-radius: 999px;
+  padding: 5px 10px; border-radius: 2px;
   background: var(--c-tint, var(--ss-surface-2));
   color: var(--c-ink, var(--ss-text-2));
 }
 /* --- KPI tile --- */
 .ss-kpi { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; }
-.ss-kpi-value { font-family: var(--ss-font-mono); font-size: 24px; font-weight: 700; color: var(--ss-text); line-height: 1.1; letter-spacing: -.01em; }
+.ss-kpi-value { font-family: var(--ss-font-mono); font-size: 24px; font-weight: 600; color: var(--ss-text); line-height: 1.1; letter-spacing: -.01em; overflow-wrap: anywhere; }
+/* Phrase-valued tiles: UI font, smaller, wraps on word boundaries. */
+.ss-kpi-value--text { font-family: var(--ss-font-ui); font-size: 15px; font-weight: 600; line-height: 1.32; letter-spacing: 0; overflow-wrap: normal; }
+/* Streamlit renders its own chrome (headings, labels, tabs, widgets) outside
+   our .ss-* classes; without this they stay on the stock font and fight the
+   injected type system. Icon glyphs keep their own font via higher specificity. */
+.stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4 { font-family: var(--ss-font-ui); }
+.stApp code, .stApp pre { font-family: var(--ss-font-mono); }
 .ss-kpi-label { font-size: 11px; color: var(--ss-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
 .ss-kpi-sub { font-size: 12px; color: var(--ss-text-2); }
 .ss-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
@@ -175,7 +193,7 @@ THEME_CSS = """<style>
 .ss-hero-num { font-family: var(--ss-font-mono); font-size: 56px; font-weight: 750; line-height: 1; letter-spacing: -.02em; color: var(--c-solid, var(--ss-text)); }
 /* full-scale CPCB bar */
 .ss-scale { position: relative; padding-top: 20px; margin: 14px 0 4px; }
-.ss-scale-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; }
+.ss-scale-bar { display: flex; height: 8px; overflow: hidden; }
 .ss-scale-seg { flex: 1; }
 .ss-scale-seg--good     { background: var(--ss-cat-good-solid); }
 .ss-scale-seg--moderate { background: var(--ss-cat-moderate-solid); }
@@ -184,16 +202,16 @@ THEME_CSS = """<style>
 .ss-scale-seg--severe   { background: var(--ss-cat-severe-solid); }
 .ss-scale-marker { position: absolute; top: 0; transform: translateX(-50%); font-family: var(--ss-font-mono); font-size: 10px; font-weight: 700; color: var(--ss-text); white-space: nowrap; }
 /* legacy single band (kept as thin fallback) */
-.ss-band { height: 6px; border-radius: 999px; margin: 12px 0; }
+.ss-band { height: 6px; margin: 12px 0; }
 .ss-metrics { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; }
 .ss-metric-label { font-size: 11px; color: var(--ss-muted); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
 .ss-metric-val { font-family: var(--ss-font-mono); font-size: 16px; font-weight: 600; }
 /* --- risk gauge --- */
-.ss-gauge-track { height: 8px; border-radius: 999px; background: var(--ss-surface-2); border: 1px solid var(--ss-border); overflow: hidden; }
-.ss-gauge-fill { height: 100%; border-radius: 999px; }
+.ss-gauge-track { height: 8px; background: var(--ss-surface-2); border: 1px solid var(--ss-border); overflow: hidden; }
+.ss-gauge-fill { height: 100%; }
 .ss-drivers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 /* --- advice verdict chip (3 states) --- */
-.ss-verdict { display: inline-flex; align-items: center; gap: 7px; font-weight: 750; font-size: 12px; letter-spacing: .08em; padding: 6px 13px; border-radius: 999px; }
+.ss-verdict { display: inline-flex; align-items: center; gap: 7px; font-weight: 750; font-size: 12px; letter-spacing: .08em; padding: 6px 13px; border-radius: 2px; }
 .ss-verdict::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .ss-verdict-go { background: var(--ss-cat-good-tint); color: var(--ss-cat-good-ink); }
 .ss-verdict-go::before { background: var(--ss-cat-good-solid); }
@@ -371,13 +389,25 @@ def advice_card_html(sections: dict) -> str:
 
 
 # --- KPI tiles ------------------------------------------------------------
+def _is_compact(value) -> bool:
+    """True when a KPI value is short enough for the large tabular-mono treatment.
+
+    Short values ("191", "43%", "pm10", "LIVE") read well at 24px mono. Long
+    phrases ("Late morning (about 9 AM-12 PM)") overflow the tile and wrap
+    mid-word, so they fall back to the UI font one size down. Length is the only
+    thing that matters here -- sniffing for digits mislabels "pm10" and "LIVE".
+    """
+    return 0 < len(str(value or "").strip()) <= 14
+
+
 def kpi_tile_html(label: str, value, sub: str = None) -> str:
     """A single stat tile: big value, uppercase label, optional sub-line."""
     sub_html = f'<div class="ss-kpi-sub">{_esc(sub)}</div>' if sub else ""
     val = _esc(value) if value is not None and value != "" else "--"
+    kind = "" if _is_compact(value) else " ss-kpi-value--text"
     return (
         '<div class="ss-card ss-kpi">'
-        f'<div class="ss-kpi-value">{val}</div>'
+        f'<div class="ss-kpi-value{kind}">{val}</div>'
         f'<div class="ss-kpi-label">{_esc(label)}</div>'
         f'{sub_html}'
         '</div>'

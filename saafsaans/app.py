@@ -1,10 +1,10 @@
 """SaafSaans Command Center — Streamlit UI + orchestration.
 
 Four tabs over one shared persona/state:
-  🩺 Advisor       — live AQI + personal risk + forecast window + grounded chat
-  🌆 City Pulse    — all Delhi stations live + 24h AQI trend (Elasticsearch)
-  📊 Observability — telemetry KPIs from app-telemetry (Elastic Observability)
-  🛡️ Security      — prompt-injection events from security-events + red-team demo
+  Advisor       — live AQI + personal risk + forecast window + grounded chat
+  City Pulse    — all Delhi stations live + 24h AQI trend (Elasticsearch)
+  Observability — telemetry KPIs from app-telemetry (Elastic Observability)
+  Security      — prompt-injection events from security-events + red-team demo
 
 Every external call is timeout-bounded with a graceful fallback, so the demo
 never crashes regardless of which credentials are present. Dashboard queries are
@@ -96,11 +96,11 @@ def get_identity():
 
 # --- app -------------------------------------------------------------------
 def main():
-    st.set_page_config(page_title="SaafSaans Command Center", page_icon="🌫️",
+    st.set_page_config(page_title="SaafSaans Command Center", page_icon="◐",
                        layout="wide")
     ui.inject_theme()
 
-    st.markdown("## 🌫️ SaafSaans — Command Center")
+    st.markdown("## SaafSaans — Command Center")
     st.caption("Delhi Air Quality & Public Health Companion · "
                "live AQI · grounded advice · full observability & security")
 
@@ -108,7 +108,7 @@ def main():
     client = get_client()
 
     tab_advisor, tab_city, tab_obs, tab_sec = st.tabs(
-        ["🩺 Advisor", "🌆 City Pulse", "📊 Observability", "🛡️ Security"]
+        ["Advisor", "City Pulse", "Observability", "Security"]
     )
     with tab_advisor:
         advisor_tab(persona, client)
@@ -146,9 +146,9 @@ def sidebar():
                 "- **Search** — health advisories are retrieved from Elasticsearch "
                 "(`health-advisories`, BM25) to ground every answer.\n"
                 "- **Observability** — each request is logged to `app-telemetry`; "
-                "the 📊 tab reads it live.\n"
+                "the Observability tab reads it live.\n"
                 "- **Security** — blocked prompt-injection attempts are audited in "
-                "`security-events`; the 🛡️ tab reads it live.\n\n"
+                "`security-events`; the Security tab reads it live.\n\n"
                 "No personal data is stored — only a hashed id, place, and status."
             )
         st.caption("Your persona stays in this session only — never written to "
@@ -159,7 +159,7 @@ def sidebar():
 
 def _login_box():
     """Optional sign-in. Stores only a salted hash — never the raw email/phone."""
-    with st.expander("🔐 Sign in (optional)"):
+    with st.expander("Sign in (optional)"):
         if st.session_state.get("user_id"):
             st.caption(f"Signed in as **{st.session_state.get('user_masked', 'you')}** "
                        f"· id `{st.session_state['user_id'][:8]}…`")
@@ -226,7 +226,7 @@ def advisor_tab(persona, client):
         with st.expander("PM2.5 multi-day outlook (WAQI forecast)"):
             st.dataframe(pd.DataFrame(outlook), hide_index=True)
 
-    with st.expander("ℹ️ What these numbers mean"):
+    with st.expander("What these numbers mean"):
         for term, definition in normalize.GLOSSARY.items():
             st.markdown(f"- **{term}** — {definition}")
 
@@ -466,7 +466,7 @@ def security_tab(client):
          "sub": "distinct patterns"},
     ]), unsafe_allow_html=True)
 
-    if st.button("▶ Run red-team attack simulation", type="primary"):
+    if st.button("Run red-team attack simulation", type="primary"):
         _run_attacks(client)
         cached_security_stats.clear()
         st.success(f"Fired {len(ATTACKS)} malicious prompts — all blocked before "

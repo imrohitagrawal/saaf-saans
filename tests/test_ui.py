@@ -163,3 +163,21 @@ def test_risk_gauge_shows_what_to_do():
                                "drivers": ["AQI 320 (Very Poor)"]})
     assert "What to do" in html
     assert "Skip outdoor exercise." in html
+
+
+# --- KPI value typing -------------------------------------------------------
+def test_is_compact_accepts_short_values():
+    """Short values read well at 24px mono, whether numeric or not."""
+    for value in ("191", "43%", "1.2 s", "287", "0", "pm10", "LIVE"):
+        assert ui._is_compact(value), value
+
+
+def test_is_compact_rejects_long_phrases_and_blanks():
+    """Long phrases overflow the tile at 24px mono; blanks have nothing to show."""
+    for value in ("Late morning (about 9 AM-12 PM)", "Very poor - avoid going out", "", None):
+        assert not ui._is_compact(value), value
+
+
+def test_kpi_tile_marks_phrase_values_with_text_modifier():
+    assert "ss-kpi-value--text" in ui.kpi_tile_html("Best time", "Late morning (9 AM-12 PM)")
+    assert "ss-kpi-value--text" not in ui.kpi_tile_html("AQI", "191")

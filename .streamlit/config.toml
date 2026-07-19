@@ -1,0 +1,16 @@
+# Native Streamlit chrome, matched to the SaafSaans tokens in services/ui.py.
+# Without this, Streamlit's own widgets (selectboxes, tabs, buttons, charts)
+# keep their stock blue/rounded look and fight the injected CSS.
+[theme]
+base = "light"
+primaryColor = "#0c6b62"              # teal — chrome only, never severity
+backgroundColor = "#fafaf8"
+secondaryBackgroundColor = "#f2f2ee"
+textColor = "#141618"
+font = "sans-serif"
+baseRadius = "none"                   # Swiss flatness: hairline rules, not pills
+borderColor = "#e2e4e1"
+showWidgetBorder = true
+
+[server]
+headless = true
