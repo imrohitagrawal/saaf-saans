@@ -120,7 +120,11 @@ docs/                   design brief, screenshots, specs
 - **The risk score is a heuristic**, not a validated clinical instrument. Weights in
   `services/risk.py` are documented but not derived from a published model.
 
-## Retrospective
+## Retrospective and decision record
 
-This project was built for a hackathon and did not place. [`RETROSPECTIVE.md`](RETROSPECTIVE.md)
-is an honest account of why, and what changed as a result.
+This project was built for a hackathon and did not place.
+
+- [`RETROSPECTIVE.md`](RETROSPECTIVE.md) — why it lost, and what changed as a result.
+- [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md) — the full decision record: the adversarial
+  code review that found a false privacy claim in this README, the research that cancelled
+  the planned successor, and an explicit list of what this work does *not* demonstrate.
