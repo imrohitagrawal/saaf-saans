@@ -102,3 +102,102 @@ def test_every_band_has_actionable_advice():
     r = compute_risk(320, "copd", "outdoor_exercise", "senior")
     assert r["advice"]
     assert isinstance(r["advice"], str)
+
+
+# --- Grounding: the weights must be traceable ------------------------------
+def test_every_weight_carries_a_source():
+    """The previous model's weights were uncited numbers that looked derived.
+
+    Every weight must now name where it came from, and must declare honestly
+    whether it is grounded in a published figure or is the author's ordering.
+    """
+    rows = risk.weight_table()
+    assert rows
+    for row in rows:
+        assert row["source"], row
+        assert isinstance(row["grounded"], bool), row
+        assert row["value"] is not None, row
+    tables = {row["table"] for row in rows}
+    assert tables == {"inhalation_rates", "condition_pts",
+                      "age_susceptibility_pts", "aqi_base_pts"}
+
+
+def test_only_the_inhalation_rates_are_claimed_as_grounded():
+    """Nothing but the EPA table may claim to be published.
+
+    If a future edit marks the condition weights grounded, this fails -- which
+    is the point: the honesty of the model is the thing under test.
+    """
+    for row in risk.weight_table():
+        assert row["grounded"] is (row["table"] == "inhalation_rates"), row
+        if row["grounded"]:
+            assert "Exposure Factors Handbook" in row["source"]
+        else:
+            assert "Unvalidated" in row["source"] or "design choice" in row["source"]
+
+
+def test_inhalation_rates_match_the_published_table():
+    """EPA EFH 2011 Table 6-2, mean column, m3/min, for the three age bands
+    the persona picker offers. Transcription errors here would silently move
+    every score, so the figures are pinned."""
+    assert risk.INHALATION_RATES == {
+        "child":  {"sedentary": 4.8e-3, "light": 1.1e-2, "moderate": 2.2e-2, "high": 4.2e-2},
+        "adult":  {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},
+        "senior": {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.7e-2},
+    }
+    assert set(risk.EPA_AGE_BANDS) == set(risk.INHALATION_RATES)
+
+
+def test_dose_points_are_ratios_of_published_rates():
+    # A resting adult is the baseline and scores nothing extra.
+    assert risk.inhalation_ratio("adult", "stay_home") == 1.0
+    assert risk.dose_points("adult", "stay_home") == 0
+    # The heaviest published cell anchors the top of the range.
+    assert risk.dose_points("adult", "outdoor_exercise") == risk.DOSE_MAX_PTS
+    # Ratios are the published rates divided by the sedentary adult rate.
+    assert round(risk.inhalation_ratio("child", "outdoor_exercise"), 3) == 10.0
+    assert round(risk.inhalation_ratio("senior", "commute"), 3) == 2.857
+
+
+def test_dose_rises_with_exertion_for_every_age():
+    for age in ("child", "adult", "senior"):
+        pts = [risk.dose_points(age, a) for a in
+               ("stay_home", "commute", "school_run", "outdoor_exercise")]
+        assert pts == sorted(pts), (age, pts)
+        assert pts[0] < pts[-1]
+
+
+def test_children_do_not_breathe_more_air_than_adults():
+    """The uncomfortable consequence of using real numbers, asserted so it
+    cannot be quietly reversed: per minute a 6-11 year old moves LESS air than
+    an adult at the same exertion. Their extra vulnerability is therefore
+    carried by the susceptibility term, which is labelled unvalidated, and not
+    smuggled into the term that claims to be published."""
+    assert risk.INHALATION_RATES["child"]["high"] < risk.INHALATION_RATES["adult"]["high"]
+    assert risk.dose_points("child", "outdoor_exercise") < risk.dose_points("adult", "outdoor_exercise")
+    # ...and yet a child still scores higher overall, via susceptibility.
+    child = compute_risk(300, "any", "outdoor_exercise", "child")["score"]
+    adult = compute_risk(300, "any", "outdoor_exercise", "adult")["score"]
+    assert child > adult
+
+
+def test_unknown_persona_keywords_are_scored_at_rest_not_exercising():
+    """A bad label must fall to the least alarming assumption, never the worst."""
+    assert risk.dose_points("bogus", "bogus") == 0
+    assert risk.inhalation_ratio("bogus", "bogus") == 1.0
+
+
+def test_staying_home_no_longer_claims_a_discount():
+    """The old model subtracted 6 points for staying home, implying indoor air
+    is cleaner. Delhi indoor PM2.5 tracks outdoor closely, so that discount was
+    never evidenced. Staying home now scores lowest purely because a resting
+    body inhales least -- and the driver list must not claim otherwise."""
+    r = compute_risk(300, "asthma", "stay_home", "adult")
+    assert r["score"] == compute_risk(300, "asthma", "any", "adult")["score"]
+    assert not any("home" in d.lower() for d in r["drivers"])
+
+
+def test_the_heuristic_notice_names_both_halves_of_the_model():
+    notice = risk.HEURISTIC_NOTICE
+    assert "EPA" in notice
+    assert "not a validated" in notice
