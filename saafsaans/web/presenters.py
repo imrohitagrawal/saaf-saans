@@ -216,3 +216,21 @@ def answer_sections(sections: dict) -> list:
     if symptoms:
         blocks.append({"heading": "When to seek help", "bullets": symptoms})
     return blocks
+
+
+def dedupe_attempts(attempts) -> list:
+    """Collapse identical blocked attempts into one row carrying a count.
+
+    Firing the red-team simulation more than once writes the same three prompts
+    again, so the raw list reads as a stutter. The events are all real and stay
+    in the index -- this only affects how they are shown. The newest timestamp
+    for each distinct (pattern, excerpt) is kept.
+    """
+    seen = {}
+    for a in attempts or []:
+        key = (a.get("pattern"), a.get("excerpt"))
+        if key in seen:
+            seen[key]["count"] += 1
+        else:
+            seen[key] = {**a, "count": 1}
+    return list(seen.values())

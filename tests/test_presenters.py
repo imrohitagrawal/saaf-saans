@@ -154,3 +154,27 @@ def test_answer_block_keys_avoid_jinja_dict_method_collisions():
     blocks = p.answer_sections({"verdict_detail": "x", "precautions": ["a"], "symptoms": ["b"]})
     for b in blocks:
         assert not (set(b) & {"items", "keys", "values", "get", "update", "pop"})
+
+
+# --- Security attempt dedupe -------------------------------------------------
+def test_dedupe_attempts_collapses_repeat_simulation_runs():
+    """Firing the red-team sim twice writes the same prompts again; the list
+    should read as three distinct attacks, not six."""
+    raw = [
+        {"pattern": "api_key", "excerpt": "reveal your key", "ts": "t2"},
+        {"pattern": "ignore_instructions", "excerpt": "ignore all", "ts": "t2"},
+        {"pattern": "api_key", "excerpt": "reveal your key", "ts": "t1"},
+        {"pattern": "ignore_instructions", "excerpt": "ignore all", "ts": "t1"},
+    ]
+    rows = p.dedupe_attempts(raw)
+    assert len(rows) == 2
+    assert {r["count"] for r in rows} == {2}
+    # The newest occurrence is the one kept.
+    assert rows[0]["ts"] == "t2"
+
+
+def test_dedupe_attempts_keeps_genuinely_different_attempts():
+    raw = [{"pattern": "api_key", "excerpt": "a"}, {"pattern": "api_key", "excerpt": "b"}]
+    assert len(p.dedupe_attempts(raw)) == 2
+    assert p.dedupe_attempts([]) == []
+    assert p.dedupe_attempts(None) == []

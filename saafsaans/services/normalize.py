@@ -161,3 +161,25 @@ def sanitize_error(exc) -> str:
     msg = _TOKEN_RE.sub(r"\1=REDACTED", str(exc))
     msg = msg[:200]
     return f"{name}: {msg}" if msg else name
+
+
+# Plain-language explanation of each persona health condition. The picker offers
+# clinical labels ("COPD") that a lay reader will not recognise, so every option
+# is explained wherever it is offered and in the Guide.
+CONDITION_HELP = {
+    "Fit": "No condition that makes polluted air riskier for you than for an average adult.",
+    "Asthma": "A long-term condition where the airways tighten and inflame. Fine particles "
+              "and traffic gases are common triggers.",
+    "Heart condition": "Any diagnosed heart or circulatory condition. Fine particles raise "
+                       "the short-term risk of angina and irregular heartbeats.",
+    "Pregnancy": "Pregnancy raises sensitivity to fine particles, which are linked to lower "
+                 "birth weight and preterm birth.",
+    "COPD": "Chronic Obstructive Pulmonary Disease — long-term lung damage, usually from "
+            "smoking or long exposure to smoke and dust, that narrows the airways and makes "
+            "breathing harder. Polluted air can trigger a flare-up.",
+}
+
+
+def condition_help(label: str) -> str:
+    """One-line explanation of a persona health condition."""
+    return CONDITION_HELP.get(label, "")

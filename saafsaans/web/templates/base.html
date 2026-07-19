@@ -21,6 +21,7 @@
       <a href="/?{{ q }}"        {% if active == 'today'  %}aria-current="page"{% endif %}>Today</a>
       <a href="/city?{{ q }}"    {% if active == 'city'   %}aria-current="page"{% endif %}>City Pulse</a>
       <a href="/system?{{ q }}"  {% if active == 'system' %}aria-current="page"{% endif %}>System</a>
+      <a href="/guide?{{ q }}"   {% if active == 'guide'  %}aria-current="page"{% endif %}>Guide</a>
     </nav>
     {#- Plain links, so the toggle works with JavaScript disabled. -#}
     <div class="seg" role="group" aria-label="Theme">

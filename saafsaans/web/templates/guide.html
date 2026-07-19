@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}SaafSaans — Guide{% endblock %}
+
+{% block content %}
+<h1 class="page-h1">Guide</h1>
+<p class="page-sub">Every number and term on this site, in plain language.</p>
+
+<div class="grid" style="margin-top:14px">
+
+  <section class="card">
+    <div class="kicker">The numbers</div>
+    <dl class="faq">
+      {% for term, text in glossary.items() %}
+      <div><dt>{{ term }}</dt><dd>{{ text }}</dd></div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section class="card">
+    <div class="kicker">Health conditions in the picker</div>
+    <dl class="faq">
+      {% for name, text in conditions_help.items() %}
+      <div><dt>{{ name }}</dt><dd>{{ text }}</dd></div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section class="card wide">
+    <div class="kicker">The CPCB air-quality bands</div>
+    <p class="hint">India's national scale runs 0–500. The band decides the colour of the
+      sky above and what the advice says.</p>
+    <table style="margin-top:12px">
+      <tr><th>Band</th><th>AQI</th><th>What it means for you</th></tr>
+      {% for row in bands %}
+      <tr class="band-{{ row.slug }}">
+        <td><span class="dot" style="background:var(--ink)" aria-hidden="true"></span>{{ row.label }}</td>
+        <td class="mono">{{ row.range }}</td>
+        <td style="font-family:var(--body);color:var(--text-2)">{{ row.meaning }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+
+  <section class="card wide">
+    <div class="kicker">Common questions</div>
+    <dl class="faq">
+      <div>
+        <dt>Why is my risk score different from the AQI?</dt>
+        <dd>The AQI describes the air. The risk score describes <em>you</em> in that air —
+          it adds your age, health condition, and what you are planning to do. The same
+          air can be routine for a healthy adult indoors and serious for a senior with
+          COPD about to exercise outside. The gap between the two numbers is the whole
+          reason this site exists.</dd>
+      </div>
+      <div>
+        <dt>How is the risk score calculated?</dt>
+        <dd>A published, readable formula: a base from the AQI, plus points for a chronic
+          heart or lung condition, plus points for exertion outdoors, plus points for
+          being very young or older. It is a transparent heuristic to help you decide —
+          <strong>not a validated clinical instrument</strong>, and not a diagnosis.</dd>
+      </div>
+      <div>
+        <dt>Where does the air data come from?</dt>
+        <dd>Ground monitoring stations run under India's CPCB network, read through the
+          WAQI feed. When that feed fails, the site shows the last good reading clearly
+          marked <span class="mono">◌ CACHED</span> and says so above the advice. It never
+          presents a cached reading as live.</dd>
+      </div>
+      <div>
+        <dt>Why does the answer sometimes ignore my question?</dt>
+        <dd>Answers are written for the persona shown on the Today page, not for a
+          hypothetical one. Asking "what if I were fit?" will still return advice for the
+          persona you have set. Change the persona and ask again — the whole page,
+          including the answer, is rewritten for whoever you select.</dd>
+      </div>
+      <div>
+        <dt>What happens to what I type?</dt>
+        <dd>Your persona stays in the page address and your session — it is never written
+          to a database. Questions are checked for prompt-injection before reaching the
+          model. Logs keep a one-way hashed session id, the place, and status fields; the
+          security log keeps at most a 120-character snippet of a blocked prompt.</dd>
+      </div>
+      <div>
+        <dt>Is this medical advice?</dt>
+        <dd>No. It is general guidance built from public health sources (CPCB, WHO, GINA,
+          GOLD, AHA, ACOG, EPA). If you are unwell, or your usual medication is not
+          working as it should, contact a doctor.</dd>
+      </div>
+    </dl>
+  </section>
+
+</div>
+{% endblock %}

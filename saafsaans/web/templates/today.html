@@ -41,16 +41,21 @@
   </p>
   {% endif %}
 
-  {# --- Persona ------------------------------------------------------------ #}
-  <section class="card" aria-label="Your persona">
+  {# --- Persona. Spans full width while editing so four fields have room. --- #}
+  <section class="card {% if persona_open %}wide{% endif %}" aria-label="Your persona" id="persona">
     <div class="row">
-      <span class="kicker">Caring for</span>
+      <span class="kicker">This advice is for</span>
       <span class="persona-line">{{ persona_line }}</span>
-      <a class="pill-btn" style="margin-left:auto"
-         href="/?{{ q_persona_toggle }}" aria-expanded="{{ 'true' if persona_open else 'false' }}">
-        {{ 'Close' if persona_open else 'Change' }}
+      <a class="pill-btn strong" style="margin-left:auto"
+         href="/?{{ q_persona_toggle }}#persona"
+         aria-expanded="{{ 'true' if persona_open else 'false' }}">
+        {{ 'Done' if persona_open else 'Not you? Change ›' }}
       </a>
     </div>
+
+    {% if not persona_open and condition_help %}
+      <p class="hint">{{ persona.condition }} — {{ condition_help }}</p>
+    {% endif %}
 
     {% if persona_open %}
     <form class="fields" method="get" action="/">
@@ -62,19 +67,19 @@
         </select>
       </label>
       <label>
-        <span class="lbl">HEALTH</span>
+        <span class="lbl">HEALTH CONDITION</span>
         <select name="condition">
           {% for c in conditions %}<option {% if c == persona.condition %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </label>
       <label>
-        <span class="lbl">PLAN</span>
+        <span class="lbl">WHAT YOU ARE PLANNING</span>
         <select name="activity">
           {% for a in activities %}<option {% if a == persona.activity %}selected{% endif %}>{{ a }}</option>{% endfor %}
         </select>
       </label>
       <label>
-        <span class="lbl">WHERE</span>
+        <span class="lbl">WHERE YOU ARE</span>
         <select name="locality">
           {% for region, locs in regions.items() %}
           <optgroup label="{{ region }}">
@@ -83,8 +88,16 @@
           {% endfor %}
         </select>
       </label>
-      <button class="btn" type="submit" style="padding:8px 18px;border-radius:8px;font-size:13.5px">Update</button>
-      <p style="flex:1 1 100%;margin:0;font-size:12px;color:var(--text-3)">Stays in this session only — never logged.</p>
+      <button class="btn" type="submit">Update advice</button>
+
+      {# Clinical labels mean nothing to most readers, so every option is
+         explained where it is offered, not only in the Guide. #}
+      <dl class="opt-help">
+        {% for name, text in conditions_help.items() %}
+        <div><dt>{{ name }}</dt><dd>{{ text }}</dd></div>
+        {% endfor %}
+      </dl>
+      <p class="hint">Stays in this session only — never logged.</p>
     </form>
     {% endif %}
 
@@ -139,6 +152,7 @@
     {% endif %}
 
     <p class="meaning">{{ meaning }}</p>
+    <p class="hint"><a href="/guide?{{ q }}">What do these numbers mean? ›</a></p>
   </section>
 
   {# --- Five-day outlook --------------------------------------------------- #}
@@ -158,73 +172,87 @@
   </section>
   {% endif %}
 
-  {# --- Ask ---------------------------------------------------------------- #}
+  {# --- Ask. Full history, newest first, so a decision can be retraced. ---- #}
   <section class="card wide" aria-label="Ask SaafSaans" id="ask">
     <div class="row" style="align-items:baseline;gap:10px">
       <h2 style="font-size:20px;font-weight:600">Ask SaafSaans</h2>
       <span style="font-size:12.5px;color:var(--text-3)">grounded in the reading above · written for your persona</span>
     </div>
 
-    {% if answer or refusal %}
-    <div class="ask-cols">
-      {% if answer %}
-      <div class="ask-main">
-        <div class="q"><span class="mark">Q ·</span><p>{{ answer.question }}</p></div>
-        <div class="answer">
-          <div class="answer-body">
-            {% for b in answer.blocks %}
-            <div>
-              <h4>{{ b.heading }}</h4>
-              {% if b.text %}<p {% if b.lead %}class="lead"{% endif %}>{{ b.text }}</p>{% endif %}
-              {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
-            </div>
-            {% endfor %}
-            <p class="disclaimer">{{ answer.disclaimer or "General guidance, not medical advice." }}</p>
-          </div>
-          <div class="prov-bar">
-            <a class="prov-btn" href="/?{{ q_prov_toggle }}#ask"
-               aria-expanded="{{ 'true' if prov_open else 'false' }}">
-              <span aria-hidden="true">{{ '▾' if prov_open else '▸' }}</span> WHAT THE APP USED
-            </a>
-            {% if prov_open %}
-            <div class="prov-body">
-              <div class="prov-ground">
-                AQI {{ answer.reading.aqi }} · PM2.5 {{ answer.reading.pm25 | round | int if answer.reading.pm25 is not none else '--' }}
-                · dominant {{ answer.reading.dominant_pollutant | upper }} · {{ grounding }}
-              </div>
-              {% for s in answer.sources %}
-              <div class="src-row">
-                <span class="src-tag">{{ s.source }}</span>
-                <span>{{ s.advice }}</span>
-              </div>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      {% if refusal %}
-      <div class="ask-side">
-        <div class="q"><span class="mark">Q ·</span><p style="color:var(--text-2)">{{ refusal.question }}</p></div>
-        {# Flat, no red, no icon: a blocked prompt is a routine event, not an accusation. #}
-        <div class="refusal">
-          <b>Not processed.</b>
-          <p>That looked like an attempt to change how the assistant works, so it was
-             stopped before reaching the model. Air, precautions, masks, timing — all fair game.</p>
-          <p class="audit mono">blocked pre-model · audited in security-events</p>
-        </div>
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
     <form class="ask-form" method="post" action="/ask?{{ q }}">
-      <input type="text" name="question" required
+      <input type="text" name="question" required autocomplete="off"
              placeholder="Ask about going out, masks, timing, symptoms…" aria-label="Your question">
       <button class="btn" type="submit">Ask</button>
     </form>
+    <p class="hint">Press Enter to ask. Every answer is written for the persona above —
+      change it to get advice for someone else.</p>
+
+    {% if transcript %}
+    <ol class="thread">
+      {% for t in transcript %}
+      <li class="turn" id="turn-{{ t.id }}">
+        <div class="q"><span class="mark">Q ·</span><p>{{ t.question }}</p></div>
+        <p class="answered-for">answered for {{ t.persona_line }}</p>
+
+        {% if t.kind == 'refusal' %}
+          {# Flat, no red, no icon: a blocked prompt is routine, not an accusation. #}
+          <div class="refusal">
+            <b>Not processed.</b>
+            <p>That looked like an attempt to change how the assistant works, so it was
+               stopped before reaching the model. Air, precautions, masks, timing — all fair game.</p>
+            <p class="audit mono">blocked pre-model · audited in security-events</p>
+          </div>
+        {% else %}
+          <div class="answer">
+            <div class="answer-body">
+              {% for b in t.blocks %}
+              <div>
+                <h4>{{ b.heading }}</h4>
+                {% if b.text %}<p {% if b.lead %}class="lead"{% endif %}>{{ b.text }}</p>{% endif %}
+                {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+              {% endfor %}
+              <p class="disclaimer">{{ t.disclaimer or "General guidance, not medical advice." }}</p>
+            </div>
+
+            {# The collapsed label carries the count, so there is a reason to open it. #}
+            <div class="prov-bar">
+              <a class="prov-btn" href="/?{{ q_prov(t.id) }}#turn-{{ t.id }}"
+                 aria-expanded="{{ 'true' if open_prov == t.id else 'false' }}">
+                <span aria-hidden="true">{{ '▾' if open_prov == t.id else '▸' }}</span>
+                What this answer is based on
+                <span class="prov-count">1 live reading + {{ t.sources | length }} guidance sources</span>
+              </a>
+              {% if open_prov == t.id %}
+              <div class="prov-body">
+                <div>
+                  <div class="kicker">Measured at the time</div>
+                  <div class="prov-ground">
+                    AQI {{ t.reading.aqi }} · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }}
+                    · dominant {{ t.reading.dominant_pollutant | upper }}
+                    · {{ 'live reading' if t.waqi_status == 'ok' else 'cached sample (feed missed)' }}
+                  </div>
+                </div>
+                {% if t.sources %}
+                <div>
+                  <div class="kicker">Published guidance used</div>
+                  {% for s in t.sources %}
+                  <div class="src-row">
+                    <span class="src-tag">{{ s.source }}</span>
+                    <span>{{ s.advice }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
   </section>
 
 </div>

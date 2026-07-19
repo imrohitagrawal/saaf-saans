@@ -152,12 +152,12 @@ def today(request: Request):
 
     term = q.get("term") if q.get("term") in TERMS else None
     persona_open = q.get("edit") == "1"
-    prov_open = q.get("prov") == "1"
     obs_time = _fmt_time(data["reading"].get("obs_time"))
 
-    turns = _TRANSCRIPTS.get(sid, [])
-    answer = next((t for t in reversed(turns) if t.get("kind") == "answer"), None)
-    refusal = next((t for t in reversed(turns) if t.get("kind") == "refusal"), None)
+    # Newest first, and the whole history: a user tracking a decision needs to
+    # re-read what they already asked, not have it replaced by the next answer.
+    turns = list(reversed(_TRANSCRIPTS.get(sid, [])))
+    open_prov = q.get("prov")
 
     ctx.update({
         "verdict": pr.verdict_for(data["risk"]["band"]),
@@ -169,11 +169,15 @@ def today(request: Request):
         "grounding": pr.grounding_note(data["waqi_status"], obs_time),
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
-        "term": term, "persona_open": persona_open, "prov_open": prov_open,
-        "answer": answer, "refusal": refusal,
+        "term": term, "persona_open": persona_open,
+        "transcript": turns, "open_prov": open_prov,
+        "condition_help": normalize.condition_help(persona["condition"]),
+        "conditions_help": normalize.CONDITION_HELP,
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, edit=None if persona_open else "1"),
-        "q_prov_toggle": _qs(persona, theme, prov=None if prov_open else "1"),
+        # Provenance opens per turn, so history stays independently inspectable.
+        "q_prov": lambda tid: _qs(persona, theme,
+                                  prov=None if open_prov == tid else tid),
         "q_term_aqi": _qs(persona, theme, term=None if term == "AQI" else "AQI"),
         "q_term_pm25": _qs(persona, theme, term=None if term == "PM2.5" else "PM2.5"),
         "q_term_pm10": _qs(persona, theme, term=None if term == "PM10" else "PM10"),
@@ -206,7 +210,8 @@ def ask(request: Request, question: str = Form(...)):
             "latency_ms": int((time.time() - start) * 1000),
             "waqi_status": waqi_status, "llm_status": "skipped", "llm_tokens": 0,
             "aqi_value": reading.get("aqi"), "locality": persona["locality"], "error": ""})
-        turns.append({"kind": "refusal", "question": question, "pattern": pattern})
+        turns.append({"kind": "refusal", "id": str(len(turns)), "question": question,
+                      "pattern": pattern, "persona_line": pr.persona_line(persona)})
         return _back(request, sid, theme)
 
     try:
@@ -223,7 +228,8 @@ def ask(request: Request, question: str = Form(...)):
             timestamp=es.now_iso(), best_window=data["window"])
         parsed = llm.parse_advice(text)
         turns.append({
-            "kind": "answer", "question": question,
+            "kind": "answer", "id": str(len(turns)), "question": question,
+            "persona_line": pr.persona_line(persona),
             "blocks": pr.answer_sections(parsed),
             "disclaimer": parsed.get("disclaimer"),
             "sources": advisories,
@@ -238,7 +244,8 @@ def ask(request: Request, question: str = Form(...)):
             "error": "; ".join(degraded)})
     except Exception as exc:  # pragma: no cover - top-level safety net
         turns.append({
-            "kind": "answer", "question": question,
+            "kind": "answer", "id": str(len(turns)), "question": question,
+            "persona_line": pr.persona_line(persona),
             "blocks": [{"heading": "Verdict", "lead": True,
                         "text": "Something went wrong preparing your advice. When in "
                                 "doubt, minimise outdoor exposure and wear an N95 outside."}],
@@ -344,8 +351,9 @@ def system(request: Request):
             ],
             "days": [{"n": d["count"], "d": _day_label(d["date"]),
                       "h": pr.pct(d["count"], day_max)} for d in daily],
-            "attempts": [{**a, "when": _fmt_time(a["ts"])}
-                         for a in metrics.recent_security_events(client, limit=6)],
+            "attempts": pr.dedupe_attempts(
+                [{**a, "when": _fmt_time(a["ts"])}
+                 for a in metrics.recent_security_events(client, limit=24)])[:6],
         })
     return _render(request, "system.html", ctx, session_id(request), theme)
 
@@ -372,6 +380,29 @@ def simulate(request: Request):
         pass
     url = "/system?" + _qs(persona, theme, view="security", sim="1")
     return RedirectResponse(url, status_code=303)
+
+
+@app.get("/guide")
+def guide(request: Request):
+    """Plain-language explanation of every number and term the site shows.
+
+    Lives at its own URL rather than as a collapsed block on Today, so it can be
+    linked to directly from the term that confused someone.
+    """
+    persona = read_persona(request)
+    theme = read_theme(request)
+    ctx = base_context(request, persona, theme, "guide")
+    ranges = ["0-50", "51-100", "101-200", "201-300", "301-400", "401-500"]
+    labels = [b[1] for b in normalize.AQI_BANDS] + ["Severe"]
+    slugs = [b[4] for b in normalize.AQI_BANDS] + ["g6"]
+    ctx.update({
+        "glossary": normalize.GLOSSARY,
+        "conditions_help": normalize.CONDITION_HELP,
+        "bands": [{"label": l, "range": r, "slug": g,
+                   "meaning": normalize.aqi_meaning(l)}
+                  for l, r, g in zip(labels, ranges, slugs)],
+    })
+    return _render(request, "guide.html", ctx, session_id(request), theme)
 
 
 @app.get("/health")
