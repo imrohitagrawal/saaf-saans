@@ -6,6 +6,7 @@ without them it prints guidance and exits cleanly (the app itself still runs
 in mock mode).
 """
 import os
+import hashlib
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,6 +40,17 @@ MAPPINGS = {
 }
 
 
+def advisory_id(advisory: dict) -> str:
+    """Stable id for a seed advisory, so re-seeding is idempotent.
+
+    Derived from the fields that identify the row rather than from its position
+    in the list, so reordering data/advisories.py does not orphan documents.
+    """
+    key = "|".join(str(advisory.get(f, "")) for f in
+                   ("aqi_min", "aqi_max", "condition", "activity", "age_group", "source"))
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+
+
 def main():
     if not config.es_available():
         print("No Elastic credentials found (ELASTIC_CLOUD_ID/ELASTIC_URL + "
@@ -62,11 +74,25 @@ def main():
         ready += 1
 
     from elasticsearch.helpers import bulk
-    actions = [{"_index": es.INDEX_ADVISORIES, "_source": a} for a in ADVISORIES]
+
+    # Deterministic ids derived from the advisory itself, so re-running this
+    # script overwrites rather than appends. Without them every run added
+    # another full copy of the 34 advisories, and retrieval then returned the
+    # same guidance several times in one answer -- visible to the user as
+    # duplicate sources in the "what this answer is based on" panel.
+    actions = [
+        {"_index": es.INDEX_ADVISORIES, "_id": advisory_id(a), "_source": a}
+        for a in ADVISORIES
+    ]
     bulk(client, actions)
     client.indices.refresh(index=es.INDEX_ADVISORIES)
+    total = client.count(index=es.INDEX_ADVISORIES)["count"]
 
-    print(f"\n{ready} indices ready + {len(ADVISORIES)} advisories indexed.")
+    print(f"\n{ready} indices ready + {len(ADVISORIES)} advisories indexed "
+          f"({total} in the index).")
+    if total != len(ADVISORIES):
+        print(f"  ! expected {len(ADVISORIES)}; delete the index and re-run to clear "
+              "duplicates left by an older version of this script.")
     return 0
 
 
