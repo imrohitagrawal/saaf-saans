@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}SaafSaans — {{ persona.locality }}{% endblock %}
+
+{% block content %}
+<div class="grid">
+
+  {# --- Sky hero. data-band drives the gradient, so the sky clears or thickens
+         with the reading instead of being decoration. --------------------- #}
+  <section class="hero wide band-{{ band }}" data-band="{{ band }}" aria-label="Right now">
+    <div class="hero-sun"  aria-hidden="true"></div>
+    <div class="hero-haze" aria-hidden="true"></div>
+    <div class="hero-scrim" aria-hidden="true"></div>
+
+    <div class="hero-body">
+      <div class="hero-meta">
+        <span>{{ persona.locality | upper }}</span>
+        <span class="prov">{{ prov_chip }}</span>
+        <span class="hero-pill">AQI {{ reading.aqi if reading.aqi is not none else '--' }} · {{ category[0] | upper }}</span>
+      </div>
+      <div class="hero-kicker">{{ kicker }}</div>
+      <h1 class="verdict">{{ verdict }}</h1>
+      <p class="hero-advice">{{ risk.advice }}</p>
+      <div class="hero-chips">
+        <span class="chip-risk">YOUR RISK · {{ risk.score }}/100 · {{ risk.band | upper }}</span>
+        <span class="chip-base">healthy adult · {{ baseline }}</span>
+      </div>
+    </div>
+
+    <div class="hero-window">
+      <span class="lbl">IF YOU MUST GO OUT</span>
+      <span class="val">{{ window.window }}</span>
+      <span class="note">a general pattern, not an hourly forecast</span>
+    </div>
+  </section>
+
+  {# Never disguise a cached reading as live. #}
+  {% if waqi_status != 'ok' %}
+  <p class="stale-note wide">
+    Live feed is down — this sky and advice use the last good reading, from
+    {{ obs_time }}, and will refresh when the feed returns.
+  </p>
+  {% endif %}
+
+  {# --- Persona ------------------------------------------------------------ #}
+  <section class="card" aria-label="Your persona">
+    <div class="row">
+      <span class="kicker">Caring for</span>
+      <span class="persona-line">{{ persona_line }}</span>
+      <a class="pill-btn" style="margin-left:auto"
+         href="/?{{ q_persona_toggle }}" aria-expanded="{{ 'true' if persona_open else 'false' }}">
+        {{ 'Close' if persona_open else 'Change' }}
+      </a>
+    </div>
+
+    {% if persona_open %}
+    <form class="fields" method="get" action="/">
+      <input type="hidden" name="theme" value="{{ theme }}">
+      <label>
+        <span class="lbl">AGE</span>
+        <select name="age">
+          {% for a in ages %}<option {% if a == persona.age %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="lbl">HEALTH</span>
+        <select name="condition">
+          {% for c in conditions %}<option {% if c == persona.condition %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="lbl">PLAN</span>
+        <select name="activity">
+          {% for a in activities %}<option {% if a == persona.activity %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="lbl">WHERE</span>
+        <select name="locality">
+          {% for region, locs in regions.items() %}
+          <optgroup label="{{ region }}">
+            {% for loc in locs %}<option {% if loc == persona.locality %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn" type="submit" style="padding:8px 18px;border-radius:8px;font-size:13.5px">Update</button>
+      <p style="flex:1 1 100%;margin:0;font-size:12px;color:var(--text-3)">Stays in this session only — never logged.</p>
+    </form>
+    {% endif %}
+
+    <p class="compare">{{ compare }}</p>
+    <div class="drivers">
+      {% for d in risk.drivers %}<span class="driver">{{ d }}</span>{% endfor %}
+    </div>
+  </section>
+
+  {# --- Reading ------------------------------------------------------------ #}
+  <section class="card band-{{ band }}" aria-label="The reading">
+    <div class="row" style="align-items:baseline;gap:12px">
+      <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
+      <span class="band-chip">{{ category[0] | upper }}</span>
+      <span class="mono" style="font-size:11px;color:var(--text-3)">
+        <a class="term" href="/?{{ q_term_aqi }}" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
+        · CPCB · {{ obs_time }}
+      </span>
+    </div>
+
+    <div class="scale-wrap">
+      <div class="scale-mark" style="left:{{ scale_pos }}%">{{ reading.aqi }} ▾</div>
+      <div class="scale" aria-hidden="true">
+        <span style="width:10%;background:var(--g1)"></span><span style="width:10%;background:var(--g2)"></span>
+        <span style="width:20%;background:var(--g3)"></span><span style="width:20%;background:var(--g4)"></span>
+        <span style="width:20%;background:var(--g5)"></span><span style="width:20%;background:var(--g6)"></span>
+      </div>
+      <div class="scale-ends" aria-hidden="true"><span>0 good</span><span>200</span><span>severe 500</span></div>
+    </div>
+
+    <div class="pollutants">
+      <div>
+        <span class="lbl">
+          <a class="term" href="/?{{ q_term_pm25 }}" aria-expanded="{{ 'true' if term == 'PM2.5' else 'false' }}">PM2.5</a>
+        </span>
+        <span class="val">{{ reading.pm25 | round | int if reading.pm25 is not none else '--' }}
+          <span class="unit">µg/m³</span></span>
+      </div>
+      <div>
+        <span class="lbl">
+          <a class="term" href="/?{{ q_term_pm10 }}" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
+          {% if reading.dominant_pollutant == 'pm10' %} · DOMINANT{% endif %}
+        </span>
+        <span class="val">{{ reading.pm10 | round | int if reading.pm10 is not none else '--' }}
+          <span class="unit">µg/m³</span></span>
+      </div>
+    </div>
+
+    {# One shared slot: opening a term closes any other. #}
+    {% if term and term in glossary %}
+    <p class="def-slot">{{ glossary[term] }}</p>
+    {% endif %}
+
+    <p class="meaning">{{ meaning }}</p>
+  </section>
+
+  {# --- Five-day outlook --------------------------------------------------- #}
+  {% if outlook %}
+  <section class="card" aria-label="Five-day outlook">
+    <div class="kicker">PM2.5 · next five days</div>
+    <div class="bars">
+      {% for row in outlook %}
+      <div class="bar-row">
+        <span {% if row.is_today %}style="font-weight:600"{% endif %}>{{ row.label }}</span>
+        <span class="v">{{ row.avg }}</span>
+        <span class="track"><span class="fill" style="width:{{ pct(row.avg, 220) }}"></span></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="caption">Daily averages, µg/m³ · WAQI forecast — a coarse outlook, not an hourly promise.</p>
+  </section>
+  {% endif %}
+
+  {# --- Ask ---------------------------------------------------------------- #}
+  <section class="card wide" aria-label="Ask SaafSaans" id="ask">
+    <div class="row" style="align-items:baseline;gap:10px">
+      <h2 style="font-size:20px;font-weight:600">Ask SaafSaans</h2>
+      <span style="font-size:12.5px;color:var(--text-3)">grounded in the reading above · written for your persona</span>
+    </div>
+
+    {% if answer or refusal %}
+    <div class="ask-cols">
+      {% if answer %}
+      <div class="ask-main">
+        <div class="q"><span class="mark">Q ·</span><p>{{ answer.question }}</p></div>
+        <div class="answer">
+          <div class="answer-body">
+            {% for heading, body in answer.sections.items() %}
+            <div>
+              <h4>{{ heading | replace('_', ' ') }}</h4>
+              {% if body is string %}
+                <p {% if loop.first %}class="lead"{% endif %}>{{ body }}</p>
+              {% else %}
+                <ul>{% for item in body %}<li>{{ item }}</li>{% endfor %}</ul>
+              {% endif %}
+            </div>
+            {% endfor %}
+            <p class="disclaimer">General guidance, not medical advice.</p>
+          </div>
+          <div class="prov-bar">
+            <a class="prov-btn" href="/?{{ q_prov_toggle }}#ask"
+               aria-expanded="{{ 'true' if prov_open else 'false' }}">
+              <span aria-hidden="true">{{ '▾' if prov_open else '▸' }}</span> WHAT THE APP USED
+            </a>
+            {% if prov_open %}
+            <div class="prov-body">
+              <div class="prov-ground">
+                AQI {{ answer.reading.aqi }} · PM2.5 {{ answer.reading.pm25 | round | int if answer.reading.pm25 is not none else '--' }}
+                · dominant {{ answer.reading.dominant_pollutant | upper }} · {{ grounding }}
+              </div>
+              {% for s in answer.sources %}
+              <div class="src-row">
+                <span class="src-tag">{{ s.source }}</span>
+                <span>{{ s.advice }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if refusal %}
+      <div class="ask-side">
+        <div class="q"><span class="mark">Q ·</span><p style="color:var(--text-2)">{{ refusal.question }}</p></div>
+        {# Flat, no red, no icon: a blocked prompt is a routine event, not an accusation. #}
+        <div class="refusal">
+          <b>Not processed.</b>
+          <p>That looked like an attempt to change how the assistant works, so it was
+             stopped before reaching the model. Air, precautions, masks, timing — all fair game.</p>
+          <p class="audit mono">blocked pre-model · audited in security-events</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <form class="ask-form" method="post" action="/ask?{{ q }}">
+      <input type="text" name="question" required
+             placeholder="Ask about going out, masks, timing, symptoms…" aria-label="Your question">
+      <button class="btn" type="submit">Ask</button>
+    </form>
+  </section>
+
+</div>
+{% endblock %}

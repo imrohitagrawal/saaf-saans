@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #E8E9EA; }
+  body { -webkit-font-smoothing: antialiased; }
+  a { color: #2F5D8A; }
+  a:hover { color: #1A2024; }
+</style>
+</helmet>
+<section style="padding: 40px; display: flex; flex-direction: column; gap: 20px; font-family: 'IBM Plex Sans', sans-serif;">
+  <div style="max-width: 760px;">
+    <h1 style="margin: 0; font-family: 'Anek Latin', sans-serif; font-weight: 700; font-size: 24px; color: #1A2024;">Today screen — three moods for the top of the app</h1>
+    <p style="margin: 6px 0 0 0; font-size: 14px; color: #57524A;">Same data, three emotional registers. Whatever you pick sets the tone for the whole app (City Pulse, System, dark theme included). Reference them as <a href="#1a">1a</a>, <a href="#1b">1b</a>, <a href="#1c">1c</a>.</p>
+  </div>
+  <div style="display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start;">
+
+    <div id="1a" style="width: 390px; flex: none;">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;">
+        <span style="background: #1A2024; color: #FFFFFF; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;">1a</span>
+        <span style="font-weight: 600; font-size: 14px; color: #1A2024;">Atmospheric — the sky is the interface</span>
+      </div>
+      <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #57524A; line-height: 1.5;">A rendered sky whose haze matches the reading — the app shows you the sky you can't judge yourself. Emotional, instant, glanceable.</p>
+      <div style="background: #F2F1EE; border: 1px solid #DCD9D2; border-radius: 24px; padding: 14px; box-shadow: 0 8px 28px rgba(20,22,26,0.10);">
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 2px 6px 12px 6px;">
+          <span style="font-family: 'Anek Latin', sans-serif; font-weight: 800; font-size: 19px; color: #211E19;">SaafSaans</span>
+          <span style="font-size: 12px; color: #6B665D;">साफ़ साँस</span>
+        </div>
+        <div style="position: relative; border-radius: 18px; overflow: hidden; min-height: 300px; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(180deg, #7D93A6, #C4AD8B);">
+          <div style="position: absolute; top: 28px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background: #FFE9C4; filter: blur(9px); opacity: 0.55;"></div>
+          <div style="position: absolute; inset: 0; background: linear-gradient(180deg, transparent 18%, rgba(120,105,85,0.35));"></div>
+          <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,12,16,0) 26%, rgba(10,12,16,0.68) 84%);"></div>
+          <div style="position: relative; padding: 18px; color: #F7F3EC; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em;">
+              <span>ANAND VIHAR</span><span style="opacity: 0.75;">● LIVE · 2:00 PM</span>
+              <span style="margin-left: auto; padding: 3px 9px; border-radius: 999px; background: rgba(247,243,236,0.16); border: 1px solid rgba(247,243,236,0.35);">AQI 191 · MODERATE</span>
+            </div>
+            <div style="font-family: 'Anek Latin', sans-serif; font-weight: 700; font-size: 28px; line-height: 1.14; letter-spacing: -0.01em;">High risk — avoid outdoor exertion today.</div>
+            <div style="display: flex; gap: 7px; flex-wrap: wrap; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">
+              <span style="font-weight: 600; padding: 5px 11px; border-radius: 999px; background: rgba(247,243,236,0.18); border: 1px solid rgba(247,243,236,0.4);">YOUR RISK · 56/100 · HIGH</span>
+              <span style="padding: 5px 11px; border-radius: 999px; background: rgba(247,243,236,0.12);">Best window · 9 AM–12 PM</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 12px; background: #FBFAF8; border: 1px solid #DCD9D2; border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 9px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; color: #6B665D;">FOR</span>
+          <span style="font-size: 13px; font-weight: 600; color: #211E19;">Adult · asthma · outdoor exercise</span>
+          <span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #2F5D8A; border: 1px solid #C2BEB4; border-radius: 999px; padding: 3px 11px;">Change</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="1b" style="width: 390px; flex: none;">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;">
+        <span style="background: #1A2024; color: #FFFFFF; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;">1b</span>
+        <span style="font-weight: 600; font-size: 14px; color: #1A2024;">Bold editorial — the verdict is the interface</span>
+      </div>
+      <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #57524A; line-height: 1.5;">No imagery. Huge type states the answer like a public-health notice; severity carried by ink weight. Fastest to read in sunlight, most "being straight with me".</p>
+      <div style="background: #F5F4F0; border: 1px solid #DCD9D2; border-radius: 24px; padding: 14px; box-shadow: 0 8px 28px rgba(20,22,26,0.10);">
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 2px 6px 10px 6px; border-bottom: 2px solid #211E19;">
+          <span style="font-family: 'Anek Latin', sans-serif; font-weight: 800; font-size: 19px; color: #211E19;">SaafSaans</span>
+          <span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: #57524A;">ANAND VIHAR · ● LIVE 2:00 PM</span>
+        </div>
+        <div style="padding: 20px 6px 6px 6px;">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.12em; color: #6B665D;">FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE</div>
+          <div style="margin-top: 10px; font-family: 'Anek Latin', sans-serif; font-weight: 800; font-size: 40px; line-height: 1.05; letter-spacing: -0.015em; color: #58150E;">High risk.<br><span style="color: #211E19;">Avoid outdoor exertion today.</span></div>
+          <p style="margin: 12px 0 0 0; font-size: 14px; color: #57524A; line-height: 1.5;">Skip outdoor exercise. Keep trips short and wear an N95 outside.</p>
+          <div style="margin-top: 16px; border-top: 1px solid #C2BEB4; padding-top: 12px; display: flex; gap: 20px; align-items: baseline;">
+            <div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: #6B665D;">YOUR RISK</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 30px; color: #58150E;">56<span style="font-size: 14px; color: #6B665D;">/100</span></div>
+            </div>
+            <div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: #6B665D;">AMBIENT AQI</div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 30px; color: #211E19;">191<span style="font-size: 14px; color: #6B665D;"> Moderate</span></div>
+            </div>
+            <div style="flex: 1;"></div>
+          </div>
+          <div style="margin-top: 14px; background: #211E19; color: #F5F4F0; border-radius: 10px; padding: 10px 14px; display: flex; align-items: baseline; gap: 10px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; opacity: 0.7;">IF YOU MUST GO</span>
+            <span style="font-family: 'Anek Latin', sans-serif; font-weight: 600; font-size: 16px;">Late morning · 9 AM–12 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1c" style="width: 390px; flex: none;">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;">
+        <span style="background: #1A2024; color: #FFFFFF; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;">1c</span>
+        <span style="font-weight: 600; font-size: 14px; color: #1A2024;">Warm &amp; human — a caring companion</span>
+      </div>
+      <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #57524A; line-height: 1.5;">Soft tinted cards, gentle copy addressed to you, a small sky chip instead of a full hero. Least alarming for anxious users; most "health companion".</p>
+      <div style="background: #F7F2EC; border: 1px solid #E3DACE; border-radius: 24px; padding: 14px; box-shadow: 0 8px 28px rgba(20,22,26,0.10);">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 2px 6px 12px 6px;">
+          <span style="font-family: 'Anek Latin', sans-serif; font-weight: 800; font-size: 19px; color: #33291C;">SaafSaans</span>
+          <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg, #93A5B4, #C9B18E); color: #FFF9F0; font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 5px 11px; border-radius: 999px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #FFE9C4;"></span>HAZY · AQI 191
+          </span>
+        </div>
+        <div style="background: #FDFBF7; border: 1px solid #E3DACE; border-radius: 18px; padding: 18px;">
+          <div style="font-size: 13px; color: #7A6E5C;">Good afternoon · Anand Vihar · updated 2:00 PM</div>
+          <div style="margin-top: 8px; font-family: 'Anek Latin', sans-serif; font-weight: 700; font-size: 25px; line-height: 1.2; color: #33291C;">Today isn't kind to your lungs — keep the workout indoors.</div>
+          <p style="margin: 10px 0 0 0; font-size: 13.5px; color: #6E6152; line-height: 1.55;">With asthma and a planned outdoor session, this air puts you at <strong style="color: #8C4A2E;">high risk (56/100)</strong>. A healthy adult would be at 44 — the gap is your asthma, not you.</p>
+          <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <span style="background: #F3E3D3; color: #8C4A2E; font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 999px;">Wear an N95 outside</span>
+            <span style="background: #E9EDE4; color: #55663F; font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 999px;">Better window: 9 AM–12 PM</span>
+          </div>
+        </div>
+        <div style="margin-top: 12px; background: #FDFBF7; border: 1px solid #E3DACE; border-radius: 18px; padding: 13px 16px; display: flex; align-items: center; gap: 9px;">
+          <span style="font-size: 13px; color: #6E6152;">Caring for: <strong style="color: #33291C;">Adult · asthma · outdoor exercise</strong></span>
+          <span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #8C4A2E; background: #F3E3D3; border-radius: 999px; padding: 4px 12px;">Change</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

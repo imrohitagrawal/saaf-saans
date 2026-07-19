@@ -44,36 +44,59 @@ def norm_age(label: str) -> str:
 
 
 # --- AQI category / color -------------------------------------------------
-# Spec color thresholds: <=100 green, <=200 orange, <=300 red, >300 dark red.
-# CPCB labels: Good / Moderate / Poor / Very Poor / Severe.
+# The six official CPCB National AQI bands. Earlier versions collapsed 0-100
+# into a single "Good", which merged two distinct CPCB categories and made the
+# six-segment scale in the UI unrepresentable. Hex values are the light-theme
+# band inks from the approved design.
+#
+# (upper_bound, label, color_name, hex, slug). Ordered; first match wins.
+AQI_BANDS = [
+    (50,  "Good",         "blue",    "#2f6fb5", "g1"),
+    (100, "Satisfactory", "teal",    "#3f7180", "g2"),
+    (200, "Moderate",     "ochre",   "#8a5a0e", "g3"),
+    (300, "Poor",         "orange",  "#9c4519", "g4"),
+    (400, "Very Poor",    "red",     "#8a2a26", "g5"),
+]
+_SEVERE = ("Severe", "maroon", "#58150e", "g6")
+_UNKNOWN = ("Unknown", "grey", "#9e9e9e", "gx")
+
+
 def aqi_category(aqi):
     """Return ``(label, color_name, hex)`` for an AQI value.
 
-    Defensive: ``None`` -> Unknown/grey. Negative values are clamped for the
-    color decision but the raw value is what the caller displays.
+    Defensive: ``None`` or a non-numeric value -> Unknown/grey. Negatives are
+    clamped for the band decision; the caller still displays the raw value.
     """
+    return band_for(aqi)[:3]
+
+
+def band_for(aqi):
+    """Return ``(label, color_name, hex, slug)`` -- as ``aqi_category`` plus the
+    CSS token slug (``g1``-``g6``) the stylesheet uses for that band."""
     if aqi is None:
-        return ("Unknown", "grey", "#9e9e9e")
+        return _UNKNOWN
     try:
         value = int(aqi)
     except (TypeError, ValueError):
-        return ("Unknown", "grey", "#9e9e9e")
+        return _UNKNOWN
     value = max(value, 0)
-    if value <= 100:
-        return ("Good", "green", "#2e7d32")
-    if value <= 200:
-        return ("Moderate", "orange", "#ef6c00")
-    if value <= 300:
-        return ("Poor", "red", "#c62828")
-    if value <= 400:
-        return ("Very Poor", "dark red", "#7f0000")
-    return ("Severe", "dark red", "#4a0000")
+    for upper, label, color_name, hex_, slug in AQI_BANDS:
+        if value <= upper:
+            return (label, color_name, hex_, slug)
+    return _SEVERE
+
+
+def band_slug(aqi) -> str:
+    """CSS token slug for an AQI value: ``g1``-``g6``, or ``gx`` when unknown."""
+    return band_for(aqi)[3]
 
 
 # Plain-language meaning of each AQI category, for lay readers. Keyed by the
 # label returned by aqi_category().
 AQI_MEANING = {
     "Good": "Air is clean. Outdoor activity is fine for everyone.",
+    "Satisfactory": "Fine for almost everyone. A few unusually sensitive people "
+                    "may notice minor discomfort during heavy exertion.",
     "Moderate": "Acceptable for most. Sensitive groups (asthma, heart/lung "
                 "conditions, kids, seniors) should take it easy on heavy exertion.",
     "Poor": "Unhealthy for sensitive groups. Everyone should cut back on long or "

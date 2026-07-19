@@ -27,12 +27,16 @@ def test_age_map():
 
 
 def test_aqi_category_buckets():
-    assert normalize.aqi_category(50)[:2] == ("Good", "green")
-    assert normalize.aqi_category(100)[:2] == ("Good", "green")
-    assert normalize.aqi_category(101)[:2] == ("Moderate", "orange")
-    assert normalize.aqi_category(200)[:2] == ("Moderate", "orange")
-    assert normalize.aqi_category(201)[:2] == ("Poor", "red")
-    assert normalize.aqi_category(300)[:2] == ("Poor", "red")
+    """All six official CPCB bands, at both edges of each."""
+    assert normalize.aqi_category(0)[0] == "Good"
+    assert normalize.aqi_category(50)[0] == "Good"
+    # 51-100 is CPCB "Satisfactory", a distinct band -- not part of "Good".
+    assert normalize.aqi_category(51)[0] == "Satisfactory"
+    assert normalize.aqi_category(100)[0] == "Satisfactory"
+    assert normalize.aqi_category(101)[0] == "Moderate"
+    assert normalize.aqi_category(200)[0] == "Moderate"
+    assert normalize.aqi_category(201)[0] == "Poor"
+    assert normalize.aqi_category(300)[0] == "Poor"
     assert normalize.aqi_category(301)[0] == "Very Poor"
     assert normalize.aqi_category(400)[0] == "Very Poor"
     assert normalize.aqi_category(401)[0] == "Severe"
@@ -45,8 +49,16 @@ def test_aqi_category_defensive():
     assert normalize.aqi_category(-5)[0] == "Good"  # clamped for color
 
 
+def test_band_slug_maps_every_band_to_a_css_token():
+    """Templates colour by slug, so every band needs a distinct g1-g6 token."""
+    slugs = [normalize.band_slug(v) for v in (25, 75, 150, 250, 350, 450)]
+    assert slugs == ["g1", "g2", "g3", "g4", "g5", "g6"]
+    assert normalize.band_slug(None) == "gx"
+
+
 def test_aqi_meaning_covers_every_category():
-    for label in ("Good", "Moderate", "Poor", "Very Poor", "Severe", "Unknown"):
+    for label in ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor",
+                  "Severe", "Unknown"):
         assert label in normalize.AQI_MEANING
         assert normalize.aqi_meaning(label)
     # unknown label falls back rather than raising

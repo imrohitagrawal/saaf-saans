@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}SaafSaans — System{% endblock %}
+
+{# This register is deliberately mono-heavy and flat. It must not sound like the
+   health advice: the point is that the app can be audited, not reassured about. #}
+
+{% block content %}
+<h1 class="page-h1">System</h1>
+<p class="page-sub">The app audits itself — grounded, degraded-honest, and guarded. Watch it here.</p>
+
+<div class="seg" role="group" aria-label="System view" style="margin-top:14px;max-width:420px">
+  <a href="/system?{{ q_obs }}" aria-pressed="{{ 'true' if view == 'observability' else 'false' }}"
+     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Observability</a>
+  <a href="/system?{{ q_sec }}" aria-pressed="{{ 'true' if view == 'security' else 'false' }}"
+     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Security</a>
+</div>
+
+{% if view == 'observability' %}
+  <div class="kpis">
+    {% for k in kpis %}
+    <div class="kpi"><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
+    {% endfor %}
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <section class="card">
+      <div class="kicker">Events by type</div>
+      {% if ev_rows %}
+        <div class="bars">
+          {% for r in ev_rows %}
+          <div class="sysbar">
+            <span class="l">{{ r.l }}</span>
+            <span class="track"><span class="fill fill-accent" style="width:{{ r.w }}"></span></span>
+            <span class="v">{{ r.v }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="caption">Fallbacks are logged, never hidden — a cached reading or a
+          rule-based answer is shown as such at the moment it is served.</p>
+      {% else %}
+        <p class="empty">No telemetry yet. Ask a question on Today, or run
+          <code>python -m saafsaans.seed_demo_history</code> to backfill.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="kicker">Requests by locality</div>
+      {% if loc_rows %}
+        <div class="bars">
+          {% for r in loc_rows %}
+          <div class="sysbar">
+            <span class="l">{{ r.l }}</span>
+            <span class="track"><span class="fill" style="width:{{ r.w }}"></span></span>
+            <span class="v">{{ r.v }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No locality data yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+{% else %}
+  <div class="kpis" style="max-width:640px">
+    {% for k in sec_kpis %}
+    <div class="kpi"><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
+    {% endfor %}
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <section class="card">
+      <div class="kicker">Blocked · last 7 days</div>
+      {% if days %}
+        <div class="cols">
+          {% for d in days %}
+          <div class="col">
+            <span class="n">{{ d.n }}</span>
+            <span class="b" style="height:{{ d.h if d.n else '2px' }}"></span>
+            <span class="d">{{ d.d }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No blocked attempts recorded in the last 7 days.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <div class="kicker">Recent blocked attempts</div>
+        {# A real POST against the live guard — not a canned animation. #}
+        <form method="post" action="/system/simulate?{{ q }}" style="margin-left:auto">
+          <button class="pill-btn" type="submit">▸ Run red-team simulation</button>
+        </form>
+      </div>
+
+      {% if simulated %}
+      <p class="sim-note">Simulation fired {{ attempts | length and 3 }} known attack prompts at the
+        guard — all blocked before the model, logged below.</p>
+      {% endif %}
+
+      {% if attempts %}
+        <div style="margin-top:8px;display:flex;flex-direction:column">
+          {% for a in attempts %}
+          <div class="attempt">
+            <span class="pat">{{ a.pattern }}</span>
+            <span class="excerpt">"{{ a.excerpt }}"</span>
+            <span class="when">{{ a.when }} · blocked pre-model</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">Nothing blocked yet. Run the simulation above, or send an
+          injection attempt from Today — either way it is audited here.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endif %}
+{% endblock %}

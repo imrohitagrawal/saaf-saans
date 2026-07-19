@@ -1,0 +1,194 @@
+"""Presentation logic for the web views.
+
+Pure functions that turn service-layer dicts into the strings and geometry the
+templates render. Kept out of Jinja so the copy and the arithmetic are
+unit-testable, and out of ``services/`` so the API-level contracts stay free of
+presentation concerns.
+
+The voice here is deliberate: human and direct, never softening a severe
+reading and never dramatising a mild one. See design_handoff_saafsaans/README.md.
+"""
+from markupsafe import Markup
+
+# --- Verdict ---------------------------------------------------------------
+# One headline per risk band. risk.py has its own drier `headline` for the API
+# contract; this is the editorial voice the hero speaks in.
+_VERDICTS = {
+    "Low": "A good day to breathe — enjoy it outside.",
+    "Moderate": "Manageable for you today — just pace yourself.",
+    "High": "Today isn't kind to your lungs — keep it indoors.",
+    "Very High": "Your lungs need you indoors today.",
+    "Extreme": "Don't go out unless you must — this air is dangerous for you.",
+}
+
+
+def verdict_for(band: str) -> str:
+    """The hero headline for a risk band. Unknown bands get the cautious one."""
+    return _VERDICTS.get(band, _VERDICTS["High"])
+
+
+# --- Persona ---------------------------------------------------------------
+_ARTICLE = {"Adult": "AN ADULT", "Child": "A CHILD", "Senior": "A SENIOR"}
+_NEUTRAL_CONDITIONS = {"Fit", "None", None, ""}
+
+
+def persona_kicker(persona: dict) -> str:
+    """e.g. 'FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE'."""
+    who = _ARTICLE.get(persona.get("age"), "AN ADULT")
+    parts = [f"FOR {who}"]
+    condition = persona.get("condition")
+    if condition not in _NEUTRAL_CONDITIONS:
+        parts.append(f"WITH {condition.upper()}")
+    activity = persona.get("activity")
+    if activity:
+        return ", ".join([" ".join(parts), f"PLANNING {activity.upper()}"])
+    return " ".join(parts)
+
+
+def persona_line(persona: dict) -> str:
+    """e.g. 'Adult · asthma · outdoor exercise · Anand Vihar'."""
+    condition = persona.get("condition")
+    bits = [persona.get("age", "Adult")]
+    if condition not in _NEUTRAL_CONDITIONS:
+        bits.append(condition.lower())
+    bits.append(str(persona.get("activity", "")).lower())
+    bits.append(persona.get("locality", ""))
+    return " · ".join(b for b in bits if b)
+
+
+def _reasons(persona: dict) -> str:
+    """The persona factors that moved the score, phrased for prose."""
+    bits = []
+    condition = persona.get("condition")
+    if condition not in _NEUTRAL_CONDITIONS:
+        bits.append(f"your {condition.lower()}")
+    activity = persona.get("activity")
+    if activity and activity != "Stay home":
+        bits.append(str(activity).lower())
+    return " + ".join(bits)
+
+
+def comparison_line(score: int, baseline: int, persona: dict) -> str:
+    """Explain the gap between this persona's risk and a healthy adult's.
+
+    The gap *is* the product's reason to exist -- the same air scores
+    differently for different bodies -- so it is spelled out rather than left
+    for the reader to infer from two numbers.
+    """
+    if score > baseline:
+        reasons = _reasons(persona)
+        tail = (f" comes from {reasons} — the gap is your body and plans, not the air."
+                if reasons else " is higher than theirs.")
+        return f"A healthy adult in this air would be at {baseline}. Your {score}{tail}"
+    if score == baseline:
+        return f"A healthy adult in this air would be at {baseline} too — that's you today."
+    return (f"Staying in brings you to {score} — below the healthy-adult {baseline}. "
+            "Good call.")
+
+
+# --- Scale geometry --------------------------------------------------------
+# CPCB bands are unequal in width but drawn as fixed segments (10/10/20/20/20/20%)
+# so the low bands stay legible. The marker must use the same mapping or it
+# would point at the wrong segment.
+_SEGMENTS = [(0, 50, 0, 10), (50, 100, 10, 20), (100, 200, 20, 40),
+             (200, 300, 40, 60), (300, 400, 60, 80), (400, 500, 80, 100)]
+
+
+def scale_position(aqi) -> float:
+    """Marker position as a percentage across the six-segment scale bar."""
+    try:
+        value = max(0, min(int(aqi), 500))
+    except (TypeError, ValueError):
+        return 0.0
+    for lo, hi, start, end in _SEGMENTS:
+        if value <= hi:
+            span = hi - lo
+            return round(start + (value - lo) / span * (end - start), 1)
+    return 100.0
+
+
+# --- City ------------------------------------------------------------------
+def median_aqi(stations) -> int:
+    """Median AQI across stations, ignoring those with no reading."""
+    values = sorted(s["aqi"] for s in (stations or []) if s.get("aqi") is not None)
+    if not values:
+        return 0
+    mid = len(values) // 2
+    if len(values) % 2:
+        return values[mid]
+    return round((values[mid - 1] + values[mid]) / 2)
+
+
+def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
+    """Inline SVG sparkline: area fill, line, and a dot on the newest reading.
+
+    Rendered server-side so the chart is present before any JavaScript runs.
+    Returns an empty string when there is nothing to draw, letting the caller
+    show an empty state instead of an axis with no data.
+    """
+    values = [p.get("aqi") for p in (points or []) if p.get("aqi") is not None]
+    if len(values) < 2:
+        return Markup("")
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1
+    step = width / (len(values) - 1)
+    coords = [(i * step, height - 6 - (v - lo) / span * (height - 16))
+              for i, v in enumerate(values)]
+    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
+    area = f"M0,{height} L" + " L".join(f"{x:.1f},{y:.1f}" for x, y in coords) + f" L{width},{height} Z"
+    nx, ny = coords[-1]
+    return Markup(
+        f'<svg viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="AQI over the last 24 hours, from {lo} to {hi}">'
+        f'<path d="{area}" fill="currentColor" opacity="0.12"/>'
+        f'<polyline points="{line}" fill="none" stroke="currentColor" '
+        f'stroke-width="2" stroke-linejoin="round"/>'
+        f'<circle cx="{nx:.1f}" cy="{ny:.1f}" r="3.5" fill="currentColor"/></svg>'
+    )
+
+
+# --- Provenance ------------------------------------------------------------
+def provenance_chip(waqi_status: str, when: str) -> str:
+    """'● LIVE · 2:00 PM' or '◌ CACHED · 2:00 PM'. Never disguise a fallback."""
+    return f"● LIVE · {when}" if waqi_status == "ok" else f"◌ CACHED · {when}"
+
+
+def grounding_note(waqi_status: str, when: str) -> str:
+    """The trailing clause of the 'what the app used' grounding line."""
+    return (f"live reading · {when} IST" if waqi_status == "ok"
+            else f"cached sample (feed missed) · {when} IST")
+
+
+def pct(value, total) -> str:
+    """Width for a bar, as a CSS percentage string. Guards divide-by-zero."""
+    try:
+        if not total:
+            return "0%"
+        return f"{max(0.0, min(float(value) / float(total), 1.0)) * 100:.1f}%"
+    except (TypeError, ValueError, ZeroDivisionError):
+        return "0%"
+
+
+def outlook_rows(outlook, today=None) -> list:
+    """Format the five-day PM2.5 outlook for display.
+
+    WAQI's forecast includes days already past; those are dropped so the first
+    row is always today. Dates become 'Sat 19', and today is flagged so the
+    template can weight it.
+    """
+    from datetime import date as _date
+    today = today or _date.today()
+    rows = []
+    for row in outlook or []:
+        try:
+            day = _date.fromisoformat(str(row.get("date"))[:10])
+        except (TypeError, ValueError):
+            continue
+        if day < today:
+            continue
+        rows.append({
+            "label": "Today" if day == today else day.strftime("%a %-d"),
+            "avg": row.get("pm25_avg"),
+            "is_today": day == today,
+        })
+    return rows[:5]

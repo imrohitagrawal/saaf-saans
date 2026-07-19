@@ -143,6 +143,73 @@ def security_stats(client) -> dict:
         return _empty_security()
 
 
+def recent_security_events(client, limit: int = 6) -> list:
+    """Most recent blocked attempts, newest first.
+
+    ``security_stats`` only aggregates; the Security view also lists individual
+    attempts, so this returns the documents themselves. Only the fields already
+    stored are read -- ``prompt_excerpt`` is capped at 120 chars at write time
+    (see ``normalize.excerpt``), so nothing extra is exposed here.
+    """
+    if client is None:
+        return []
+    try:
+        resp = client.search(
+            index=INDEX_SECURITY,
+            size=max(1, int(limit)),
+            sort=[{"@timestamp": {"order": "desc"}}],
+            query={"match_all": {}},
+        )
+        hits = (resp.get("hits") or {}).get("hits") or []
+        return [
+            {
+                "pattern": src.get("pattern_matched") or "unknown",
+                "excerpt": src.get("prompt_excerpt") or "",
+                "ts": src.get("@timestamp") or "",
+            }
+            for src in (h.get("_source") or {} for h in hits)
+        ]
+    except Exception:
+        return []
+
+
+def security_daily(client, days: int = 7) -> list:
+    """Blocked-attempt counts bucketed by calendar day, oldest first.
+
+    ``security_stats.over_time`` buckets hourly, which cannot fill a seven-day
+    column chart. Days with no events are returned with a zero count so the
+    chart keeps a stable number of columns.
+    """
+    days = max(1, int(days))
+    if client is None:
+        return []
+    try:
+        resp = client.search(
+            index=INDEX_SECURITY,
+            size=0,
+            query={"bool": {"filter": [
+                {"range": {"@timestamp": {"gte": f"now-{days}d/d"}}}
+            ]}},
+            aggs={"per_day": {"date_histogram": {
+                "field": "@timestamp",
+                "calendar_interval": "1d",
+                "min_doc_count": 0,
+                "format": "yyyy-MM-dd",
+                # min_doc_count alone only fills gaps *between* existing
+                # buckets, so a quiet start or end of the week would silently
+                # shorten the chart. extended_bounds pins all N columns.
+                "extended_bounds": {"min": f"now-{days - 1}d/d", "max": "now/d"},
+            }}},
+        )
+        buckets = resp.get("aggregations", {}).get("per_day", {}).get("buckets", [])
+        return [
+            {"date": b.get("key_as_string") or b.get("key"), "count": b["doc_count"]}
+            for b in buckets
+        ][-days:]
+    except Exception:
+        return []
+
+
 def aqi_trend(client, locality: str = None, hours: int = 24) -> dict:
     """Average-AQI timeline (30-minute buckets) for the trend chart.
 
