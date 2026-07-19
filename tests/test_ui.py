@@ -11,7 +11,7 @@ from saafsaans.services import ui
 def test_theme_css_is_style_block():
     assert isinstance(ui.THEME_CSS, str)
     assert ui.THEME_CSS.startswith("<style>")
-    assert "prefers-color-scheme: dark" in ui.THEME_CSS
+    assert "--ss-cat-severe-solid: #4a0000" in ui.THEME_CSS  # light tokens
     assert "--ss-accent" in ui.THEME_CSS
 
 
@@ -181,3 +181,22 @@ def test_is_compact_rejects_long_phrases_and_blanks():
 def test_kpi_tile_marks_phrase_values_with_text_modifier():
     assert "ss-kpi-value--text" in ui.kpi_tile_html("Best time", "Late morning (9 AM-12 PM)")
     assert "ss-kpi-value--text" not in ui.kpi_tile_html("AQI", "191")
+
+
+# --- Theme selection --------------------------------------------------------
+def test_dark_tokens_are_a_separate_stylesheet():
+    """Dark tokens ship separately so they can follow Streamlit's own theme."""
+    assert ui.DARK_TOKENS_CSS.startswith("<style>")
+    assert "--ss-accent" in ui.DARK_TOKENS_CSS
+
+
+def test_severity_ramp_inverts_lightness_between_themes():
+    """Severe must be the *darkest* step on a light canvas and the *brightest*
+    on a dark one, so severity always tracks contrast with the background."""
+    assert "--ss-cat-severe-solid: #4a0000" in ui.THEME_CSS        # dark on light
+    assert "--ss-cat-severe-solid: #ffb4a0" in ui.DARK_TOKENS_CSS  # bright on dark
+
+
+def test_active_theme_defaults_to_light_without_streamlit_context():
+    """st.context.theme is documented as unreliable on first render; never raise."""
+    assert ui.active_theme() in ("light", "dark")

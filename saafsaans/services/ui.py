@@ -11,9 +11,10 @@ accent (#0c6b62) reserved for chrome and interactive affordances, flat surfaces
 separated by hairline rules rather than shadows, IBM Plex Mono for every figure,
 and the five CPCB AQI category triplets (solid / tint / ink) driving every
 air-quality colour. Severity always correlates with contrast-against-background,
-so the category ramp inverts its lightness direction between themes. The theme is
-dark-aware via
-``@media (prefers-color-scheme: dark)`` layered over ``:root`` CSS variables. All
+so the category ramp inverts its lightness direction between themes. Dark mode is
+driven by ``st.context.theme.type`` -- Streamlit's own setting, not the OS
+preference -- because the two can disagree, and when they did the cards stayed
+white on Streamlit's dark canvas. All
 dynamic text is escaped with ``html.escape`` and every function tolerates
 missing/None fields without raising, so a half-populated dict from an upstream
 failure still renders something sane instead of blowing up the page.
@@ -50,7 +51,7 @@ def _hex(value, fallback: str = ACCENT) -> str:
 
 # --- Theme ----------------------------------------------------------------
 # Light values are the defaults on :root; the dark media query and the
-# [data-theme] hooks flip the variables. Streamlit strips <style> from most
+# dark media query flips them. Streamlit strips <style> from most
 # places but honours it inside st.markdown(unsafe_allow_html=True).
 THEME_CSS = """<style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap');
@@ -88,36 +89,6 @@ THEME_CSS = """<style>
   --ss-shadow: none;
   --ss-shadow-md: none;
   --ss-track: #ecece7;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ss-bg: #0e1113;
-    --ss-card: #171b1e;
-    --ss-surface-2: #1e2327;
-    --ss-border: #272c30;
-    --ss-border-strong: #3a4147;
-    --ss-text: #f2f4f3;
-    --ss-text-2: #a8b0b5;
-    --ss-muted: #6e777d;
-    --ss-accent: #4fd1c0;
-    --ss-accent-hover: #6fdccd;
-    --ss-accent-tint: rgba(79,209,192,.14);
-    --ss-on-accent: #06231f;
-    /* Lightness DIRECTION INVERTS in dark mode: severity must correlate with
-       contrast-against-background in BOTH themes. The old values made Severe
-       (#7f1d1d on #0e1417) the *least* visible band — the exact opposite of
-       what an air-quality scale must do. Mild is now dim, severe is bright. */
-    --ss-cat-good-solid: #4e9153;     --ss-cat-good-tint: rgba(78,145,83,.16);   --ss-cat-good-ink: #86bd8b;
-    --ss-cat-moderate-solid: #e39b3c; --ss-cat-moderate-tint: rgba(227,155,60,.15); --ss-cat-moderate-ink: #edb96f;
-    --ss-cat-poor-solid: #f2685c;     --ss-cat-poor-tint: rgba(242,104,92,.15);  --ss-cat-poor-ink: #f79288;
-    --ss-cat-vpoor-solid: #ff8f7a;    --ss-cat-vpoor-tint: rgba(255,143,122,.18); --ss-cat-vpoor-ink: #ffab9c;
-    --ss-cat-severe-solid: #ffb4a0;   --ss-cat-severe-tint: rgba(255,180,160,.22); --ss-cat-severe-ink: #ffc8b9;
-    --ss-status-live: #66bb6a;
-    --ss-status-mock: #e0a04a;
-    --ss-shadow: none;
-    --ss-shadow-md: none;
-    --ss-track: #1e2327;
-  }
 }
 /* --- CPCB band context: each class publishes the active triplet as --c-* --- */
 .ss-cat-good     { --c-solid: var(--ss-cat-good-solid);     --c-tint: var(--ss-cat-good-tint);     --c-ink: var(--ss-cat-good-ink); }
@@ -240,12 +211,64 @@ THEME_CSS = """<style>
 .ss-refusal-body { margin: 4px 0 0; font-size: 13px; color: var(--ss-text-2); }
 </style>"""
 
+# Applied on top of THEME_CSS when Streamlit reports a dark theme. Driven by
+# st.context.theme.type rather than `prefers-color-scheme`, because the OS
+# preference and the theme the user picked in Streamlit can disagree -- and
+# when they did, our cards stayed white on Streamlit's dark canvas.
+DARK_TOKENS_CSS = """<style>
+:root {
+  --ss-bg: #0e1113;
+  --ss-card: #171b1e;
+  --ss-surface-2: #1e2327;
+  --ss-border: #272c30;
+  --ss-border-strong: #3a4147;
+  --ss-text: #f2f4f3;
+  --ss-text-2: #a8b0b5;
+  --ss-muted: #6e777d;
+  --ss-accent: #4fd1c0;
+  --ss-accent-hover: #6fdccd;
+  --ss-accent-tint: rgba(79,209,192,.14);
+  --ss-on-accent: #06231f;
+  /* Lightness DIRECTION INVERTS in dark mode: severity must correlate with
+     contrast-against-background in BOTH themes. The old values made Severe
+     (#7f1d1d on #0e1417) the *least* visible band — the exact opposite of
+     what an air-quality scale must do. Mild is now dim, severe is bright. */
+  --ss-cat-good-solid: #4e9153;     --ss-cat-good-tint: rgba(78,145,83,.16);   --ss-cat-good-ink: #86bd8b;
+  --ss-cat-moderate-solid: #e39b3c; --ss-cat-moderate-tint: rgba(227,155,60,.15); --ss-cat-moderate-ink: #edb96f;
+  --ss-cat-poor-solid: #f2685c;     --ss-cat-poor-tint: rgba(242,104,92,.15);  --ss-cat-poor-ink: #f79288;
+  --ss-cat-vpoor-solid: #ff8f7a;    --ss-cat-vpoor-tint: rgba(255,143,122,.18); --ss-cat-vpoor-ink: #ffab9c;
+  --ss-cat-severe-solid: #ffb4a0;   --ss-cat-severe-tint: rgba(255,180,160,.22); --ss-cat-severe-ink: #ffc8b9;
+  --ss-status-live: #66bb6a;
+  --ss-status-mock: #e0a04a;
+  --ss-shadow: none;
+  --ss-shadow-md: none;
+  --ss-track: #1e2327;
+}
+</style>"""
+
+
+def active_theme() -> str:
+    """Return "dark" or "light" as reported by Streamlit, defaulting to light.
+
+    ``st.context.theme`` is documented as possibly inaccurate on the very first
+    render of a session, so any failure falls back to the light tokens rather
+    than raising.
+    """
+    import streamlit as st
+
+    try:
+        return "dark" if st.context.theme.type == "dark" else "light"
+    except Exception:
+        return "light"
+
 
 def inject_theme() -> None:
-    """Inject THEME_CSS once into the Streamlit page. No-op if st is absent."""
+    """Inject the token system, matching Streamlit's own light/dark theme."""
     import streamlit as st
 
     st.markdown(THEME_CSS, unsafe_allow_html=True)
+    if active_theme() == "dark":
+        st.markdown(DARK_TOKENS_CSS, unsafe_allow_html=True)
 
 
 # --- AQI hero -------------------------------------------------------------

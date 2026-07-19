@@ -1,16 +1,44 @@
 # Native Streamlit chrome, matched to the SaafSaans tokens in services/ui.py.
-# Without this, Streamlit's own widgets (selectboxes, tabs, buttons, charts)
-# keep their stock blue/rounded look and fight the injected CSS.
+# Without this, Streamlit's own widgets (selectboxes, tabs, buttons, charts) keep
+# their stock blue/rounded look and fight the injected CSS.
+#
+# Light and dark are declared separately so the user's theme choice is honoured.
+# Pinning a single base would leave the injected `prefers-color-scheme: dark`
+# tokens disagreeing with Streamlit's own chrome on a dark-mode machine.
+
 [theme]
-base = "light"
+font = "IBM Plex Sans"                # loaded via @import in services/ui.py
+headingFont = "IBM Plex Sans"
+codeFont = "IBM Plex Mono"
+baseRadius = "none"                   # Swiss flatness: hairline rules, not pills
+buttonRadius = "none"
+showWidgetBorder = true
+showSidebarBorder = true
+
+[theme.light]
 primaryColor = "#0c6b62"              # teal — chrome only, never severity
 backgroundColor = "#fafaf8"
 secondaryBackgroundColor = "#f2f2ee"
 textColor = "#141618"
-font = "sans-serif"
-baseRadius = "none"                   # Swiss flatness: hairline rules, not pills
 borderColor = "#e2e4e1"
-showWidgetBorder = true
+linkColor = "#0c6b62"
+# Charts: teal leads, remaining hues are distinguishable under deuteranopia.
+chartCategoricalColors = ["#0c6b62", "#c1633c", "#40618f", "#8a5a83", "#6b7a3f", "#a8443c"]
+# Sequential ramp is deliberately green-free and monotonic in lightness, so it
+# survives greyscale printing and red/green colour-vision deficiency.
+chartSequentialColors = ["#f2d24b", "#e8a33d", "#d96a2c", "#c0392b", "#8e2d5a", "#5b2a63"]
+
+[theme.dark]
+primaryColor = "#4fd1c0"
+backgroundColor = "#0e1113"
+secondaryBackgroundColor = "#1e2327"
+textColor = "#f2f4f3"
+borderColor = "#272c30"
+linkColor = "#4fd1c0"
+chartCategoricalColors = ["#4fd1c0", "#e0916a", "#7fa3d6", "#c294bb", "#a8b96f", "#f2685c"]
+# Lightness direction inverts against a dark canvas: severe must be the brightest
+# step, not the darkest, so severity still tracks contrast with the background.
+chartSequentialColors = ["#8a7a22", "#b87a28", "#e07b3c", "#f26d5b", "#ff8fb0", "#e8a8ff"]
 
 [server]
 headless = true
