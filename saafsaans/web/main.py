@@ -351,9 +351,9 @@ def system(request: Request):
             ],
             "days": [{"n": d["count"], "d": _day_label(d["date"]),
                       "h": pr.pct(d["count"], day_max)} for d in daily],
-            "attempts": pr.dedupe_attempts(
+            "attempts": pr.group_attempts(
                 [{**a, "when": _fmt_time(a["ts"])}
-                 for a in metrics.recent_security_events(client, limit=24)])[:6],
+                 for a in metrics.recent_security_events(client, limit=40)])[:6],
         })
     return _render(request, "system.html", ctx, session_id(request), theme)
 

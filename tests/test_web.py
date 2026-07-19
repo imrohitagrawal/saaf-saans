@@ -238,3 +238,15 @@ def test_guide_band_table_shows_a_colour_swatch_per_band():
         body = c.get("/guide", params=PERSONA).text
     for slug in ("g1", "g2", "g3", "g4", "g5", "g6"):
         assert f'class="band-{slug}"' in body
+
+
+def test_security_empty_state_says_how_to_produce_data():
+    """With no Elasticsearch the view must explain itself, not render blank.
+
+    Grouping itself is covered in test_presenters; it cannot be exercised here
+    because the suite deliberately runs without a live index (see conftest).
+    """
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security"}).text
+    assert "Nothing blocked yet" in body
+    assert "Run the simulation above" in body

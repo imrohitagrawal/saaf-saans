@@ -102,11 +102,18 @@
 
       {% if attempts %}
         <div style="margin-top:8px;display:flex;flex-direction:column">
-          {% for a in attempts %}
-          <div class="attempt">
-            <span class="pat">{{ a.pattern }}</span>
-            <span class="excerpt">"{{ a.excerpt }}"</span>
-            <span class="when">{{ a.when }} · blocked pre-model</span>
+          {% for g in attempts %}
+          <div class="attempt-group">
+            <div class="attempt-head">
+              <span class="pat">{{ g.pattern }}</span>
+              <span class="when">{{ g.total }} blocked · pre-model</span>
+            </div>
+            {% for v in g.variants %}
+            <div class="variant">
+              <span class="excerpt">"{{ v.excerpt }}"</span>
+              <span class="when">{% if v.count > 1 %}&times;{{ v.count }} · {% endif %}{{ v.when }}</span>
+            </div>
+            {% endfor %}
           </div>
           {% endfor %}
         </div>

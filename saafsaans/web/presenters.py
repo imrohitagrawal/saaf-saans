@@ -239,19 +239,31 @@ def answer_sections(sections: dict) -> list:
     return blocks
 
 
-def dedupe_attempts(attempts) -> list:
-    """Collapse identical blocked attempts into one row carrying a count.
+def group_attempts(attempts) -> list:
+    """Group blocked attempts by detection pattern, then by distinct prompt.
 
-    Firing the red-team simulation more than once writes the same three prompts
-    again, so the raw list reads as a stutter. The events are all real and stay
-    in the index -- this only affects how they are shown. The newest timestamp
-    for each distinct (pattern, excerpt) is kept.
+    One pattern legitimately catches many different prompts -- that is the guard
+    working, not a duplicate. But a flat list repeats the pattern chip on every
+    row, so the eye reads a stutter and the thing that actually differs (the
+    prompt) trails. Grouping puts the pattern once and the variants under it.
+
+    Nothing is discarded: every event stays in the index, and the counts here
+    add up to the number of events seen.
     """
-    seen = {}
+    groups: dict = {}
     for a in attempts or []:
-        key = (a.get("pattern"), a.get("excerpt"))
-        if key in seen:
-            seen[key]["count"] += 1
+        pattern = a.get("pattern") or "unknown"
+        g = groups.setdefault(pattern, {"pattern": pattern, "total": 0, "variants": {}})
+        g["total"] += 1
+        excerpt = a.get("excerpt") or ""
+        v = g["variants"].get(excerpt)
+        if v:
+            v["count"] += 1
         else:
-            seen[key] = {**a, "count": 1}
-    return list(seen.values())
+            g["variants"][excerpt] = {"excerpt": excerpt, "count": 1,
+                                      "when": a.get("when"), "ts": a.get("ts")}
+    out = []
+    for g in groups.values():
+        variants = sorted(g["variants"].values(), key=lambda v: -v["count"])
+        out.append({"pattern": g["pattern"], "total": g["total"], "variants": variants})
+    return sorted(out, key=lambda g: -g["total"])
