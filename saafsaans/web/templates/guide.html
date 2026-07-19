@@ -54,10 +54,11 @@
       </div>
       <div>
         <dt>How is the risk score calculated?</dt>
-        <dd>A published, readable formula: a base from the AQI, plus points for a chronic
-          heart or lung condition, plus points for exertion outdoors, plus points for
-          being very young or older. It is a transparent heuristic to help you decide —
-          <strong>not a validated clinical instrument</strong>, and not a diagnosis.</dd>
+        <dd>It has its own section below, including every number that goes into it and
+          where that number came from. The short answer: it starts from the air, adds
+          how hard you will be breathing, and adds how much harder this air is on your
+          body. It is a decision aid — <strong>not a validated clinical
+          instrument</strong>, and not a diagnosis.</dd>
       </div>
       <div>
         <dt>Where does the air data come from?</dt>
@@ -87,6 +88,73 @@
           working as it should, contact a doctor.</dd>
       </div>
     </dl>
+  </section>
+
+  {# --- Risk score provenance ---------------------------------------------
+     A number presented as personal has to be checkable, or it is just an
+     assertion with a decimal point. Everything that goes into it is listed
+     here, including the parts that are not evidence. ---------------------- #}
+  <section class="card wide" id="risk">
+    <h2 class="kicker">How your risk score is worked out</h2>
+    <p class="hint">{{ risk_notice }}</p>
+
+    <p class="hint">The score adds three things together and stops at 100:
+      a starting figure for how bad the air is, how much air you will breathe
+      in while doing what you have planned, and how much harder this air is on
+      your body than on an average adult's.</p>
+
+    <h3 class="kicker" style="margin-top:18px">What the words on the score mean</h3>
+    <table style="margin-top:8px">
+      <tr><th>Score</th><th>What it is called</th></tr>
+      {% for b in risk_bands %}
+      <tr>
+        <td class="mono">{% if loop.first %}under {{ b.upper }}{% elif loop.last %}80 and above{% else %}{{ loop.previtem.upper }}–{{ b.upper - 1 }}{% endif %}</td>
+        <td>{{ b.label }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h3 class="kicker" style="margin-top:20px">The part that comes from published research</h3>
+    <p class="hint">Breathing harder means breathing in more of the same air. How much
+      more is measured, and we use those measurements rather than guessing. The figures
+      below are litres of air per minute (shown as cubic metres per minute, the unit the
+      source uses), for the three age groups this site offers.</p>
+    <table style="margin-top:8px">
+      <tr><th>Age group</th><th>At rest</th><th>Light</th><th>Moderate</th><th>Hard</th></tr>
+      {% for age, band in epa_age_bands.items() %}
+      <tr>
+        <td>{{ age | capitalize }} <span class="mono" style="color:var(--text-3)">{{ band }}</span></td>
+        {% for level in ["sedentary", "light", "moderate", "high"] %}
+        <td class="mono">{{ "%.4f" | format(inhalation_rates[age][level]) }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="caption">{{ source_epa }}</p>
+    <p class="hint">Which of your plans counts as which effort level is our reading, not
+      the source's:
+      {% for activity, level in activity_intensity.items() if activity != 'any' %}<span
+        class="mono">{{ activity.replace('_', ' ') }} = {{ level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
+
+    <h3 class="kicker" style="margin-top:20px">The part that is our own judgement</h3>
+    <p class="hint">There is no single published number for how much worse polluted air
+      is for a person with asthma, or COPD, or a heart condition. Rather than invent one
+      that would look authoritative, we say plainly that the figures below are our
+      ordering of who is most affected — the order is well supported, the exact sizes
+      are not. The same applies to the extra weight given to children and older people,
+      which is there for reasons that are real but do not reduce to a number: developing
+      lungs, more air breathed per kilogram of body weight, less reserve to draw on.</p>
+    <table style="margin-top:8px">
+      <tr><th>Factor</th><th>Points added</th></tr>
+      {% for w in risk_weights if w.table in ("condition_pts", "age_susceptibility_pts") and w.value %}
+      <tr><td>{{ w.key | capitalize }}</td><td class="mono">+{{ w.value }}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="caption">{{ source_unvalidated }}</p>
+
+    <p class="hint" style="margin-top:16px">If you think the balance here is wrong, you
+      can see every figure and change it — the whole calculation is a hundred lines of
+      readable code, and nothing about it is hidden from you.</p>
   </section>
 
 </div>

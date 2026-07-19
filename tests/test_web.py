@@ -289,3 +289,43 @@ def test_simulation_note_reports_the_real_attack_count():
     with TestClient(app) as c:
         body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
     assert f"Simulation fired {len(ATTACKS)} known attack prompts" in body
+
+
+# --- Risk-score provenance is on the page, not only in the repo ------------
+def test_today_labels_the_score_as_part_judgement(client):
+    """B2's rule: the unvalidated half of the score is named in the UI. A
+    reader must not have to open the README to learn that."""
+    html = client.get("/").text
+    assert "not a validated medical model" in html
+    assert "US EPA" in html or "EPA" in html
+
+
+def test_guide_publishes_every_risk_weight_and_its_source(client):
+    from saafsaans.services import risk
+    html = client.get("/guide").text
+    # The EPA figures themselves, so a reader can check them against the source.
+    for rate in ("0.0042", "0.0048", "0.0500", "0.0420"):
+        assert rate in html, rate
+    assert "Exposure Factors Handbook" in html
+    # And the weights that are not evidenced, named as such.
+    assert "Unvalidated clinical heuristic" in html
+    for cond in ("Copd", "Heart", "Asthma", "Pregnancy"):
+        assert cond in html, cond
+
+
+def test_guide_discloses_the_risk_band_cutoffs(client):
+    """A page that says "44/100 - HIGH" without publishing the cut-off is
+    asking to be taken on trust. Found by the Phase A walkthrough."""
+    html = client.get("/guide").text
+    assert "under 20" in html
+    assert "80 and above" in html
+    for band in ("Low", "Moderate", "High", "Very High", "Extreme"):
+        assert band in html, band
+
+
+def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
+    """EPA publishes rates per effort level; deciding a commute is "light" is
+    ours. The Guide has to say which is which."""
+    html = client.get("/guide").text
+    assert "our reading, not" in html
+    assert "outdoor exercise = high" in html

@@ -172,6 +172,10 @@ def today(request: Request):
         "transcript": turns, "open_prov": open_prov,
         "condition_help": normalize.condition_help(persona["condition"]),
         "conditions_help": normalize.CONDITION_HELP,
+        # The score is half published figure and half the author's judgement.
+        # Saying so next to the number is the point; saying it only in the
+        # README would repeat the mistake this project exists to record.
+        "risk_notice": risk.HEURISTIC_NOTICE,
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, edit=None if persona_open else "1"),
         # Provenance opens per turn, so history stays independently inspectable.
@@ -411,6 +415,15 @@ def guide(request: Request):
         "bands": [{"label": l, "range": r, "slug": g,
                    "meaning": normalize.aqi_meaning(l)}
                   for l, r, g in zip(labels, ranges, slugs)],
+        # A reader told "44/100 · HIGH" cannot check that without the cut-offs.
+        "risk_bands": [{"label": n, "upper": u} for n, u, _c in risk._BAND_TABLE],
+        "risk_weights": risk.weight_table(),
+        "risk_notice": risk.HEURISTIC_NOTICE,
+        "source_epa": risk.SOURCE_EPA,
+        "source_unvalidated": risk.SOURCE_UNVALIDATED,
+        "epa_age_bands": risk.EPA_AGE_BANDS,
+        "inhalation_rates": risk.INHALATION_RATES,
+        "activity_intensity": risk.ACTIVITY_INTENSITY,
     })
     return _render(request, "guide.html", ctx, session_id(request), theme)
 

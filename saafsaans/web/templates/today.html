@@ -104,6 +104,10 @@
     <div class="drivers">
       {% for d in risk.drivers %}<span class="driver">{{ d }}</span>{% endfor %}
     </div>
+    {# Half this number is a published figure and half is our judgement. The
+       reader is told which, here, not only in the repository's documentation. #}
+    <p class="hint">{{ risk_notice }}
+      <a href="/guide?{{ q }}#risk">See how the score is worked out ›</a></p>
   </section>
 
   {# --- Reading ------------------------------------------------------------ #}
