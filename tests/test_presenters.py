@@ -124,3 +124,33 @@ def test_outlook_rows_caps_at_five_and_survives_junk():
     assert len(p.outlook_rows(many, today=date(2026, 7, 19))) == 5
     assert p.outlook_rows([{"date": "not-a-date", "pm25_avg": 1}]) == []
     assert p.outlook_rows(None) == []
+
+
+# --- Answer mapping ---------------------------------------------------------
+def test_answer_sections_drops_raw_and_disclaimer():
+    """`raw` is the whole model response; rendering it would dump the transcript."""
+    blocks = p.answer_sections({
+        "verdict": "NO-GO", "verdict_detail": "Skip the evening run.",
+        "precautions": ["Prefer indoor exercise.", "Carry your inhaler."],
+        "window": "Late morning", "symptoms": ["Wheeze that doesn't settle."],
+        "disclaimer": "General guidance.", "raw": "### VERDICT\nNO-GO\n...",
+    })
+    headings = [b["heading"] for b in blocks]
+    assert headings == ["Verdict", "What to do", "When to seek help"]
+    assert not any("raw" in str(b) for b in blocks)
+    # The window has its own bar on the hero; repeating it in every answer is noise.
+    assert not any("Late morning" in str(b) for b in blocks)
+
+
+def test_answer_sections_omits_empty_blocks():
+    assert p.answer_sections({"verdict_detail": "Fine today."}) == \
+        [{"heading": "Verdict", "text": "Fine today.", "lead": True}]
+    assert p.answer_sections({}) == []
+    assert p.answer_sections(None) == []
+
+
+def test_answer_block_keys_avoid_jinja_dict_method_collisions():
+    """A key named `items` resolves to dict.items in Jinja, not the value."""
+    blocks = p.answer_sections({"verdict_detail": "x", "precautions": ["a"], "symptoms": ["b"]})
+    for b in blocks:
+        assert not (set(b) & {"items", "keys", "values", "get", "update", "pop"})

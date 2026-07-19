@@ -221,9 +221,12 @@ def ask(request: Request, question: str = Form(...)):
              "activity": persona["activity"]},
             advisories, question, locality=persona["locality"],
             timestamp=es.now_iso(), best_window=data["window"])
+        parsed = llm.parse_advice(text)
         turns.append({
             "kind": "answer", "question": question,
-            "sections": llm.parse_advice(text), "sources": advisories,
+            "blocks": pr.answer_sections(parsed),
+            "disclaimer": parsed.get("disclaimer"),
+            "sources": advisories,
             "reading": reading, "waqi_status": waqi_status})
         degraded = [n for n, bad in (("waqi_fallback", waqi_status == "fallback"),
                                      ("llm_fallback", llm_status == "llm_fallback")) if bad]
@@ -234,11 +237,13 @@ def ask(request: Request, question: str = Form(...)):
             "aqi_value": reading.get("aqi"), "locality": persona["locality"],
             "error": "; ".join(degraded)})
     except Exception as exc:  # pragma: no cover - top-level safety net
-        turns.append({"kind": "answer", "question": question,
-                      "sections": {"verdict": "Something went wrong preparing your advice. "
-                                              "When in doubt, minimise outdoor exposure and "
-                                              "wear an N95 outside."},
-                      "sources": [], "reading": reading, "waqi_status": waqi_status})
+        turns.append({
+            "kind": "answer", "question": question,
+            "blocks": [{"heading": "Verdict", "lead": True,
+                        "text": "Something went wrong preparing your advice. When in "
+                                "doubt, minimise outdoor exposure and wear an N95 outside."}],
+            "disclaimer": None, "sources": [],
+            "reading": reading, "waqi_status": waqi_status})
         es.log_telemetry(client, {
             "@timestamp": es.now_iso(), "session_hash": hashed, "event": "error",
             "latency_ms": int((time.time() - start) * 1000),

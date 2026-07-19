@@ -172,17 +172,14 @@
         <div class="q"><span class="mark">Q ·</span><p>{{ answer.question }}</p></div>
         <div class="answer">
           <div class="answer-body">
-            {% for heading, body in answer.sections.items() %}
+            {% for b in answer.blocks %}
             <div>
-              <h4>{{ heading | replace('_', ' ') }}</h4>
-              {% if body is string %}
-                <p {% if loop.first %}class="lead"{% endif %}>{{ body }}</p>
-              {% else %}
-                <ul>{% for item in body %}<li>{{ item }}</li>{% endfor %}</ul>
-              {% endif %}
+              <h4>{{ b.heading }}</h4>
+              {% if b.text %}<p {% if b.lead %}class="lead"{% endif %}>{{ b.text }}</p>{% endif %}
+              {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
             </div>
             {% endfor %}
-            <p class="disclaimer">General guidance, not medical advice.</p>
+            <p class="disclaimer">{{ answer.disclaimer or "General guidance, not medical advice." }}</p>
           </div>
           <div class="prov-bar">
             <a class="prov-btn" href="/?{{ q_prov_toggle }}#ask"

@@ -192,3 +192,27 @@ def outlook_rows(outlook, today=None) -> list:
             "is_today": day == today,
         })
     return rows[:5]
+
+
+def answer_sections(sections: dict) -> list:
+    """Map llm.parse_advice's contract onto the design's three labelled blocks.
+
+    parse_advice returns a fixed-key dict that includes ``raw`` -- the entire
+    model response -- and a disclaimer the card renders separately. Iterating
+    the dict blindly puts both on screen, so the mapping is explicit here.
+
+    ``window`` is deliberately dropped: the best-time window already has its own
+    bar on the hero, and repeating it inside every answer is noise.
+    """
+    s = sections or {}
+    blocks = []
+    detail = (s.get("verdict_detail") or "").strip()
+    if detail:
+        blocks.append({"heading": "Verdict", "text": detail, "lead": True})
+    precautions = [p for p in (s.get("precautions") or []) if p]
+    if precautions:
+        blocks.append({"heading": "What to do", "bullets": precautions})
+    symptoms = [x for x in (s.get("symptoms") or []) if x]
+    if symptoms:
+        blocks.append({"heading": "When to seek help", "bullets": symptoms})
+    return blocks
