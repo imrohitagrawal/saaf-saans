@@ -1,6 +1,11 @@
 # Design brief — SaafSaans
 
-Paste this entire document as your prompt. It is written to be self-contained.
+> **Superseded — kept as a record.** This brief was written to commission the v1
+> redesign. It was answered: the resulting design lives in
+> [`design_handoff_saafsaans/`](../design_handoff_saafsaans/) and is implemented in
+> `saafsaans/web/`. Read it to understand *why* the design looks as it does — the
+> CPCB colour trap, the shell that had to be avoided, the failures being corrected.
+> Do not treat it as an instruction; it is history.
 
 ---
 
