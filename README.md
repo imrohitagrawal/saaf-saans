@@ -1,62 +1,117 @@
 # SaafSaans — Delhi Air Quality & Public Health Companion
 
-A 4-tab **Command Center**. Pick a persona (age, health condition, activity, Delhi locality), ask a question, and get concrete go/no-go air-quality advice grounded in a **live AQI reading** and **curated health advisories** — with a **personal risk score**, a **forecast-based best-time window**, live **Elastic Observability** and **Security** dashboards, and a prompt-injection guard.
+Answers one question in under five seconds: **"Is it safe for *me* to go outside right now, and if not, when?"**
 
-**Tabs:** 🩺 Advisor (live AQI + risk gauge + structured advice card) · 🌆 City Pulse (all Delhi stations + 24h AQI trend from Elasticsearch) · 📊 Observability (telemetry KPIs: volume, p50/p95 latency, fallback rates, tokens) · 🛡️ Security (prompt-injection events + one-click red-team simulation).
+Set a persona (age, health condition, planned activity, locality) and SaafSaans shows the live
+air quality where you are, scores **your** risk rather than the city's, tells you the best window
+to go out, and answers plain-language questions with advice grounded in retrieved health
+guidance — every answer showing its sources.
 
-## Setup (5 lines)
+![Today](docs/screenshots/today-light.jpg)
+
+The concept is **the sky is the interface**: the hero renders the air you are being told about,
+so severity is felt before it is read. The gradient and haze density track the CPCB band.
+
+| Night | City Pulse | System |
+|---|---|---|
+| ![Dark](docs/screenshots/today-dark.jpg) | ![City](docs/screenshots/city-pulse.jpg) | ![System](docs/screenshots/system-security.jpg) |
+
+## Run it
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env                     # optional: fill in keys; blank = mock mode
-python saafsaans/setup_indices.py        # create 4 indices + seed 34 advisories
-python -m saafsaans.seed_demo_history    # optional: backfill 24-48h so dashboards look alive
-streamlit run saafsaans/app.py
+cp .env.example .env                      # optional: blank = mock mode
+python saafsaans/setup_indices.py         # create 4 indices + seed 34 advisories
+python -m saafsaans.seed_demo_history     # optional: backfill so System has data
+uvicorn saafsaans.web.main:app --reload --port 8010
 ```
 
-The app runs with **zero keys** — every external call has a timeout and a deterministic fallback, so the demo never crashes. Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic creds to `.env` to light up live data, the LLM, and dashboards.
+Runs with **zero keys**: every external call is timeout-bounded with a deterministic fallback.
+Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
+and the dashboards.
 
-## Architecture (6 lines)
+## Three views
 
-1. **WAQI** (`services/waqi.py`) fetches live AQI for the locality; the reading is indexed into `aqi-readings`.
-2. **Elasticsearch** (`services/es.py`) BM25-searches `health-advisories` by AQI band + persona boosts (auto-detects Cloud ID / URL / in-process mock mode).
-3. **Guard** (`services/guard.py`) blocks prompt-injection *before* the LLM and logs to `security-events`.
-4. **LLM** (`services/llm.py`) sends verified context + persona + advisories to Gemini via OpenRouter; falls back to rule-based advice on any failure.
-5. **Streamlit** (`app.py`) orchestrates the flow and renders a color-coded CPCB AQI badge + a "what the app used" transparency panel.
-6. **Telemetry** goes to `app-telemetry`; `attack_demo.py` populates the security dashboard on demand.
+- **Today** — sky hero, personal risk against a healthy-adult baseline, best-time window, the
+  reading with its position on the CPCB scale, a five-day PM2.5 outlook, and grounded Q&A.
+- **City Pulse** — 21 Delhi/NCR stations sorted worst-first, plus a 24-hour trend.
+- **System** — Observability (latency, fallback rates, token spend) and Security (blocked
+  prompt-injection attempts, with a live red-team simulation). The app auditing itself.
+
+## Architecture
+
+1. **WAQI** (`services/waqi.py`) fetches live AQI; readings are indexed into `aqi-readings`.
+2. **Elasticsearch** (`services/es.py`) retrieves health advisories by AQI band and persona.
+3. **Guard** (`services/guard.py`) blocks prompt injection *before* the model, auditing to
+   `security-events`.
+4. **LLM** (`services/llm.py`) answers from verified context, falling back to rule-based advice.
+5. **FastAPI + Jinja2** (`web/`) renders everything server-side; `web/presenters.py` holds the
+   copy and geometry.
+6. **Telemetry** goes to `app-telemetry`, read live by the System view.
+
+**No JavaScript.** Not "degrades gracefully" — the app ships zero `<script>` tags. Every control
+is a link or a form, and disclosure state rides in the query string, which is also what gives the
+"opening one definition closes another" behaviour. A test asserts this.
+
+## Design
+
+The UI implements the approved handoff in [`design_handoff_saafsaans/`](design_handoff_saafsaans/).
+Two decisions worth calling out:
+
+**The CPCB colour ramp is not used as a data encoding.** It is non-monotonic in lightness
+(official "Good" `#00E400` is *darker* than "Moderate" `#FFFF00`), `#FFFF00` measures ~1.07:1 on
+white, and in dark mode maroon `#7E0023` falls to ~1.4:1 — making the *most severe* band the
+*least visible*. Severity here always correlates with contrast against the background, so the
+ramp inverts its lightness direction between themes. The US EPA publishes its own accessible
+alternate ("ColorVision Assist") for the same reason.
+
+**Degradation is visible, never disguised.** A cached reading says `◌ CACHED`, a dead feed shows
+a notice, and a rule-based answer is logged as one. The Observability view exists to make that
+checkable rather than claimed.
 
 ## Threat model
 
-**What sensitive data does the design hold?**
-Health condition + locality + planned activity form a sensitive persona. It lives **only in the Streamlit session** — it is never written to any index. Logs store a `session_hash` (sha256 of a per-session UUID, truncated to 12 chars) for correlation, and `prompt_excerpt` in `security-events` is capped at 120 chars. `aqi-readings` holds only station/pollutant data; `app-telemetry` holds only place + hashed id + status fields (its `error` field stores a sanitized, secret-redacted exception string — never the question or persona).
+**Sensitive data.** Health condition, locality, and planned activity form a sensitive persona. It
+lives only in the URL and request — never written to any index. Logs store a `session_hash`
+(sha256, truncated) and `prompt_excerpt` is capped at 120 characters.
 
-**Where can untrusted input reach something powerful?**
-The only untrusted input is the user's chat text on its way to the LLM. Defence is layered: (1) `guard.check` blocks injection/extraction patterns and oversized input before any model call; (2) the system prompt is a fixed constant and the user question is framed as *data, not instructions*; (3) every attempt is audited in `security-events` with the matched pattern and `action_taken`.
+**Untrusted input.** The only untrusted input is the user's question. Defence is layered:
+`guard.check` blocks injection and oversized input before any model call; the system prompt is a
+fixed constant and the question is framed as *data, not instructions*; every attempt is audited.
 
-**Which edges are exposed, and how are they secured?**
-The Streamlit app, the Elastic endpoint, the OpenRouter key, and the WAQI feed. Secrets live only in `.env` (git-ignored); the Elastic API key should be least-privilege (write to the four app indices, read `health-advisories`). Every outbound call is timeout-bounded (WAQI 5s, LLM 30s, ES 10s) with a graceful fallback, so a slow or hostile edge degrades the demo instead of breaking it.
+**Exposed edges.** Secrets live only in `.env` (git-ignored). Every outbound call is
+timeout-bounded (WAQI 5s, LLM 30s, ES 10s) with a graceful fallback.
 
 ## Layout
 
 ```
 saafsaans/
-  app.py                # 4-tab Streamlit Command Center + orchestration
+  web/
+    main.py             FastAPI routes + orchestration
+    presenters.py       verdict copy, comparison line, scale geometry, SVG sparkline
+    templates/          base · today · city · system
+    static/app.css      design tokens, per-band sky, severity ramp
   services/
-    config.py           # env / capability detection (mock-first)
-    normalize.py        # persona maps, AQI category, privacy helpers
-    guard.py            # prompt-injection detection (normalized + hardened)
-    waqi.py             # live AQI fetch + per-locality fallback + forecast
-    forecast.py         # WAQI forecast -> daily outlook + best-time window
-    risk.py             # persona risk score (AQI x condition x activity x age)
-    es.py               # ES client, dual-mode, BM25 search, logging
-    metrics.py          # ES aggregations for the dashboards (read-only)
-    llm.py              # Gemini via OpenRouter + structured advice + parser
-    ui.py               # enterprise theme + HTML component toolkit
-  data/advisories.py    # 34 seed advisories
-  setup_indices.py      # create 4 indices + seed advisories
-  seed_demo_history.py  # backfill demo readings/telemetry/security for dashboards
-  attack_demo.py        # fire 3 malicious prompts at the guard
-tests/                  # pytest (117): guard, privacy, search, normalize, waqi,
-                        # es, llm, risk, forecast, metrics, ui
+    config · normalize · guard · waqi · forecast · risk · es · metrics · llm
+  data/advisories.py    34 seed advisories
+  setup_indices.py · seed_demo_history.py · attack_demo.py
+tests/                  168 tests
+docs/                   design brief, screenshots, specs
 ```
+
+## Known limitations
+
+- **English only.** For a Delhi public-health tool that is a real gap. The wordmark is bilingual
+  and the display face (Anek Latin) has a Devanagari sibling, so the door is open — but the 34
+  advisories and the model prompting are not translated.
+- **WAQI data is non-commercial.** Their terms forbid resale, use in paid applications, and
+  redistributing cached or archived data. Fine for this; a commercial deployment would need
+  OpenAQ or a direct CPCB agreement.
+- **The risk score is a heuristic**, not a validated clinical instrument. Weights in
+  `services/risk.py` are documented but not derived from a published model.
+
+## Retrospective
+
+This project was built for a hackathon and did not place. [`RETROSPECTIVE.md`](RETROSPECTIVE.md)
+is an honest account of why, and what changed as a result.
