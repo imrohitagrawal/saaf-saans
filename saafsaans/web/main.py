@@ -280,14 +280,17 @@ def city(request: Request):
         # A stored reading is only "live" if it is recent. Treating a week-old
         # document as current would present stale air as the air outside now --
         # the one thing this product promises never to do.
-        stale = row is None or not _is_fresh(row.get("ts"), hours=3)
+        fresh = row is not None and _is_fresh(row.get("ts"), hours=3)
         # No stored reading: fall back to the labelled per-locality sample rather
-        # than showing a dead row. It is marked CACHED, never passed off as live,
-        # and costs no HTTP -- 21 live fetches would make this page crawl.
+        # than showing a dead row. It costs no HTTP -- 21 live fetches would make
+        # this page crawl -- but it is a stand-in figure, not a reading we hold,
+        # so it must not carry the same tag as a genuine stored-but-old reading.
         aqi = row.get("aqi") if row else (waqi.SAMPLES.get(loc) or {}).get("aqi")
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi, "band": label, "slug": slug,
-                         "stale": stale, "selected": loc == selected})
+                         "source": "live" if fresh else ("cached" if row else "sample"),
+                         "age": None if fresh or row is None else _age_label(row.get("ts")),
+                         "selected": loc == selected})
 
     def group(region):
         rows = [s for s in stations if s["name"] in waqi.REGIONS[region]]
@@ -300,7 +303,7 @@ def city(request: Request):
         "delhi": group("Delhi"), "ncr": group("NCR"),
         "count": sum(1 for s in stations if s["aqi"] is not None),
         "median": pr.median_aqi(stations),
-        "now": _fmt_time(),
+        "now": _fmt_stamp(),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points")),
@@ -460,6 +463,41 @@ def _render(request, template, ctx, sid, theme):
     response.set_cookie("sid", sid, httponly=True, samesite="lax")
     response.set_cookie("theme", theme, samesite="lax")
     return response
+
+
+def _fmt_stamp() -> str:
+    """Now, as '3:05 AM IST, 20 Jul' -- placeable on a calendar.
+
+    Comparing two pages is impossible without the date and the zone, so both
+    are always spelled out. Deliberately takes no argument: this stamps the
+    moment the page was rendered, and accepting a timestamp would invite it to
+    be used for an observation time, which is what ``_fmt_time`` is for.
+    """
+    return datetime.now(timezone.utc).astimezone(IST).strftime("%-I:%M %p IST, %-d %b")
+
+
+def _age_label(ts) -> str:
+    """How old a stored reading is, terse enough for a tag: '40 MIN', '5 H', '3 D'.
+
+    Empty when the timestamp is missing or unparseable -- an invented age would
+    be worse than none.
+    """
+    if not ts:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    minutes = int((datetime.now(timezone.utc) - dt).total_seconds() // 60)
+    if minutes < 0:
+        return ""
+    if minutes < 60:
+        return f"{minutes} MIN"
+    if minutes < 60 * 48:
+        return f"{minutes // 60} H"
+    return f"{minutes // (60 * 24)} D"
 
 
 def _back(request: Request, sid: str, theme: str):

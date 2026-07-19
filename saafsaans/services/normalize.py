@@ -124,6 +124,19 @@ GLOSSARY = {
              "into the lungs and bloodstream. The main health concern in Delhi.",
     "PM10": "Coarser dust particles under 10 micrometres — irritate the airways "
             "and eyes; includes road and construction dust.",
+    "CPCB": "Central Pollution Control Board — the Indian government body that "
+            "monitors pollution across the country. Its name appears beside a "
+            "reading to say which monitoring network that reading is credited to.",
+    # Describes the unit only. What the site's own figures are measured in is a
+    # separate question, so this deliberately makes no claim about them.
+    "µg/m³": "Micrograms per cubic metre — a way of saying how much of something "
+             "is floating in a given amount of air. A microgram is a millionth of "
+             "a gram, and a bigger number means more of it in the same air.",
+    # Says what an N95 is, not what it does: the strongest available evidence on
+    # mask benefit is rated very low certainty, so no effectiveness claim is made.
+    "N95": "A close-fitting disposable face mask made from a filter material "
+           "graded to a United States standard. The European grade of the same "
+           "kind of mask is called FFP2.",
     "Dominant pollutant": "The pollutant driving today's AQI (e.g. pm25 = fine "
                           "particles, pm10 = dust, o3 = ozone, no2 = traffic gas).",
     "Risk score": "A 0-100 estimate of today's risk FOR YOU, combining the air "

@@ -47,6 +47,17 @@ _ACTIVITY_PHRASE = {
     "Stay home": "planning to stay home",
 }
 _NEUTRAL_CONDITIONS = {"Fit", "None", None, ""}
+# The same conditions again, as the possessive form a sentence needs ("your
+# COPD"). Written out rather than lower-cased off _CONDITION_PHRASE because
+# lower-casing turns the acronym COPD into "copd" mid-sentence. A test pins
+# these keys to _CONDITION_PHRASE so the two cannot drift apart.
+_CONDITION_REASON = {
+    "Asthma": "your asthma",
+    "Heart condition": "your heart condition",
+    "Pregnancy": "your pregnancy",
+    "COPD": "your COPD",
+}
+_AGE_REASON = {"Child": "being a child", "Senior": "being a senior"}
 
 
 def persona_sentence(persona: dict, with_place: bool = True) -> str:
@@ -78,14 +89,29 @@ def persona_line(persona: dict) -> str:
 
 
 def _reasons(persona: dict) -> str:
-    """The persona factors that moved the score, phrased for prose."""
+    """The persona factors that actually open the gap, phrased for prose.
+
+    The baseline (main.advisor_data) holds the reader's own activity fixed and
+    varies only the body: ``compute_risk(aqi, "any", their activity, "adult")``.
+    The activity therefore very nearly cancels out of the subtraction, so
+    naming it would credit a cause the arithmetic has almost entirely removed.
+    Only health condition and age are listed.
+
+    Almost, not exactly: ``risk.dose_points`` is a function of age *and*
+    activity, because EPA publishes a breathing rate per age band per exertion
+    level. A child at rest differs from an adult at rest by a little more than
+    a child running differs from an adult running, so up to one point of the
+    gap moves when the plans change. That residue is still an age difference,
+    which is why the sentence attributes the gap to the body -- but it is why
+    the sentence must not go on to deny the plans outright.
+    """
     bits = []
     condition = persona.get("condition")
     if condition not in _NEUTRAL_CONDITIONS:
-        bits.append(f"your {condition.lower()}")
-    activity = persona.get("activity")
-    if activity and activity != "Stay home":
-        bits.append(str(activity).lower())
+        bits.append(_CONDITION_REASON.get(condition, "your health condition"))
+    age = _AGE_REASON.get(persona.get("age"))
+    if age:
+        bits.append(age)
     return " + ".join(bits)
 
 
@@ -95,16 +121,27 @@ def comparison_line(score: int, baseline: int, persona: dict) -> str:
     The gap *is* the product's reason to exist -- the same air scores
     differently for different bodies -- so it is spelled out rather than left
     for the reader to infer from two numbers.
+
+    The comparison person has the reader's own plans, not an invented set of
+    them, so the label says so: the baseline number moves when the reader edits
+    their activity, and a sentence that denied that would forfeit their trust.
+
+    The sentence says the gap is the body. It does not go on to say "not your
+    plans", because that would be very slightly false -- see ``_reasons``.
+
+    There is no branch for a score *below* the baseline. Every term that can
+    differ is non-negative except a dose residue worth at most one point, which
+    age susceptibility always outweighs, so the case cannot occur; a message
+    congratulating the reader on it would be copy for a situation the model
+    cannot produce. Equal-or-lower collapses into the same honest sentence.
     """
+    opener = f"A healthy adult with the same plans as you would be at {baseline}"
     if score > baseline:
         reasons = _reasons(persona)
-        tail = (f" comes from {reasons} — the gap is your body and plans, not the air."
+        tail = (f" comes from {reasons} — the gap is your body, not the air."
                 if reasons else " is higher than theirs.")
-        return f"A healthy adult in this air would be at {baseline}. Your {score}{tail}"
-    if score == baseline:
-        return f"A healthy adult in this air would be at {baseline} too — that's you today."
-    return (f"Staying in brings you to {score} — below the healthy-adult {baseline}. "
-            "Good call.")
+        return f"{opener}. Your {score}{tail}"
+    return f"{opener} too — that's you today."
 
 
 # --- Scale geometry --------------------------------------------------------

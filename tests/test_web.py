@@ -125,6 +125,54 @@ def test_city_lists_every_station_worst_first():
     assert "worst first" in body
 
 
+def test_city_timestamp_says_what_it_is_and_which_zone():
+    """A bare clock time cannot be compared with the Today page's reading time."""
+    import re
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    assert re.search(r"page loaded \d{1,2}:\d\d [AP]M IST, \d{1,2} \w{3}", body)
+
+
+def _city_rows(monkeypatch, rows):
+    """Render /city with the station grid pinned, so freshness and age are fixed.
+
+    Returns {station name: its rendered row}, so an assertion about one station's
+    tag cannot be satisfied by the tag legend elsewhere on the page.
+    """
+    import re
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    found = re.findall(r'<a class="station .*?</a>', body, re.S)
+    return {re.search(r'class="nm">([^<]+)<', row).group(1): row for row in found}
+
+
+def test_stale_stored_reading_says_how_old_it_is(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}])
+    # A cached 390 is only actionable if the reader knows its age.
+    assert "CACHED · 9 H OLD" in rows["Rohini"]
+
+
+def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
+    from saafsaans.services import waqi
+    rows = _city_rows(monkeypatch, [])
+    assert len(rows) == len(waqi.LOCALITIES)
+    for name, row in rows.items():
+        assert "CACHED" not in row, name       # nothing is stored, so nothing is cached
+        assert "SAMPLE" in row, name
+
+
+def test_fresh_stored_reading_carries_no_tag(monkeypatch):
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 120, "ts": now}])
+    assert "tag" not in rows["Rohini"]
+
+
 def test_system_segments_render_their_own_content():
     with TestClient(app) as c:
         obs = c.get("/system", params={**PERSONA, "view": "observability"}).text
