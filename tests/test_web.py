@@ -250,3 +250,42 @@ def test_security_empty_state_says_how_to_produce_data():
         body = c.get("/system", params={**PERSONA, "view": "security"}).text
     assert "Nothing blocked yet" in body
     assert "Run the simulation above" in body
+
+
+# --- Honesty of derived numbers ---------------------------------------------
+def test_a_stored_reading_is_only_live_while_it_is_recent():
+    """A week-old document must not be presented as the air outside now."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.web.main import _is_fresh
+    now = datetime.now(timezone.utc)
+    assert _is_fresh(now.isoformat())
+    assert _is_fresh((now - timedelta(hours=2)).isoformat())
+    assert not _is_fresh((now - timedelta(hours=9)).isoformat())
+    assert not _is_fresh((now - timedelta(days=7)).isoformat())
+    assert not _is_fresh(None) and not _is_fresh("not-a-date")
+
+
+def test_questions_answered_excludes_blocked_and_errored_turns():
+    """'total' counts every logged event; only completed answers are answers."""
+    import saafsaans.web.main as main
+    from saafsaans.services import metrics
+    real = metrics.telemetry_kpis
+    metrics.telemetry_kpis = lambda c: {
+        "total": 10, "by_event": {"chat_completed": 6, "blocked": 3, "error": 1},
+        "latency_p50": 0, "latency_p95": 0, "waqi_fallback_rate": 0,
+        "llm_fallback_rate": 0, "total_tokens": 0, "by_locality": []}
+    try:
+        with TestClient(app) as c:
+            body = c.get("/system", params={**PERSONA, "view": "observability"}).text
+        answered = body.split('questions answered')[0]
+        assert ">6<" in answered and ">10<" in body   # 6 answered, 10 events logged
+    finally:
+        metrics.telemetry_kpis = real
+
+
+def test_simulation_note_reports_the_real_attack_count():
+    """The note used to hardcode 3 regardless of what attack_demo holds."""
+    from saafsaans.attack_demo import ATTACKS
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
+    assert f"Simulation fired {len(ATTACKS)} known attack prompts" in body

@@ -86,10 +86,6 @@ SAMPLES = {
 }
 _DEFAULT_SAMPLE = SAMPLES["Delhi (city)"]
 
-# Back-compat alias: the plain Delhi cached sample.
-CACHED_SAMPLE = {"aqi": _DEFAULT_SAMPLE["aqi"], "pm25": _DEFAULT_SAMPLE["pm25"],
-                 "pm10": _DEFAULT_SAMPLE["pm10"], "dominant_pollutant": "pm25",
-                 "station": "cached-sample", "city": "Delhi", "stale": True}
 
 _API = "https://api.waqi.info/feed/{feed}/?token={token}"
 

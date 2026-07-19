@@ -110,8 +110,6 @@ def test_sparkline_survives_a_flat_series():
 def test_provenance_never_disguises_a_fallback_as_live():
     assert p.provenance_chip("ok", "2:00 PM") == "● LIVE · 2:00 PM"
     assert "CACHED" in p.provenance_chip("fallback", "2:00 PM")
-    assert "cached sample" in p.grounding_note("fallback", "2:00 PM")
-    assert "live reading" in p.grounding_note("ok", "2:00 PM")
 
 
 def test_pct_guards_zero_and_junk():
@@ -203,3 +201,11 @@ def test_group_attempts_survives_empty_and_missing_fields():
     assert p.group_attempts([]) == []
     assert p.group_attempts(None) == []
     assert p.group_attempts([{}])[0]["pattern"] == "unknown"
+
+
+def test_outlook_today_is_decided_in_india_not_server_local_time():
+    """A UTC-configured server would otherwise mislabel 'Today' for 5.5 hours."""
+    import inspect
+    src = inspect.getsource(p.outlook_rows)
+    assert "hours=5, minutes=30" in src, "outlook must resolve 'today' in IST"
+    assert "date.today()" not in src

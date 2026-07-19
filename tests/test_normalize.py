@@ -98,3 +98,37 @@ def test_dark_severity_ramp_is_monotonic_in_luminance():
     dark = [lum(c) for c in ramp('[data-theme="dark"] {')]
     assert light == sorted(light, reverse=True), "light ramp must darken with severity"
     assert dark == sorted(dark), "dark ramp must brighten with severity"
+
+
+def test_band_chip_word_and_control_borders_meet_contrast():
+    """The band word must be readable on every band, and a control's only visual
+    boundary must clear 3:1 -- both were failing before this test existed."""
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css").read_text()
+
+    def lum(h):
+        h = h.lstrip("#")
+        ch = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        f = lambda x: x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(ch[0]) + 0.7152 * f(ch[1]) + 0.0722 * f(ch[2])
+
+    def ratio(a, b):
+        la, lb = lum(a), lum(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    def tok(block, name):
+        chunk = css.split(block, 1)[1]
+        return re.search(rf"{name}: (#[0-9A-Fa-f]{{6}})", chunk).group(1)
+
+    # The chip word takes --text, not the band ink, so it passes on every tint.
+    assert "color: var(--text); border: 1px solid var(--ink)" in css
+    for block, text_tok in ((":root {", "--text"), ('[data-theme="dark"] {', "--text")):
+        text = tok(block, text_tok)
+        for n in range(1, 7):
+            tint = tok(block, f"--n{n}")
+            assert ratio(text, tint) >= 4.5, (block, n, ratio(text, tint))
+
+    for block in (":root {", '[data-theme="dark"] {'):
+        assert ratio(tok(block, "--border-s"), tok(block, "--surface")) >= 3.0, block

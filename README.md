@@ -31,13 +31,16 @@ Runs with **zero keys**: every external call is timeout-bounded with a determini
 Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
 and the dashboards.
 
-## Three views
+## Four views
 
 - **Today** — sky hero, personal risk against a healthy-adult baseline, best-time window, the
   reading with its position on the CPCB scale, a five-day PM2.5 outlook, and grounded Q&A.
 - **City Pulse** — 21 Delhi/NCR stations sorted worst-first, plus a 24-hour trend.
 - **System** — Observability (latency, fallback rates, token spend) and Security (blocked
   prompt-injection attempts, with a live red-team simulation). The app auditing itself.
+- **Guide** — plain-language explanation of every number and term: the glossary, all six
+  CPCB bands with what each means for you, and what each health condition in the picker
+  actually is. Linked from the term that confused you.
 
 ## Architecture
 
@@ -72,9 +75,15 @@ checkable rather than claimed.
 
 ## Threat model
 
-**Sensitive data.** Health condition, locality, and planned activity form a sensitive persona. It
-lives only in the URL and request — never written to any index. Logs store a `session_hash`
-(sha256, truncated) and `prompt_excerpt` is capped at 120 characters.
+**Sensitive data.** Age, health condition, and planned activity form a sensitive persona.
+They live only in the URL and the request — never written to any index. **Locality is the one
+exception and is written deliberately:** telemetry stores the station name so the Observability
+view can show requests by area. It is a coarse, non-identifying label (one of 21 public
+monitoring stations), never paired with the health condition. The field whitelists in
+`services/es.py` (`TELEMETRY_FIELDS`, `SECURITY_FIELDS`) enforce that boundary in code rather
+than by convention. Logs store a `session_hash` (sha256, truncated) and `prompt_excerpt` is
+capped at 120 characters. Chat transcripts, which hold raw questions, stay in process memory
+and are never persisted.
 
 **Untrusted input.** The only untrusted input is the user's question. Defence is layered:
 `guard.check` blocks injection and oversized input before any model call; the system prompt is a
@@ -90,13 +99,13 @@ saafsaans/
   web/
     main.py             FastAPI routes + orchestration
     presenters.py       verdict copy, comparison line, scale geometry, SVG sparkline
-    templates/          base · today · city · system
+    templates/          base · today · city · system · guide
     static/app.css      design tokens, per-band sky, severity ramp
   services/
     config · normalize · guard · waqi · forecast · risk · es · metrics · llm
   data/advisories.py    34 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  168 tests
+tests/                  186 tests
 docs/                   design brief, screenshots, specs
 ```
 

@@ -166,7 +166,6 @@ def today(request: Request):
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"], persona),
         "scale_pos": pr.scale_position(data["reading"].get("aqi")),
         "prov_chip": pr.provenance_chip(data["waqi_status"], obs_time),
-        "grounding": pr.grounding_note(data["waqi_status"], obs_time),
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
         "term": term, "persona_open": persona_open,
@@ -274,7 +273,10 @@ def city(request: Request):
     stations = []
     for loc in waqi.LOCALITIES:
         row = grid.get(loc)
-        stale = row is None
+        # A stored reading is only "live" if it is recent. Treating a week-old
+        # document as current would present stale air as the air outside now --
+        # the one thing this product promises never to do.
+        stale = row is None or not _is_fresh(row.get("ts"), hours=3)
         # No stored reading: fall back to the labelled per-locality sample rather
         # than showing a dead row. It is marked CACHED, never passed off as live,
         # and costs no HTTP -- 21 live fetches would make this page crawl.
@@ -317,6 +319,7 @@ def system(request: Request):
         "q_obs": _qs(persona, theme, view="observability"),
         "q_sec": _qs(persona, theme, view="security"),
         "simulated": request.query_params.get("sim") == "1",
+        "attack_count": len(ATTACKS),
     })
 
     if view == "observability":
@@ -325,9 +328,13 @@ def system(request: Request):
         ev_max = max(by_event.values()) if by_event else 0
         loc_rows = k.get("by_locality") or []
         loc_max = max((r["count"] for r in loc_rows), default=0)
+        # `total` counts every logged event, including blocked prompts and
+        # errors. Only completed answers belong under "questions answered".
+        answered = (by_event or {}).get("chat_completed", 0)
         ctx.update({
             "kpis": [
-                {"v": k.get("total", 0), "l": "questions answered"},
+                {"v": answered, "l": "questions answered"},
+                {"v": k.get("total", 0), "l": "events logged"},
                 {"v": f'{k.get("latency_p50", 0) / 1000:.1f} s', "l": "median response"},
                 {"v": f'{k.get("latency_p95", 0) / 1000:.1f} s', "l": "p95 response"},
                 {"v": f'{k.get("waqi_fallback_rate", 0) * 100:.1f}%', "l": "feed misses → cached"},
@@ -343,9 +350,12 @@ def system(request: Request):
         stats = metrics.security_stats(client)
         daily = metrics.security_daily(client, days=7)
         day_max = max((d["count"] for d in daily), default=0)
+        # security_stats aggregates the whole index, so the KPI has to come from
+        # the same seven-day buckets the chart uses or the label is a lie.
+        last_7 = sum(d["count"] for d in daily)
         ctx.update({
             "sec_kpis": [
-                {"v": stats.get("total_blocked", 0), "l": "blocked, last 7 days"},
+                {"v": last_7, "l": "blocked, last 7 days"},
                 {"v": f'{stats.get("block_rate", 0) * 100:.0f}%', "l": "stopped pre-model"},
                 {"v": len(stats.get("by_pattern") or []), "l": "distinct patterns"},
             ],
@@ -412,6 +422,19 @@ def health():
 
 
 # --- helpers ---------------------------------------------------------------
+def _is_fresh(ts, hours: int = 3) -> bool:
+    """True when a stored reading is recent enough to call live."""
+    if not ts:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt) <= timedelta(hours=hours)
+
+
 def _day_label(date_str: str) -> str:
     try:
         return datetime.fromisoformat(str(date_str)[:10]).strftime("%a")

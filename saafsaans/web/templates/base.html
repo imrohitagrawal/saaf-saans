@@ -12,6 +12,7 @@
 <body>
 {#- Persona and theme ride in the query string, so every link must carry them
     and every view is shareable. `q` is built once in main.py. -#}
+<a class="skip" href="#main">Skip to main content</a>
 <header class="hdr">
   <div class="hdr-in">
     <a class="wordmark" href="/?{{ q }}">
@@ -25,18 +26,18 @@
     </nav>
     {#- Plain links, so the toggle works with JavaScript disabled. -#}
     <div class="seg" role="group" aria-label="Theme">
-      <a href="{{ path }}?{{ q_light }}" aria-pressed="{{ 'true' if theme == 'light' else 'false' }}">Day</a>
-      <a href="{{ path }}?{{ q_dark }}"  aria-pressed="{{ 'true' if theme == 'dark'  else 'false' }}">Night</a>
+      <a href="{{ path }}?{{ q_light }}" aria-current="{{ 'true' if theme == 'light' else 'false' }}">Day</a>
+      <a href="{{ path }}?{{ q_dark }}"  aria-current="{{ 'true' if theme == 'dark'  else 'false' }}">Night</a>
     </div>
   </div>
 </header>
 
-<div class="shell">
+<main class="shell" id="main">
   {% block content %}{% endblock %}
   <footer class="foot">
     Persona stays in session — never logged; telemetry keeps a hashed id only.
     Data: WAQI/CPCB · advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.
   </footer>
-</div>
+</main>
 </body>
 </html>

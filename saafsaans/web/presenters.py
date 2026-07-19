@@ -174,11 +174,6 @@ def provenance_chip(waqi_status: str, when: str) -> str:
     return f"● LIVE · {when}" if waqi_status == "ok" else f"◌ CACHED · {when}"
 
 
-def grounding_note(waqi_status: str, when: str) -> str:
-    """The trailing clause of the 'what the app used' grounding line."""
-    return (f"live reading · {when} IST" if waqi_status == "ok"
-            else f"cached sample (feed missed) · {when} IST")
-
 
 def pct(value, total) -> str:
     """Width for a bar, as a CSS percentage string. Guards divide-by-zero."""
@@ -197,12 +192,14 @@ def outlook_rows(outlook, today=None) -> list:
     row is always today. Dates become 'Sat 19', and today is flagged so the
     template can weight it.
     """
-    from datetime import date as _date
-    today = today or _date.today()
+    from datetime import date, datetime, timedelta, timezone
+    # The audience is in India; a UTC-configured server would otherwise label
+    # the wrong row "Today" for five and a half hours of every day.
+    today = today or datetime.now(timezone(timedelta(hours=5, minutes=30))).date()
     rows = []
     for row in outlook or []:
         try:
-            day = _date.fromisoformat(str(row.get("date"))[:10])
+            day = date.fromisoformat(str(row.get("date"))[:10])
         except (TypeError, ValueError):
             continue
         if day < today:

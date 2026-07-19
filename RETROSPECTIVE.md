@@ -49,14 +49,23 @@ The engineering was fine. That was not the problem.
 | Glossary stranded at page bottom | Definitions open in place, next to the term |
 | Cached and live data styled identically | `◌ CACHED`, a dead-feed notice, and fallbacks logged as fallbacks |
 | Emoji as icons | None |
-| 142 tests | 168, including end-to-end tests that assert no page ships JavaScript |
+| 142 tests | 186, including end-to-end tests that assert no page ships JavaScript |
 
-Two bugs the rebuild surfaced, both of which had been live:
+Bugs the rebuild surfaced, all of which had been live:
 
 - **`normalize.aqi_category` collapsed 0–100 into "Good"**, merging two distinct official CPCB
   categories. Satisfactory (51–100) simply did not exist in the app.
 - **The dark-mode severity ramp was backwards.** Severe rendered at roughly 1.4:1 against the
   background — the most dangerous band was the least visible thing on screen.
+- **Seeding was not idempotent.** `setup_indices.py` used auto-generated document ids, so each
+  run appended another copy of the 34 advisories; retrieval then cited the same guidance twice
+  in one answer.
+- **The chat replaced its own history**, so a user tracking a decision lost what they had asked.
+- **`aria-pressed` on links**, no `<main>` landmark, no skip link, and section titles that were
+  styled `div`s rather than headings — the page had one heading and nothing else to navigate by.
+- **A false claim in this repository's own README**: it stated the persona is never written to
+  any index, while locality was being indexed deliberately to power a dashboard. The claim is
+  now precise about what is stored and why.
 
 ## The honest lesson
 

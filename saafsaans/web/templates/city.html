@@ -3,7 +3,7 @@
 
 {% macro station_list(title, rows) %}
 <div>
-  <div class="kicker" style="margin:0 4px 6px">{{ title }}</div>
+  <h2 class="kicker" style="margin:0 4px 6px">{{ title }}</h2>
   <div class="station-list">
     {% for s in rows %}
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"

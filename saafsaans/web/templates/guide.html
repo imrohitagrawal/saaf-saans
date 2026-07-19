@@ -8,7 +8,7 @@
 <div class="grid" style="margin-top:14px">
 
   <section class="card">
-    <div class="kicker">The numbers</div>
+    <h2 class="kicker">The numbers</h2>
     <dl class="faq">
       {% for term, text in glossary.items() %}
       <div><dt>{{ term }}</dt><dd>{{ text }}</dd></div>
@@ -17,7 +17,7 @@
   </section>
 
   <section class="card">
-    <div class="kicker">Health conditions in the picker</div>
+    <h2 class="kicker">Health conditions in the picker</h2>
     <dl class="faq">
       {% for name, text in conditions_help.items() %}
       <div><dt>{{ name }}</dt><dd>{{ text }}</dd></div>
@@ -26,7 +26,7 @@
   </section>
 
   <section class="card wide">
-    <div class="kicker">The CPCB air-quality bands</div>
+    <h2 class="kicker">The CPCB air-quality bands</h2>
     <p class="hint">India's national scale runs 0–500. The band decides the colour of the
       sky above and what the advice says.</p>
     <table style="margin-top:12px">
@@ -42,7 +42,7 @@
   </section>
 
   <section class="card wide">
-    <div class="kicker">Common questions</div>
+    <h2 class="kicker">Common questions</h2>
     <dl class="faq">
       <div>
         <dt>Why is my risk score different from the AQI?</dt>

@@ -64,15 +64,6 @@ def openrouter_model() -> str:
     return _clean("OPENROUTER_MODEL") or "google/gemini-2.5-flash"
 
 
-def login_salt() -> str:
-    """Salt (pepper) for hashing optional login identities.
-
-    The raw email/phone is never stored — only a memory-hard salted hash. For
-    real anonymity set a SECRET ``SAAFSAANS_LOGIN_SALT`` in the environment: the
-    built-in default is public, so with it the demo's hashes are illustrative,
-    not hardened against an attacker who obtains both the hashes and this salt.
-    """
-    return _clean("SAAFSAANS_LOGIN_SALT") or "saafsaans-demo-salt-v1"
 
 
 def elastic_cloud_id() -> str:

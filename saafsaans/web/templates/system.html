@@ -9,9 +9,9 @@
 <p class="page-sub">The app audits itself — grounded, degraded-honest, and guarded. Watch it here.</p>
 
 <div class="seg" role="group" aria-label="System view" style="margin-top:14px;max-width:420px">
-  <a href="/system?{{ q_obs }}" aria-pressed="{{ 'true' if view == 'observability' else 'false' }}"
+  <a href="/system?{{ q_obs }}" aria-current="{{ 'true' if view == 'observability' else 'false' }}"
      style="flex:1;text-align:center;padding:9px 0;font-size:12px">Observability</a>
-  <a href="/system?{{ q_sec }}" aria-pressed="{{ 'true' if view == 'security' else 'false' }}"
+  <a href="/system?{{ q_sec }}" aria-current="{{ 'true' if view == 'security' else 'false' }}"
      style="flex:1;text-align:center;padding:9px 0;font-size:12px">Security</a>
 </div>
 
@@ -24,7 +24,7 @@
 
   <div class="grid" style="margin-top:14px">
     <section class="card">
-      <div class="kicker">Events by type</div>
+      <h2 class="kicker">Events by type</h2>
       {% if ev_rows %}
         <div class="bars">
           {% for r in ev_rows %}
@@ -44,7 +44,7 @@
     </section>
 
     <section class="card">
-      <div class="kicker">Requests by locality</div>
+      <h2 class="kicker">Requests by locality</h2>
       {% if loc_rows %}
         <div class="bars">
           {% for r in loc_rows %}
@@ -70,7 +70,7 @@
 
   <div class="grid" style="margin-top:14px">
     <section class="card">
-      <div class="kicker">Blocked · last 7 days</div>
+      <h2 class="kicker">Blocked · last 7 days</h2>
       {% if days %}
         <div class="cols">
           {% for d in days %}
@@ -88,7 +88,7 @@
 
     <section class="card">
       <div class="row">
-        <div class="kicker">Recent blocked attempts</div>
+        <h2 class="kicker">Recent blocked attempts</h2>
         {# A real POST against the live guard — not a canned animation. #}
         <form method="post" action="/system/simulate?{{ q }}" style="margin-left:auto">
           <button class="pill-btn" type="submit">▸ Run red-team simulation</button>
@@ -96,7 +96,7 @@
       </div>
 
       {% if simulated %}
-      <p class="sim-note">Simulation fired {{ attempts | length and 3 }} known attack prompts at the
+      <p class="sim-note">Simulation fired {{ attack_count }} known attack prompts at the
         guard — all blocked before the model, logged below.</p>
       {% endif %}
 

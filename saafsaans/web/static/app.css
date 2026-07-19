@@ -9,7 +9,7 @@
 /* ---------------------------------------------------------------- tokens -- */
 :root {
   --bg: #F2F1EE; --surface: #FBFAF8; --surface-2: #E9E7E2;
-  --border: #DCD9D2; --border-s: #C2BEB4;
+  --border: #DCD9D2; --border-s: #8F8B80;   /* 3.26:1 on --surface */
   --text: #211E19; --text-2: #57524A; --text-3: #6B665D;
   --accent: #2F5D8A; --accent-tint: #DCE7F1; --on-accent: #FFFFFF;
 
@@ -26,7 +26,7 @@
 
 [data-theme="dark"] {
   --bg: #12151C; --surface: #1B1F28; --surface-2: #232834;
-  --border: #2B303B; --border-s: #3D4350;
+  --border: #2B303B; --border-s: #6B7280;   /* 3.41:1 on --surface */
   --text: #E8E6E1; --text-2: #ABA79E; --text-3: #8B877E;
   --accent: #8FB8DC; --accent-tint: #1C2938; --on-accent: #12151C;
   /* Re-valued from the handoff's dark ramp, which was not monotonic in
@@ -169,7 +169,8 @@ select, input[type="text"] {
 .aqi-num { font-family: var(--mono); font-weight: 600; font-size: 46px;
            line-height: 1; letter-spacing: -.02em; }
 .band-chip { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
-             padding: 4px 11px; border-radius: 999px; background: var(--tint); color: var(--ink); }
+             padding: 3px 10px; border-radius: 999px; background: var(--tint);
+             color: var(--text); border: 1px solid var(--ink); }
 .term { border: none; background: none; padding: 0; font: inherit; color: inherit;
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
 .scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
@@ -322,3 +323,35 @@ select, input[type="text"] {
 .faq dt { font-weight: 600; font-size: 14px; }
 .faq dd { margin: 3px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .faq em { font-style: italic; }
+
+/* ------------------------------------------------------- a11y remedies ---- */
+/* Skip link: the sticky header repeats six controls on every page. */
+.skip { position: absolute; left: -9999px; top: 0; z-index: 100;
+        background: var(--surface); color: var(--text); padding: 10px 16px;
+        border: 1px solid var(--border-s); border-radius: 0 0 8px 0; }
+.skip:focus { left: 0; }
+
+/* .seg clips the global focus ring (outline-offset draws outside the child),
+   and on the active pill the ring colour equalled its own background. Draw it
+   inside, in the segment's own foreground colour. */
+.seg :focus-visible { outline-offset: -3px; outline-color: currentColor; }
+
+/* Touch-target floors. Padding is raised rather than overlaying pseudo-elements,
+   which would intercept pointer events on neighbouring controls. */
+.nav a { padding: 13px 12px 11px; }
+.seg a, .seg button { padding: 12px 16px; }
+.pill-btn { padding: 11px 16px; }
+.prov-btn { padding: 14px 16px; }
+.term { display: inline-block; padding: 6px 0; }
+@media (pointer: fine) {
+  /* Pointer devices do not need the same floor; keep the designed density. */
+  .nav a { padding: 8px 12px 6px; }
+  .seg a, .seg button { padding: 5px 11px; }
+  .pill-btn { padding: 6px 14px; }
+  .prov-btn { padding: 10px 16px; }
+  .term { padding: 0; }
+}
+
+/* h2 styled as a kicker: the level carries the outline, the class carries the look. */
+h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
+            letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
