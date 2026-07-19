@@ -120,6 +120,15 @@ docs/                   design brief, screenshots, specs
 - **The risk score is a heuristic**, not a validated clinical instrument. Weights in
   `services/risk.py` are documented but not derived from a published model.
 
+## Licence
+
+MIT with an attribution clause — see [`LICENSE`](LICENSE). Two carve-outs:
+`design_handoff_saafsaans/` is third-party design reference material, and WAQI data
+retrieved at runtime is subject to WAQI's own non-commercial terms.
+
+**Not medical advice.** General guidance from public readings and published advisories.
+The personal risk score is a documented heuristic, not a validated clinical instrument.
+
 ## Retrospective and decision record
 
 This project was built for a hackathon and did not place.
