@@ -175,11 +175,47 @@ defects, and shipping something honest and complete rather than something larger
 - **Separate the audience from the artifact earlier.** Two rebuild attempts failed because
   a generic shell was restyled rather than redesigned.
 
-## 8. Open items
+## 8. The transferable asset is the method, not the app
 
-- Deploy v1 publicly.
-- Hindi for the *advice*, not just the numbers — the one evidence-backed improvement.
-- Read CDSCO's Oct 2025 draft guidance on medical device software before any health-advice
-  product ships. It could not be retrieved during research and is the most
-  decision-relevant unread document.
-- Put v1 in front of two or three real people and record what actually happens.
+The application is a Delhi air-quality tool. The **method** is domain-independent and is
+written up separately in [`METHODOLOGY.md`](METHODOLOGY.md).
+
+The single strongest piece of evidence in this whole record is a kill rate:
+
+> In the evidence study, **7 of 14 claims were refuted** — a 50% failure rate on claims
+> that had already survived a first pass. In the decision-gap study, 4 of 30 were killed.
+> Two of those were claims this author had already stated confidently in conversation.
+
+That number matters because it proves the process **rejects things**. A review that
+confirms everything it looks at is not a review. Most descriptions of "AI-assisted
+development" cannot show a kill rate at all, because nothing was ever set up to fail.
+
+## 9. Open items, in order of value
+
+1. **Put v1 in front of two or three real people and write down what confuses them.**
+   This is the cheapest available improvement by a wide margin: thirty minutes converts
+   the weakest part of this record (§6 — no observed usage) into the strongest.
+2. **Deploy publicly.** A reader currently has to clone and run it. A URL is worth more
+   than another feature.
+3. **Hindi for the advice, not just the numbers** — the one evidence-backed improvement.
+4. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
+   retrieved during research and is the most decision-relevant unread document; it governs
+   whether personalised health advice can legally ship in India.
+
+## 10. If this is published
+
+Two failure modes to avoid.
+
+**Do not lead with the scale numbers.** "217 agents, 4.9M tokens" reads as spectacle and
+invites the reply *"so you ran a lot of automation."* The defensible headline is the
+decision:
+
+> *I cancelled my own follow-up project after the evidence contradicted it — here is the
+> evidence.*
+
+The counts are support for that claim, not the claim itself.
+
+**Do not omit §6.** The limitations are what make the rest credible. A reader will assume
+heavy AI assistance whether or not it is stated; stating it first is the difference
+between candour and being caught. The same applies to "no real users" — it is the obvious
+first question, and answering it before it is asked is worth more than hiding it.

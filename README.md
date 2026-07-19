@@ -128,3 +128,7 @@ This project was built for a hackathon and did not place.
 - [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md) — the full decision record: the adversarial
   code review that found a false privacy claim in this README, the research that cancelled
   the planned successor, and an explicit list of what this work does *not* demonstrate.
+- [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) — the review method, generalised. Domain
+  independent, with measured kill rates and its own limitations.
+- [`docs/review-workflow.js`](docs/review-workflow.js) — a runnable, parameterised version
+  of that review for any repository.
