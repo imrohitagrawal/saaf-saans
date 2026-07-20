@@ -411,6 +411,64 @@ HI: dict = {
         "prov_feed_scale": "(US EPA पैमाना)",
         "prov_live": "लाइव रीडिंग",
         "prov_cached": "सहेजा हुआ नमूना (फ़ीड नहीं मिली)",
+
+        # --- system.html ---
+        # This view was left in English on the grounds that it is
+        # developer-facing. The nav link that reaches it says सिस्टम and the
+        # review banner renders on it, so a Hindi reader is invited in and then
+        # met with a wall of English; the decision is reversed here.
+        #
+        # Register: flat and factual, not the Today page's warm voice. The page
+        # is an audit surface, so it states what happened and nothing more.
+        #
+        # What stays Latin on this page is not listed here at all: event names,
+        # guard pattern names and status values are the literal strings stored
+        # in the telemetry and security indices, and this view exists to show
+        # what is in them. A translated index value would be a description of
+        # the data rather than a view of it.
+        "sys_sub": "ऐप ख़ुद की जाँच करता है — आँकड़ों पर टिका, गड़बड़ी को छिपाता नहीं, और "
+                   "पहरे में। यहीं देखिए।",
+        "sys_view_label": "सिस्टम व्यू",
+        "sys_view_obs": "निगरानी",
+        "sys_view_sec": "सुरक्षा",
+        # KPI labels. Each sits under a Latin numeral, so it is a noun phrase,
+        # not a sentence.
+        "sys_kpi_answered": "सवालों के जवाब दिए गए",
+        "sys_kpi_events": "दर्ज घटनाएँ",
+        "sys_kpi_p50": "बीच का (मध्यक) जवाब समय",
+        # Spelled out rather than left as "p95": a Latin token of that shape is
+        # jargon in either language, and the Hindi names the thing it measures.
+        "sys_kpi_p95": "95वाँ प्रतिशतक जवाब समय",
+        "sys_kpi_feed_fallback": "फ़ीड नहीं मिली → सहेजी हुई",
+        "sys_kpi_rule_fallback": "नियम-आधारित जवाब",
+        "sys_kpi_tokens": "ख़र्च हुए टोकन",
+        "sys_kpi_blocked_7d": "रोकी गईं, पिछले 7 दिन",
+        "sys_kpi_premodel": "मॉडल से पहले रुकीं",
+        "sys_kpi_patterns": "अलग-अलग पैटर्न",
+        # --- observability ---
+        "sys_h_events": "प्रकार के हिसाब से घटनाएँ",
+        "sys_events_caption": "फ़ॉलबैक दर्ज होते हैं, छिपाए नहीं जाते — सहेजी हुई रीडिंग या "
+                              "नियम-आधारित जवाब जिस समय दिया जाता है, उसी समय वैसा ही "
+                              "बताया जाता है।",
+        # The shell command is printed after this fragment, so the Hindi ends
+        # where the command begins.
+        "sys_empty_telemetry": "अभी तक कोई टेलीमेट्री नहीं है। ‘आज’ पर कोई सवाल पूछिए, या "
+                               "पुराना डेटा भरने के लिए यह चलाइए:",
+        "sys_h_localities": "इलाक़े के हिसाब से रिक्वेस्ट",
+        "sys_empty_localities": "अभी तक इलाक़े का कोई डेटा नहीं है।",
+        # --- security ---
+        "sys_h_blocked_7d": "रोकी गईं · पिछले 7 दिन",
+        "sys_empty_blocked_7d": "पिछले 7 दिनों में रोकी गई कोई कोशिश दर्ज नहीं है।",
+        "sys_h_attempts": "हाल में रोकी गई कोशिशें",
+        "sys_btn_simulate": "रेड-टीम सिमुलेशन चलाइए",
+        # The attack count is printed between these two.
+        "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
+        "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
+                              "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # Follows the count of blocked prompts in one pattern group.
+        "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
+        "sys_empty_attempts": "अभी तक कुछ रोका नहीं गया है। ऊपर सिमुलेशन चलाइए, या ‘आज’ से "
+                              "कोई इंजेक्शन कोशिश भेजिए — दोनों ही सूरत में वह यहाँ दर्ज होगी।",
     },
     # The Guide's own prose. Keys are the strings guide.html asks for, in page
     # order: ``h_*`` headings, ``th_*`` table headers, ``q_*``/``a_*`` FAQ pairs

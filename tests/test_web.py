@@ -600,12 +600,9 @@ def test_an_unrecognised_language_falls_back_to_english(bad):
 
 
 def test_the_root_element_declares_the_language():
-    """The System view is excluded deliberately -- it is not translated, so it
-    keeps lang="en" whatever the toggle says. See
-    test_the_system_view_does_not_claim_to_be_in_hindi."""
+    """Every page, System included. It used to be excluded because it was not
+    translated; it is now, so an exclusion here would hide a regression."""
     for path in HINDI_PAGES:
-        if path.startswith("/system"):
-            continue
         assert '<html lang="hi"' in _lang(path, "hi"), path
         assert '<html lang="en"' in _lang(path, "en"), path
 
@@ -734,14 +731,52 @@ def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
 
 
 def test_the_system_view_does_not_claim_to_be_in_hindi(client):
-    """System is developer-facing and stays English by design. Declaring the
-    document Hindi would tell a screen reader to pronounce English prose with
-    Hindi phonetics -- a lie about the content, told to the readers least able
-    to detect it."""
+    """System now declares Hindi, because it is now written in Hindi.
+
+    This test asserted the opposite. The reasoning was sound for what the page
+    then was -- declaring an English document Hindi tells a screen reader to
+    pronounce English prose with Hindi phonetics, a lie told to the readers
+    least able to detect it -- but it rested on the page staying English, and
+    that premise was wrong: the nav link to this view reads सिस्टम and the
+    unreviewed-translation banner renders on it, so a Hindi reader is invited
+    in by the chrome and then met with a wall of English. The copy was
+    translated rather than the invitation withdrawn, so the honest declaration
+    is now lang="hi".
+
+    The name is kept so the history of the decision stays findable.
+    """
     import re
-    assert re.search(r'<html lang="en"', client.get("/system?lang=hi").text)
-    # ...while a translated view does follow the language.
+    assert re.search(r'<html lang="hi"', client.get("/system?lang=hi").text)
+    assert re.search(r'<html lang="hi"', client.get("/system?view=security&lang=hi").text)
+    # ...and English is still English, on both segments.
+    assert re.search(r'<html lang="en"', client.get("/system?lang=en").text)
     assert re.search(r'<html lang="hi"', client.get("/?lang=hi").text)
+
+
+def test_the_system_view_keeps_index_values_untranslated(client):
+    """The page shows what is in the indices, so an index value is not copy.
+
+    Event names, guard pattern names and status values are the literal stored
+    strings; translating one would make the view a description of the data
+    instead of a view of it. The shell command in the empty state is not prose
+    either. Both must survive the Hindi render unchanged.
+    """
+    body = client.get("/system?lang=hi").text
+    assert "python -m saafsaans.seed_demo_history" in body
+    from saafsaans.web.main import _day_label
+    assert _day_label("2026-07-20") == "Mon"      # what the Hindi lookup is keyed on
+
+
+def test_the_system_kpi_labels_are_translated(client):
+    """The KPI label is built in the view, not the template, so it is the one
+    piece of System copy the template scan cannot see."""
+    from saafsaans.services import i18n
+    body = client.get("/system?lang=hi").text
+    assert i18n.HI["ui"]["sys_kpi_answered"] in body
+    assert "questions answered" not in body
+    sec = client.get("/system?view=security&lang=hi").text
+    assert i18n.HI["ui"]["sys_kpi_patterns"] in sec
+    assert "distinct patterns" not in sec
 
 
 def test_every_seeded_advisory_can_be_served_in_hindi(client):

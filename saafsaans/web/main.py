@@ -600,17 +600,12 @@ def city(request: Request):
 def system(request: Request):
     persona = read_persona(request)
     theme = read_theme(request)
-    # The System views are developer-facing and stay English by design, but the
-    # shared header still has to keep the reader's language on every link out.
     lang = read_lang(request)
     client = get_client()
     view = "security" if request.query_params.get("view") == "security" else "observability"
 
     ctx = base_context(request, persona, theme, lang, "system")
     ctx.update({
-        # Developer-facing and mono by design; it is not translated, so the
-        # document must not claim to be in a language it is not written in.
-        "doc_lang": "en",
         "view": view,
         "q_obs": _qs(persona, theme, lang, view="observability"),
         "q_sec": _qs(persona, theme, lang, view="security"),
@@ -629,17 +624,30 @@ def system(request: Request):
         answered = (by_event or {}).get("chat_completed", 0)
         ctx.update({
             "kpis": [
-                {"v": answered, "l": "questions answered"},
-                {"v": k.get("total", 0), "l": "events logged"},
-                {"v": f'{k.get("latency_p50", 0) / 1000:.1f} s', "l": "median response"},
-                {"v": f'{k.get("latency_p95", 0) / 1000:.1f} s', "l": "p95 response"},
-                {"v": f'{k.get("waqi_fallback_rate", 0) * 100:.1f}%', "l": "feed misses → cached"},
-                {"v": f'{k.get("llm_fallback_rate", 0) * 100:.1f}%', "l": "rule-based fallbacks"},
-                {"v": f'{k.get("total_tokens", 0) / 1000:.1f}k', "l": "tokens spent"},
+                {"v": answered,
+                 "l": i18n.t(lang, "ui", "sys_kpi_answered", "questions answered")},
+                {"v": k.get("total", 0),
+                 "l": i18n.t(lang, "ui", "sys_kpi_events", "events logged")},
+                {"v": f'{k.get("latency_p50", 0) / 1000:.1f} s',
+                 "l": i18n.t(lang, "ui", "sys_kpi_p50", "median response")},
+                {"v": f'{k.get("latency_p95", 0) / 1000:.1f} s',
+                 "l": i18n.t(lang, "ui", "sys_kpi_p95", "p95 response")},
+                {"v": f'{k.get("waqi_fallback_rate", 0) * 100:.1f}%',
+                 "l": i18n.t(lang, "ui", "sys_kpi_feed_fallback", "feed misses → cached")},
+                {"v": f'{k.get("llm_fallback_rate", 0) * 100:.1f}%',
+                 "l": i18n.t(lang, "ui", "sys_kpi_rule_fallback", "rule-based fallbacks")},
+                {"v": f'{k.get("total_tokens", 0) / 1000:.1f}k',
+                 "l": i18n.t(lang, "ui", "sys_kpi_tokens", "tokens spent")},
             ],
+            # The event name is the literal value stored in the telemetry
+            # index and is shown unchanged in both languages -- this row is a
+            # view of the data, not a description of it.
             "ev_rows": [{"l": n, "v": c, "w": pr.pct(c, ev_max)}
                         for n, c in sorted(by_event.items(), key=lambda x: -x[1])],
-            "loc_rows": [{"l": r["locality"], "v": r["count"], "w": pr.pct(r["count"], loc_max)}
+            # The locality, by contrast, is a place a reader recognises, so the
+            # label follows the page while the stored value does not change.
+            "loc_rows": [{"l": i18n.place(lang, r["locality"]), "v": r["count"],
+                          "w": pr.pct(r["count"], loc_max)}
                          for r in loc_rows[:6]],
         })
     else:
@@ -651,11 +659,19 @@ def system(request: Request):
         last_7 = sum(d["count"] for d in daily)
         ctx.update({
             "sec_kpis": [
-                {"v": last_7, "l": "blocked, last 7 days"},
-                {"v": f'{stats.get("block_rate", 0) * 100:.0f}%', "l": "stopped pre-model"},
-                {"v": len(stats.get("by_pattern") or []), "l": "distinct patterns"},
+                {"v": last_7,
+                 "l": i18n.t(lang, "ui", "sys_kpi_blocked_7d", "blocked, last 7 days")},
+                {"v": f'{stats.get("block_rate", 0) * 100:.0f}%',
+                 "l": i18n.t(lang, "ui", "sys_kpi_premodel", "stopped pre-model")},
+                {"v": len(stats.get("by_pattern") or []),
+                 "l": i18n.t(lang, "ui", "sys_kpi_patterns", "distinct patterns")},
             ],
-            "days": [{"n": d["count"], "d": _day_label(d["date"]),
+            # _day_label returns strftime's English abbreviation, which the
+            # 'day' group already has Hindi for -- the same three-letter
+            # weekdays the Today outlook uses, so the two charts agree.
+            "days": [{"n": d["count"],
+                      "d": i18n.t(lang, "day", _day_label(d["date"]).lower(),
+                                  _day_label(d["date"])),
                       "h": pr.pct(d["count"], day_max)} for d in daily],
             # Whose blocked prompt may be shown. /system is public and
             # unauthenticated, and the excerpt is a verbatim fragment of what

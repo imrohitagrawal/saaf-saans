@@ -58,7 +58,20 @@ ALLOWED = {
 # who lands on a Hindi page must be able to read the warning about the Hindi.
 ALLOWED |= set(LATIN_RUN.findall(i18n.REVIEW_BANNER_EN))
 
-PAGES = ("/", "/city", "/guide")
+PAGES = ("/", "/city", "/guide", "/system", "/system?view=security")
+
+# Machine values, not language: these are the literal strings stored in the
+# telemetry and security indices, and the System view's whole purpose is to
+# show what is actually in them. Translating an index value would make the
+# page a description of the data rather than a view of it.
+# Only the single-word ones are listed. An entry containing an underscore
+# would be unreachable: LATIN_RUN's character class has no underscore, so it
+# emits "chat" and "completed", never "chat_completed" -- such entries read as
+# protection and give none. The multi-word index values are marked lang="en"
+# in system.html instead, which is both the honest escape and correct for a
+# screen reader that would otherwise read chat_completed with Hindi phonetics.
+ALLOWED |= {"blocked", "error", "skipped", "ok", "fallback", "jailbreak",
+            "pretend", "roleplay", "disregard", "password", "unknown"}
 PERSONAS = (
     {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
      "activity": "Outdoor exercise"},
@@ -75,7 +88,11 @@ def _visible_text(html_body: str) -> str:
     # Elements the page itself declares as English -- citation strings, whose
     # value is that they stay searchable. Marking them lang="en" is correct for
     # screen readers too, so this is a real signal rather than a test escape.
-    body = re.sub(r"<(\w+)[^>]*\blang=\"en\"[^>]*>.*?</\1>", " ", body, flags=re.S)
+    # NOT <html> or <body>: a page that declares the whole document English
+    # would strip itself and pass this scan vacuously, which is exactly what
+    # /system did. Only inner elements may opt out.
+    body = re.sub(r"<(?!html|body)(\w+)[^>]*\blang=\"en\"[^>]*>.*?</\1>", " ",
+                  body, flags=re.S)
     # Attributes carry URLs and class names, which are Latin by nature.
     body = re.sub(r"<[^>]+>", "\n", body)
     import html as _html
