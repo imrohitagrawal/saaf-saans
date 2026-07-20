@@ -23,20 +23,24 @@ The hackathon placement is self-reported and not independently verifiable.
 
 ## 2. The artifact, measured
 
-Reproduce any of these from a clone:
+Reproduce any of these from a clone. Two columns because the `v1-closure` branch changed
+most of them; the `v1.0.0` figures are kept so the earlier version of this document stays
+checkable rather than quietly overwritten.
 
-| Metric | Value | How to check |
-|---|---|---|
-| Tests | **186 passing** | `pytest -q` |
-| Test files | 13 | `ls tests/test_*.py` |
-| Application Python | 2,750 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
-| CSS + templates | 925 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
-| Test code | 1,712 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | `git log --oneline \| wc -l` |
-| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| Metric | at `v1.0.0` | at `v1-closure` | How to check |
+|---|---|---|---|
+| Tests | 186 passing | **360 passing** | `pytest -q` |
+| Test files | 13 | 16 | `ls tests/test_*.py` |
+| Application Python | 2,750 lines | 4,270 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
+| CSS + templates | 925 lines | 1,082 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
+| Test code | 1,712 lines | 3,593 lines | `find tests -name '*.py' \| xargs wc -l` |
+| Commits | 19 | 39 | `git log --oneline \| wc -l` |
+| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| v1.0.0 → v1-closure | — | 30 files, +4,221 / −344 | `git diff --shortstat master..v1-closure` |
 
-Test code is 62% the size of application code. The rebuild **removed** 715 more lines
-than it added.
+Test code is **84%** the size of application code, up from 62%. The v1.0.0 rebuild **removed**
+715 more lines than it added; the closure branch adds, because most of it is either a
+correction with a test pinning it or the Hindi corpus.
 
 Three tests are unusual and worth naming, because they encode claims the documentation
 makes rather than behaviour the code exhibits:
@@ -46,6 +50,11 @@ makes rather than behaviour the code exhibits:
 - `test_band_chip_word_and_control_borders_meet_contrast` — computes contrast ratios for
   every band chip and control border from the stylesheet.
 - `test_pages_carry_no_javascript` — asserts the app ships zero `<script>` tags.
+
+The closure branch adds a fourth kind: tests whose subject is an *absence*.
+`test_no_page_repeats_the_false_never_logged_claim` walks every page and fails on the
+wording of a privacy claim that was once true-sounding and false. A defect that has been
+fixed twice in two places is worth a test that watches for it in all of them.
 
 ## 3. What the adversarial code review found
 
