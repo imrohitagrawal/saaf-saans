@@ -150,6 +150,15 @@ AGE_SUSCEPTIBILITY_PTS = {
 AQI_BASE_PTS = [(50, 5), (100, 15), (200, 30), (300, 50), (400, 65)]
 AQI_BASE_MAX = 75
 
+# No usable reading is NOT clean air. Treating a missing AQI as 0 scored it as
+# the safest possible day and produced "A good day to breathe -- enjoy it
+# outside" on a page that simultaneously said UNKNOWN and "treat conditions as
+# unhealthy until you can confirm". Absence of evidence was being rendered as
+# evidence of absence, in the one direction that can get somebody hurt. An
+# unknown reading now scores as the Poor band does, which matches what
+# normalize.AQI_MEANING["Unknown"] already told the reader to do.
+AQI_BASE_UNKNOWN = 50
+
 
 def _aqi_base(aqi: int) -> int:
     for upper, points in AQI_BASE_PTS:
@@ -247,10 +256,11 @@ def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str) -> dict:
     """
     try:
         aqi_val = max(int(aqi), 0)
+        known = True
     except (TypeError, ValueError):
-        aqi_val = 0
+        aqi_val, known = 0, False
 
-    base = _aqi_base(aqi_val)
+    base = _aqi_base(aqi_val) if known else AQI_BASE_UNKNOWN
     cond_pts = CONDITION_PTS.get(condition_kw, 0)
     dose_pts = dose_points(age_kw, activity_kw)
     age_pts = AGE_SUSCEPTIBILITY_PTS.get(age_kw, 0)
@@ -259,8 +269,10 @@ def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str) -> dict:
     band, color = _band_for(score)
 
     # --- Drivers: rank the biggest contributors, AQI always shown first ---
-    cat_label = aqi_category(aqi_val)[0]
-    drivers = [f"AQI {aqi_val} ({cat_label})"]
+    if known:
+        drivers = [f"AQI {aqi_val} ({aqi_category(aqi_val)[0]})"]
+    else:
+        drivers = ["No reading — treated as unhealthy"]
 
     _COND_LABEL = {
         "copd": "COPD raises risk",

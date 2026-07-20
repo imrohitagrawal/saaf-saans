@@ -175,3 +175,35 @@ def test_the_pages_name_locality_as_the_logged_exception():
         assert "hashed session id and the area you picked" in footer
         guide = " ".join(client.get("/guide").text.replace("&#39;", "'").split())
         assert "is the one exception and is stored deliberately" in guide
+
+
+def test_the_security_view_does_not_publish_other_visitors_typed_text():
+    """/system is public and unauthenticated, and prompt_excerpt is a verbatim
+    fragment of something a visitor typed. The guard stopping it does not make
+    it ours to publish. Only the red-team demo's own attempts and the reader's
+    own may be listed."""
+    from fastapi.testclient import TestClient
+    from saafsaans.services import metrics, normalize
+    from saafsaans.web import main as web_main
+    from saafsaans.web.main import app
+
+    stranger = normalize.session_hash("some-other-visitor")
+    events = [
+        {"pattern": "ignore_instructions", "excerpt": "my private medical question",
+         "ts": "2026-07-20T10:00:00+00:00", "session_hash": stranger},
+        {"pattern": "jailbreak", "excerpt": "[demo] blocked prompt-injection attempt",
+         "ts": "2026-07-20T10:01:00+00:00",
+         "session_hash": normalize.session_hash("red-team-demo")},
+    ]
+    original_events, original_client = metrics.recent_security_events, web_main.get_client
+    metrics.recent_security_events = lambda client, limit=6: events
+    web_main.get_client = lambda: object()
+    try:
+        with TestClient(app) as client:
+            body = client.get("/system", params={"view": "security"}).text
+    finally:
+        metrics.recent_security_events = original_events
+        web_main.get_client = original_client
+
+    assert "my private medical question" not in body
+    assert "[demo] blocked prompt-injection attempt" in body

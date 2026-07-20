@@ -87,11 +87,28 @@ def test_drivers_non_empty_and_aqi_first():
 
 def test_defensive_invalid_aqi():
     r = compute_risk(None, "any", "any", "any")
-    assert r["score"] == compute_risk(0, "any", "any", "any")["score"]
     assert r["band"] in RISK_BANDS
     # unknown keywords score neutral, no crash
     r2 = compute_risk(150, "bogus", "bogus", "bogus")
     assert 0 <= r2["score"] <= 100
+
+
+def test_a_missing_reading_is_not_scored_as_clean_air():
+    """This used to assert that None scored the same as 0, which is how the
+    hero came to say "A good day to breathe -- enjoy it outside" on a page that
+    also said UNKNOWN and "treat conditions as unhealthy until you can
+    confirm". Absence of evidence was being rendered as evidence of absence, in
+    the only direction that can get somebody hurt."""
+    unknown = compute_risk(None, "any", "any", "any")
+    clean = compute_risk(0, "any", "any", "any")
+    assert unknown["score"] > clean["score"]
+    assert unknown["band"] not in ("Low", "Moderate")
+    # ...and the driver says why, rather than inventing an AQI of 0.
+    assert unknown["drivers"][0] == "No reading — treated as unhealthy"
+    assert not any("AQI 0" in d for d in unknown["drivers"])
+    # It sits where the Unknown band's own advice already pointed: treat it as
+    # unhealthy, which is the Poor band's starting point.
+    assert unknown["score"] == compute_risk(250, "any", "any", "any")["score"]
 
 
 def test_every_band_has_actionable_advice():

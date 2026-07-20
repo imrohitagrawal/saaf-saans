@@ -149,7 +149,12 @@ def recent_security_events(client, limit: int = 6) -> list:
     ``security_stats`` only aggregates; the Security view also lists individual
     attempts, so this returns the documents themselves. Only the fields already
     stored are read -- ``prompt_excerpt`` is capped at 120 chars at write time
-    (see ``normalize.excerpt``), so nothing extra is exposed here.
+    (see ``normalize.excerpt``).
+
+    ``session_hash`` is projected so the caller can decide whose text it is
+    willing to display. It has to: the excerpt is a verbatim fragment of
+    something a visitor typed, and /system is a public page with no
+    authentication.
     """
     if client is None:
         return []
@@ -166,6 +171,7 @@ def recent_security_events(client, limit: int = 6) -> list:
                 "pattern": src.get("pattern_matched") or "unknown",
                 "excerpt": src.get("prompt_excerpt") or "",
                 "ts": src.get("@timestamp") or "",
+                "session_hash": src.get("session_hash") or "",
             }
             for src in (h.get("_source") or {} for h in hits)
         ]

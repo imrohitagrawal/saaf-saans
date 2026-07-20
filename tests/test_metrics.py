@@ -199,7 +199,9 @@ def test_recent_security_events_tolerates_missing_fields_and_failure():
     assert metrics.recent_security_events(None) == []
     partial = _FakeClient({"hits": {"hits": [{"_source": {}}]}})
     assert metrics.recent_security_events(partial) == [
-        {"pattern": "unknown", "excerpt": "", "ts": ""}
+        # session_hash is projected so the view can decide whose typed text it
+        # is willing to publish -- /system is public and unauthenticated.
+        {"pattern": "unknown", "excerpt": "", "ts": "", "session_hash": ""}
     ]
 
 
