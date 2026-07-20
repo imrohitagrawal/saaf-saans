@@ -460,11 +460,39 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
    `*:lang(...)` rather than `[lang=...] *` throughout: it follows the computed
    language, so a citation marked lang="en" inside a Hindi page keeps the Latin
    treatment instead of inheriting Devanagari sizing. */
+/* Both Latin faces this design uses -- IBM Plex Sans and IBM Plex Mono --
+   carry no Devanagari at all. Naming only --mono fixed the labels and left
+   every sentence of Hindi body text falling back to whatever the operating
+   system happened to supply: a different face on every device, and the reason
+   the primary button's text sat off-centre. Both variables are redirected. */
 *:lang(hi) {
-  --mono: "Anek Devanagari", "IBM Plex Sans", "Nirmala UI", sans-serif;
+  --body: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  --mono: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
   letter-spacing: normal;
 }
-*:lang(en) { --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+*:lang(en) {
+  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Vertical centring across scripts. Latin and Devanagari allocate their line
+   boxes differently -- at the same font-size and line-height, Anek's box is
+   18.5px where Plex Mono's is 14.5px -- so two labels in one control sat 2px
+   apart, which is exactly the misalignment visible in the language toggle.
+   Centring the line box inside the control makes the offset independent of
+   which script the label happens to be in. */
+.seg a, .seg button, .btn, .pill-btn, .prov-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+/* A segmented control is one object: both halves take the same face even when
+   one label is Latin, or the pill reads as two controls jammed together. */
+:lang(hi) .seg a, :lang(hi) .seg button {
+  font-family: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+}
 
 /* Devanagari is unicameral: uppercasing does nothing but tell a screen reader
    this is an abbreviation. */
