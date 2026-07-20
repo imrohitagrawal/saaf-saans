@@ -434,65 +434,72 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 
 
 /* ------------------------------------------------- Devanagari typography -- */
-/* Two rules the Latin design breaks when the text is not Latin.
+/* Three rules the Latin design breaks when the text is not Latin. Patching a
+   list of class names was the wrong shape -- --mono is used in twenty-odd
+   places and none of them had been checked in Hindi -- so these are systemic.
 
-   Tracking: Devanagari must not be letter-spaced. Latin small-caps labels gain
-   clarity from it; Devanagari loses it, because the extra space pulls matras
-   and conjunct clusters away from the consonants they belong to. The hero
-   kicker, the meta row and the risk chips were all set in tracked small-caps
-   and came apart.
+   1. THE FACE. IBM Plex Mono carries no Devanagari, so every label set in it
+      was silently falling back to whatever face the machine offered: different
+      on every device, never the one the design chose, and worst on the
+      provenance line, which is entirely mono. Hindi gets a --mono that has
+      real Devanagari. Anek also carries Latin, so mixed strings like
+      "AQI 187 · लाइव" stay in one face instead of two.
 
-   Face: IBM Plex Mono carries no Devanagari, so every one of those labels was
-   silently falling back to whatever the system offered -- a different face on
-   every machine, and none of them the one the design chose. The body and
-   display faces both have real Devanagari, so the labels use those instead.
+   2. THE TRACKING. Devanagari must never be letter-spaced. Latin small-caps
+      gain clarity from tracking; Devanagari loses it, because the space pulls
+      matras and conjuncts off the consonants they belong to. Neutralised on
+      every element whose own computed language is Hindi -- including the
+      negative tracking on the verdict, which tightens Latin display type and
+      collides Devanagari marks.
 
-   `:lang(hi)` rather than `[lang="hi"]` deliberately: it follows the computed
-   language, so a citation marked lang="en" inside a Hindi page keeps its
-   Latin treatment rather than inheriting this. */
-:lang(hi) .hero-kicker,
+   3. THE SIZE. Devanagari carries its distinguishing detail above and below
+      the line, so at a given font-size the glyph body is effectively smaller
+      than Latin's, and every label size here was chosen against Latin. Below
+      about 12px the matras stop resolving and the text reads as texture.
+
+   `*:lang(...)` rather than `[lang=...] *` throughout: it follows the computed
+   language, so a citation marked lang="en" inside a Hindi page keeps the Latin
+   treatment instead of inheriting Devanagari sizing. */
+*:lang(hi) {
+  --mono: "Anek Devanagari", "IBM Plex Sans", "Nirmala UI", sans-serif;
+  letter-spacing: normal;
+}
+*:lang(en) { --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+
+/* Devanagari is unicameral: uppercasing does nothing but tell a screen reader
+   this is an abbreviation. */
+:lang(hi) .kicker, :lang(hi) .hero-kicker, :lang(hi) .lbl,
+:lang(hi) .answer h3, :lang(hi) .band-chip, :lang(hi) .prov-btn {
+  text-transform: none;
+}
+
+/* Size floors. Nothing carrying Devanagari prose sits below 12px. */
+:lang(hi) .hero-kicker { font-size: 14px; line-height: 1.6; }
 :lang(hi) .hero-meta,
 :lang(hi) .chip-risk,
-:lang(hi) .chip-base,
+:lang(hi) .chip-base { font-size: 13px; line-height: 1.6; }
 :lang(hi) .hero-window .lbl,
 :lang(hi) .kicker,
 :lang(hi) .lbl,
-:lang(hi) .driver,
+:lang(hi) .fields .lbl,
+:lang(hi) .pollutants .lbl,
+:lang(hi) .answer h3,
 :lang(hi) .station .tag,
-:lang(hi) .station .bd,
+:lang(hi) .refusal .audit,
+:lang(hi) .q .mark { font-size: 12.5px; line-height: 1.6; }
+:lang(hi) .driver,
+:lang(hi) .caption,
 :lang(hi) .prov-btn,
 :lang(hi) .prov-count,
 :lang(hi) .src-tag,
-:lang(hi) .answer h3,
-:lang(hi) .caption {
-  font-family: var(--body);
-  letter-spacing: normal;
-}
-
-/* Size. Devanagari carries its distinguishing detail above and below the
-   line -- the matras and the shirorekha -- so the glyph body at a given
-   font-size is effectively smaller than Latin's, and the label sizes in this
-   stylesheet were all chosen against Latin. At 10-12px the matras stop
-   resolving and the text reads as texture rather than words. Every small label
-   goes up roughly two points, with a little more leading to fit the marks that
-   sit above and below.
-
-   Uppercasing is dropped too: Devanagari is unicameral, so text-transform does
-   nothing except signal to a screen reader that this is an abbreviation. */
-:lang(hi) .hero-kicker { font-size: 14px; line-height: 1.6; text-transform: none; }
-:lang(hi) .hero-meta   { font-size: 13px; line-height: 1.6; }
-:lang(hi) .chip-risk,
-:lang(hi) .chip-base   { font-size: 13.5px; }
-:lang(hi) .hero-window .lbl { font-size: 12.5px; }
-:lang(hi) .kicker      { font-size: 12.5px; line-height: 1.6; text-transform: none; }
-:lang(hi) .lbl         { font-size: 12px; text-transform: none; }
-:lang(hi) .driver      { font-size: 12.5px; }
-:lang(hi) .caption     { font-size: 12.5px; line-height: 1.6; }
-:lang(hi) .station .tag,
-:lang(hi) .station .bd { font-size: 12px; }
-:lang(hi) .prov-btn,
-:lang(hi) .prov-count,
-:lang(hi) .src-tag     { font-size: 12.5px; }
-:lang(hi) .answer h3   { font-size: 12.5px; text-transform: none; }
+:lang(hi) .band-chip,
+:lang(hi) .station .bd,
+:lang(hi) .scale-ends,
+:lang(hi) .bar-row,
+:lang(hi) .sysbar { font-size: 12.5px; }
+/* The provenance line is the densest text on the site and was entirely mono. */
+:lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
 :lang(hi) .hint,
-:lang(hi) .disclaimer  { font-size: 13.5px; line-height: 1.65; }
+:lang(hi) .disclaimer,
+:lang(hi) .foot,
+:lang(hi) .excerpt { font-size: 13.5px; line-height: 1.65; }
