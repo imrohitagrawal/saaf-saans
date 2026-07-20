@@ -8,6 +8,8 @@ presentation concerns.
 The voice here is deliberate: human and direct, never softening a severe
 reading and never dramatising a mild one. See design_handoff_saafsaans/README.md.
 """
+import math
+
 from markupsafe import Markup
 
 # --- Verdict ---------------------------------------------------------------
@@ -142,6 +144,82 @@ def comparison_line(score: int, baseline: int, persona: dict) -> str:
                 if reasons else " is higher than theirs.")
         return f"{opener}. Your {score}{tail}"
     return f"{opener} too — that's you today."
+
+
+# --- The WHO comparison ----------------------------------------------------
+# WHO 2021 Global Air Quality Guidelines, PM2.5: 24-hour AQG level 15 µg/m3
+# (annual 5). Citation in the Guide.
+WHO_PM25_24H = 15
+
+# Spelled out, because "about six times as much" is read by everyone and
+# "about 6x" is read by people who already read charts. One significant figure
+# never produces a number outside this set below a thousand.
+#
+# "as much as", not "more than": ten times MORE than 15 is literally 165, and
+# the figure meant is 150. The looser phrasing is what most writing uses and
+# what the brief for this line suggested, but it overstates by one multiple
+# every time, and overstating is the one thing this project does not do.
+_MULTIPLE_WORDS = {
+    2: "twice as much", 3: "three times as much", 4: "four times as much", 5: "five times as much",
+    6: "six times as much", 7: "seven times as much", 8: "eight times as much", 9: "nine times as much",
+    10: "ten times as much", 20: "twenty times as much", 30: "thirty times as much",
+    40: "forty times as much", 50: "fifty times as much", 60: "sixty times as much",
+    70: "seventy times as much", 80: "eighty times as much", 90: "ninety times as much",
+    100: "a hundred times as much", 200: "two hundred times as much", 300: "three hundred times as much",
+    400: "four hundred times as much", 500: "five hundred times as much",
+}
+
+
+def who_multiple(pm25):
+    """How many times the WHO 24-hour PM2.5 guideline this reading is.
+
+    Rounded to one significant figure, because the underlying value came from
+    inverting an integer index and cannot support more. ``None`` when there is
+    no usable reading -- the caller renders nothing, which is the only correct
+    output when the alternative is a wrong number.
+    """
+    try:
+        value = float(pm25)
+    except (TypeError, ValueError):
+        return None
+    if value != value or value <= 0:
+        return None
+    ratio = value / WHO_PM25_24H
+    magnitude = math.floor(math.log10(ratio))
+    return round(ratio, -int(magnitude))
+
+
+def who_line(pm25) -> str:
+    """The WHO comparison as one plain sentence, or "" when it cannot be made.
+
+    Deliberately phrased about the air *right now*, not about what the reader
+    has breathed today. WHO's 15 µg/m3 figure is a 24-hour mean, and is itself
+    defined as the 99th percentile of the annual distribution of those means --
+    not a ceiling for any one day. The app holds a single near-instantaneous
+    station reading. Saying "today you breathed in ten times more than is safe
+    in a day" would assert both a daily average the app does not have and an
+    inhaled dose it has no basis to compute. The mismatch is kept visible in
+    the sentence -- "right now" against "for a whole day" -- and explained in
+    full in the Guide.
+
+    No microgram figure appears here: this sentence sits on the reading card
+    where a lay reader meets it, and the unit belongs in the Guide.
+    """
+    multiple = who_multiple(pm25)
+    if multiple is None:
+        return ""
+    if multiple < 2:
+        if multiple < 1:
+            return ("Right now the air here is cleaner than the World Health "
+                    "Organization's safe level for a whole day.")
+        return ("Right now the air here is about at the World Health "
+                "Organization's safe level for a whole day.")
+    word = _MULTIPLE_WORDS.get(int(multiple))
+    if word is None:
+        return ("Right now the air here holds far more of this pollution than the "
+                "World Health Organization's safe level for a whole day allows.")
+    return (f"Right now the air here holds about {word} of this pollution as the "
+            "World Health Organization's safe level for a whole day.")
 
 
 # --- Scale geometry --------------------------------------------------------

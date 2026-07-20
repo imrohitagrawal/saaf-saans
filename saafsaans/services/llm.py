@@ -58,7 +58,7 @@ def build_user_message(reading: dict, persona: dict, advisories: list, question:
     stale_tag = " | STALE DATA" if reading.get("stale") else ""
     aqi_line = (
         f"Live AQI ({locality}, {timestamp}): {reading.get('aqi')} | "
-        f"PM2.5: {reading.get('pm25')} | dominant: {reading.get('dominant_pollutant')}"
+        f"PM2.5: {reading.get('pm25')} ug/m3 | dominant: {reading.get('dominant_pollutant')}"
         f"{stale_tag}"
     )
     advisory_lines = "\n".join(f"- {a.get('advice', '')}" for a in advisories) or "- (none found)"

@@ -14,13 +14,19 @@ documented CPCB-style scale.
 """
 import datetime
 
-# CPCB-style 24h PM2.5 concentration (µg/m3) -> label. This is a documented,
-# deliberately simple mapping onto the app's five bands. It is NOT the AQI
-# scale: WAQI forecast values are raw concentrations, so a PM2.5 of 250 µg/m3
-# maps to "Severe" here rather than being read as AQI 250.
+from . import aqi_scale
+
+# CPCB 24h PM2.5 concentration (µg/m3) -> label. Applied to a real
+# concentration, which is what daily_outlook now produces.
+#
+# It did not used to. The comment here previously asserted that "WAQI forecast
+# values are raw concentrations"; they are AQI sub-indices, exactly like the
+# live feed's, so these concentration breakpoints were being applied to index
+# points. The band was wrong whenever the two scales disagreed, which is most
+# of the time. See services/aqi_scale.py.
 _PM25_BANDS = [
     (30, "Good"),
-    (60, "Moderate"),
+    (60, "Satisfactory"),
     (90, "Moderate"),
     (120, "Poor"),
     (250, "Very Poor"),
@@ -65,11 +71,16 @@ def daily_outlook(forecast) -> list:
         date = row.get("day")
         if not date:
             continue
-        try:
-            avg = int(round(float(row.get("avg"))))
-            mx = int(round(float(row.get("max"))))
-        except (TypeError, ValueError):
+        # WAQI's forecast carries the same AQI sub-indices as the live feed,
+        # not concentrations -- the docstring here used to say "µg/m3" of a
+        # number that was nothing of the kind. Invert before banding, or the
+        # CPCB concentration breakpoints below are applied to the wrong scale.
+        avg = aqi_scale.concentration(row.get("avg"), "pm25")
+        mx = aqi_scale.concentration(row.get("max"), "pm25")
+        if avg is None or mx is None:
             continue
+        avg = int(round(avg))
+        mx = int(round(mx))
         out.append({
             "date": date,
             "pm25_avg": avg,

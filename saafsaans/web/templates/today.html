@@ -117,7 +117,7 @@
       <span class="band-chip">{{ category[0] | upper }}</span>
       <span class="mono" style="font-size:11px;color:var(--text-3)">
         <a class="term" href="/?{{ q_term_aqi }}" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
-        · CPCB · {{ obs_time }}
+        · India's CPCB scale, from PM2.5 and PM10 · {{ obs_time }}
       </span>
     </div>
 
@@ -155,6 +155,9 @@
     {% endif %}
 
     <p class="meaning">{{ meaning }}</p>
+    {# Rendered only when there is a PM2.5 reading to compare. A wrong multiple
+       would be worse than no line at all. #}
+    {% if who_line %}<p class="meaning">{{ who_line }}</p>{% endif %}
     <p class="hint"><a href="/guide?{{ q }}">What do these numbers mean? ›</a></p>
   </section>
 
@@ -171,7 +174,8 @@
       </div>
       {% endfor %}
     </div>
-    <p class="caption">Daily averages, µg/m³ · WAQI forecast — a coarse outlook, not an hourly promise.</p>
+    <p class="caption">Daily averages, µg/m³, converted from the WAQI forecast — a coarse
+      outlook, not an hourly promise.</p>
   </section>
   {% endif %}
 
@@ -231,8 +235,10 @@
                 <div>
                   <div class="kicker">Measured at the time</div>
                   <div class="prov-ground">
-                    AQI {{ t.reading.aqi }} · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }}
-                    · dominant {{ t.reading.dominant_pollutant | upper }}
+                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} (CPCB scale, from PM2.5 and PM10)
+                    · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }} µg/m³
+                    · dominant {{ t.reading.dominant_pollutant | upper if t.reading.dominant_pollutant else '--' }}
+                    · WAQI's own figure {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} (US EPA scale)
                     · {{ 'live reading' if t.waqi_status == 'ok' else 'cached sample (feed missed)' }}
                   </div>
                 </div>

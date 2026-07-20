@@ -377,3 +377,51 @@ def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
     html = client.get("/guide").text
     assert "our reading, not" in html
     assert "outdoor exercise = high" in html
+
+
+# --- The corrected scale, on the page --------------------------------------
+def test_reading_card_no_longer_credits_a_bare_cpcb(client):
+    """The number is on the CPCB scale but computed from two pollutants where
+    CPCB uses up to eight and requires three. A bare "CPCB" credit claimed a
+    provenance the figure does not have."""
+    html = client.get("/").text
+    assert "India's CPCB scale, from PM2.5 and PM10" in html
+    assert "· CPCB · " not in html
+
+
+def test_guide_states_that_the_feed_is_on_a_different_scale(client):
+    html = client.get("/guide").text
+    assert "United States" in html
+    assert "eight pollutants" in html
+
+
+def test_guide_states_the_who_averaging_time_and_percentile(client):
+    """The comparison is only honest if the reader can find out what the 15
+    actually is. Both qualifications have to be on the page."""
+    html = client.get("/guide").text
+    assert "averaged over 24 hours" in html
+    assert "99th percentile" in html
+    # Jinja escapes and the template wraps lines, so normalise before matching.
+    flat = " ".join(html.replace("&#39;", "'").split())
+    assert "World Health Organization; 2021" in flat
+
+
+def test_who_line_appears_on_today_when_there_is_a_reading(client):
+    flat = " ".join(client.get("/").text.replace("&#39;", "'").split())
+    assert "World Health Organization's safe level for a whole day" in flat
+
+
+def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
+    """A feed carrying only gases yields aqi None, which is the honest result.
+    Every view must survive it rather than 500."""
+    from saafsaans.services import waqi
+
+    def gasses_only(locality, es_client=None):
+        return ({"aqi": None, "aqi_beyond_scale": False, "pm25": None, "pm10": None,
+                 "dominant_pollutant": None, "feed_aqi": 150, "feed_dominant": "o3",
+                 "station": locality, "city": "Delhi", "stale": False,
+                 "forecast": None, "obs_time": None}, "ok")
+
+    monkeypatch.setattr(waqi, "get_aqi", gasses_only)
+    for path in ("/", "/guide", "/city"):
+        assert client.get(path).status_code == 200, path

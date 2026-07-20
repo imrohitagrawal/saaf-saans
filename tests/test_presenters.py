@@ -278,3 +278,63 @@ def test_outlook_today_is_decided_in_india_not_server_local_time():
     src = inspect.getsource(p.outlook_rows)
     assert "hours=5, minutes=30" in src, "outlook must resolve 'today' in IST"
     assert "date.today()" not in src
+
+
+# --- The WHO comparison ----------------------------------------------------
+def test_who_multiple_is_one_significant_figure():
+    """The reading was recovered by inverting an integer index, so it cannot
+    support more precision than this."""
+    assert p.who_multiple(150) == 10      # 10.0x
+    assert p.who_multiple(84) == 6        # 5.6x -> 6
+    assert p.who_multiple(1500) == 100
+    assert p.who_multiple(7.5) == 0.5
+    assert p.who_multiple(1.4) == 0.09
+
+
+def test_who_line_renders_nothing_without_a_reading():
+    """A wrong multiple is worse than no line. Every unusable input must
+    produce an empty string, not a zero and not a guess."""
+    for junk in (None, "", "abc", 0, -5, float("nan"), [], {}):
+        assert p.who_multiple(junk) is None
+        assert p.who_line(junk) == ""
+
+
+def test_who_line_says_so_when_the_air_is_at_or_under_the_guideline():
+    assert "cleaner than" in p.who_line(7.5)
+    assert "about at" in p.who_line(15)
+
+
+def test_who_line_spells_the_multiple_as_a_word():
+    assert "about six times as much" in p.who_line(84)
+    assert "about twice as much" in p.who_line(30)
+    assert "6" not in p.who_line(84)
+
+
+def test_who_line_says_as_much_as_not_more_than():
+    """"Ten times more than 15" literally means 165; the figure meant is 150.
+    The loose phrasing overstates by one multiple every time."""
+    line = p.who_line(150)
+    assert "times as much of this pollution as" in line
+    assert "times more" not in line
+
+
+def test_who_line_does_not_claim_a_dose_the_app_cannot_know():
+    """The app holds one near-instantaneous reading. WHO's 15 µg/m3 is a
+    24-hour mean, itself defined as the 99th percentile of a year of them. A
+    sentence saying "today you breathed in..." would assert both a daily
+    average the app does not have and an inhaled dose it cannot compute. The
+    mismatch is kept visible instead: "right now" against "for a whole day"."""
+    line = p.who_line(84)
+    assert "right now" in line.lower()
+    assert "whole day" in line
+    for forbidden in ("you breathed", "breathed in", "today you"):
+        assert forbidden not in line.lower(), forbidden
+
+
+def test_who_line_carries_no_microgram_figure():
+    """It sits on the reading card, where the plain-language rule applies. The
+    unit belongs in the Guide."""
+    for value in (7.5, 15, 84, 150, 1500):
+        line = p.who_line(value)
+        assert "µg" not in line and "microgram" not in line
+        assert str(int(value)) not in line

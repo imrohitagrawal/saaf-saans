@@ -8,7 +8,7 @@ never written into the aqi-readings index.
 """
 import requests
 
-from . import config, es
+from . import aqi_scale, config, es
 
 TIMEOUT = 5
 
@@ -61,28 +61,34 @@ LOCALITIES = REGIONS["Delhi"] + REGIONS["NCR"]
 # (no token, or a failed fetch). Distinct values per locality so the UI visibly
 # reacts to the picker even in mock mode; a few carry a non-PM dominant
 # pollutant so the best-time-window advice also varies. All are stale=True.
+#
+# These are CONCENTRATIONS in micrograms per cubic metre, and always were --
+# pm10 exceeds pm25 in every row, which is what makes them physically coherent
+# and is exactly what the live feed's sub-indices were not. The AQI is derived
+# from them through the CPCB scale rather than stored, so a sample can never
+# drift away from the scale it is supposed to sit on.
 SAMPLES = {
-    "Anand Vihar": {"aqi": 410, "pm25": 380.0, "pm10": 520.0},
-    "ITO": {"aqi": 320, "pm25": 250.0, "pm10": 410.0, "dom": "no2"},
-    "Rohini": {"aqi": 180, "pm25": 110.0, "pm10": 210.0},
-    "RK Puram": {"aqi": 260, "pm25": 190.0, "pm10": 330.0},
-    "Punjabi Bagh": {"aqi": 300, "pm25": 220.0, "pm10": 360.0},
-    "Mandir Marg": {"aqi": 220, "pm25": 150.0, "pm10": 260.0},
-    "Dwarka": {"aqi": 240, "pm25": 175.0, "pm10": 300.0},
-    "Najafgarh": {"aqi": 200, "pm25": 130.0, "pm10": 240.0},
-    "Wazirpur": {"aqi": 360, "pm25": 300.0, "pm10": 460.0},
-    "Jahangirpuri": {"aqi": 390, "pm25": 350.0, "pm10": 500.0},
-    "Okhla": {"aqi": 270, "pm25": 200.0, "pm10": 340.0},
-    "Ashok Vihar": {"aqi": 330, "pm25": 260.0, "pm10": 420.0},
-    "Nehru Nagar": {"aqi": 340, "pm25": 270.0, "pm10": 430.0},
-    "Patparganj": {"aqi": 250, "pm25": 185.0, "pm10": 320.0},
-    "DTU": {"aqi": 210, "pm25": 140.0, "pm10": 250.0},
-    "Delhi (city)": {"aqi": 287, "pm25": 210.0, "pm10": 320.0},
-    "Noida": {"aqi": 230, "pm25": 165.0, "pm10": 290.0, "dom": "no2"},
-    "Greater Noida": {"aqi": 245, "pm25": 180.0, "pm10": 310.0},
-    "Gurugram": {"aqi": 190, "pm25": 120.0, "pm10": 220.0, "dom": "o3"},
-    "Ghaziabad": {"aqi": 300, "pm25": 230.0, "pm10": 380.0},
-    "Faridabad": {"aqi": 260, "pm25": 195.0, "pm10": 335.0},
+    "Anand Vihar": {"pm25": 380.0, "pm10": 520.0},
+    "ITO": {"pm25": 250.0, "pm10": 410.0, "dom": "no2"},
+    "Rohini": {"pm25": 110.0, "pm10": 210.0},
+    "RK Puram": {"pm25": 190.0, "pm10": 330.0},
+    "Punjabi Bagh": {"pm25": 220.0, "pm10": 360.0},
+    "Mandir Marg": {"pm25": 150.0, "pm10": 260.0},
+    "Dwarka": {"pm25": 175.0, "pm10": 300.0},
+    "Najafgarh": {"pm25": 130.0, "pm10": 240.0},
+    "Wazirpur": {"pm25": 300.0, "pm10": 460.0},
+    "Jahangirpuri": {"pm25": 350.0, "pm10": 500.0},
+    "Okhla": {"pm25": 200.0, "pm10": 340.0},
+    "Ashok Vihar": {"pm25": 260.0, "pm10": 420.0},
+    "Nehru Nagar": {"pm25": 270.0, "pm10": 430.0},
+    "Patparganj": {"pm25": 185.0, "pm10": 320.0},
+    "DTU": {"pm25": 140.0, "pm10": 250.0},
+    "Delhi (city)": {"pm25": 210.0, "pm10": 320.0},
+    "Noida": {"pm25": 165.0, "pm10": 290.0, "dom": "no2"},
+    "Greater Noida": {"pm25": 180.0, "pm10": 310.0},
+    "Gurugram": {"pm25": 120.0, "pm10": 220.0, "dom": "o3"},
+    "Ghaziabad": {"pm25": 230.0, "pm10": 380.0},
+    "Faridabad": {"pm25": 195.0, "pm10": 335.0},
 }
 _DEFAULT_SAMPLE = SAMPLES["Delhi (city)"]
 
@@ -90,19 +96,47 @@ _DEFAULT_SAMPLE = SAMPLES["Delhi (city)"]
 _API = "https://api.waqi.info/feed/{feed}/?token={token}"
 
 
+def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
+             feed_aqi=None, feed_dominant=None):
+    """Assemble the reading contract from two particulate concentrations.
+
+    One constructor for both the live and the fallback path, so the two cannot
+    describe the same fields differently -- which is how the previous version
+    ended up with hand-written sample AQIs that no longer matched the scale
+    they were supposedly on.
+
+    ``aqi`` is deliberately ``None`` when neither particulate is usable. The
+    obvious alternative -- falling back to ``feed_aqi`` -- would put a US EPA
+    number under Indian band names, which is the defect this whole change
+    exists to remove.
+    """
+    scored = aqi_scale.cpcb_aqi(pm25, pm10)
+    aqi, dominant, beyond = scored if scored else (None, None, False)
+    return {
+        "aqi": aqi,
+        "aqi_beyond_scale": beyond,
+        "pm25": pm25,
+        "pm10": pm10,
+        "dominant_pollutant": dominant,
+        # WAQI's own number, on its own scale, kept for the provenance panel so
+        # a sceptical reader can see both figures and that they differ.
+        "feed_aqi": feed_aqi,
+        "feed_dominant": feed_dominant,
+        "station": station,
+        "city": city,
+        "stale": stale,
+        "forecast": forecast,
+        "obs_time": obs_time,
+    }
+
+
 def _fallback(locality: str = None):
     base = SAMPLES.get(locality, _DEFAULT_SAMPLE)
-    return {
-        "aqi": base["aqi"],
-        "pm25": base["pm25"],
-        "pm10": base["pm10"],
-        "dominant_pollutant": base.get("dom", "pm25"),
-        "station": f"{locality or 'Delhi'} (cached sample)",
-        "city": "Delhi",
-        "stale": True,
-        "forecast": None,
-        "obs_time": None,
-    }
+    return _reading(
+        base["pm25"], base["pm10"],
+        station=f"{locality or 'Delhi'} (cached sample)",
+        city="Delhi", stale=True, forecast=None, obs_time=None,
+        feed_dominant=base.get("dom"))
 
 
 def _fetch_feed(feed: str, token: str):
@@ -116,9 +150,12 @@ def _fetch_feed(feed: str, token: str):
     data = payload.get("data") or {}
     aqi_raw = data.get("aqi")
     try:
-        aqi = int(aqi_raw)  # "-" or None from an offline station -> ValueError
+        feed_aqi = int(aqi_raw)  # "-" or None from an offline station
     except (TypeError, ValueError):
-        return None
+        # An offline station used to make the whole reading unusable. It no
+        # longer has to: the app computes its own index from the particulates,
+        # so a feed that still carries pm25/pm10 is fine without a headline aqi.
+        feed_aqi = None
     iaqi = data.get("iaqi") or {}
 
     def pollutant(name):
@@ -138,17 +175,20 @@ def _fetch_feed(feed: str, token: str):
     if not isinstance(forecast, dict):
         forecast = None
     obs_time = (data.get("time") or {}).get("iso")
-    return {
-        "aqi": aqi,
-        "pm25": pollutant("pm25"),
-        "pm10": pollutant("pm10"),
-        "dominant_pollutant": data.get("dominentpol") or "pm25",
-        "station": city,
-        "city": city,
-        "stale": False,
-        "forecast": forecast,
-        "obs_time": obs_time,
-    }
+
+    # The feed's iaqi values are AQI sub-indices on the US EPA scale, not
+    # concentrations -- see services/aqi_scale.py for the proof. Invert them
+    # before anything downstream treats them as micrograms.
+    reading = _reading(
+        aqi_scale.concentration(pollutant("pm25"), "pm25"),
+        aqi_scale.concentration(pollutant("pm10"), "pm10"),
+        station=city, city=city, stale=False, forecast=forecast,
+        obs_time=obs_time, feed_aqi=feed_aqi,
+        feed_dominant=data.get("dominentpol"))
+    # No usable particulate and no feed number either: nothing to show.
+    if reading["aqi"] is None and feed_aqi is None:
+        return None
+    return reading
 
 
 def get_aqi(locality: str, es_client=None):

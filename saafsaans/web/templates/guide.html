@@ -93,6 +93,39 @@
     </dl>
   </section>
 
+  {# --- Where the number comes from ------------------------------------- #}
+  <section class="card wide" id="numbers">
+    <h2 class="kicker">Where the air number comes from, and what it is not</h2>
+    <p class="hint">The readings come from India's CPCB monitoring stations, delivered through
+      the WAQI feed. WAQI publishes its numbers on the <strong>United States</strong> EPA index,
+      not India's — it moved every Indian station onto the US scale in January 2016, and says
+      itself that its figures will therefore differ from India's own National AQI portal.</p>
+    <p class="hint">The two scales are far apart. 60 µg/m³ of PM2.5 is 100 "Satisfactory" on
+      India's scale and about 154 "Unhealthy" on the US one. So this site converts: it turns
+      the feed's US index values back into concentrations, then works out the Indian figure
+      from those. That way the number you see here is the kind of number you see everywhere
+      else in Delhi.</p>
+    <p class="hint"><strong>What that number is not.</strong> It is worked out from PM2.5 and
+      PM10 only. India's official method uses up to eight pollutants and needs at least three,
+      so on a day when a gas like ozone is the worst thing in the air, the official figure would
+      be higher than ours. The provenance panel under any answer shows both our number and
+      WAQI's original, so you can see the difference for yourself.</p>
+
+    <h3 class="kicker" style="margin-top:20px">The World Health Organization comparison</h3>
+    <p class="hint">The Organization's guideline for PM2.5 is <strong>{{ who_guideline }} µg/m³
+      averaged over 24 hours</strong>, and 5 µg/m³ averaged over a year. The line on the Today
+      page compares the air <em>right now</em> against the 24-hour figure, and says so in those
+      words, because the two are not the same thing: a single reading is not a daily average.</p>
+    <p class="hint">The guideline is also stricter than it sounds in one direction and looser in
+      another. WHO defines the 24-hour level as the 99th percentile of a year's daily averages —
+      that is, three or four days above it a year is still within the guideline. It is not a
+      limit for any one day. We round the comparison to a single figure and always say "about",
+      because the underlying reading is not precise enough to deserve more.</p>
+    <p class="caption">WHO global air quality guidelines. Particulate matter (PM2.5 and PM10),
+      ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide. Geneva: World Health
+      Organization; 2021.</p>
+  </section>
+
   {# --- Risk score provenance ---------------------------------------------
      A number presented as personal has to be checkable, or it is just an
      assertion with a decimal point. Everything that goes into it is listed

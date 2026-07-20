@@ -133,7 +133,12 @@ def advisor_data(persona: dict) -> dict:
         "baseline": risk.compute_risk(
             aqi, "any", normalize.norm_activity(persona["activity"]), "adult")["score"],
         "window": forecast.best_window(
-            aqi, dominant_pollutant=reading.get("dominant_pollutant"),
+            # The feed's own dominant pollutant, which may be a gas the app's
+            # particulate-only index does not model. The window advice differs
+            # for ozone, so it must not be told "pm25" merely because PM drove
+            # our number.
+            aqi, dominant_pollutant=(reading.get("feed_dominant")
+                                     or reading.get("dominant_pollutant")),
             forecast=reading.get("forecast")),
         "outlook": pr.outlook_rows(forecast.daily_outlook(reading.get("forecast"))),
     }
@@ -176,6 +181,7 @@ def today(request: Request):
         # Saying so next to the number is the point; saying it only in the
         # README would repeat the mistake this project exists to record.
         "risk_notice": risk.HEURISTIC_NOTICE,
+        "who_line": pr.who_line(data["reading"].get("pm25")),
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, edit=None if persona_open else "1"),
         # Provenance opens per turn, so history stays independently inspectable.
@@ -423,6 +429,7 @@ def guide(request: Request):
         "risk_weights": risk.weight_table(),
         "risk_notice": risk.HEURISTIC_NOTICE,
         "source_epa": risk.SOURCE_EPA,
+        "who_guideline": pr.WHO_PM25_24H,
         "source_unvalidated": risk.SOURCE_UNVALIDATED,
         "epa_age_bands": risk.EPA_AGE_BANDS,
         "inhalation_rates": risk.INHALATION_RATES,
