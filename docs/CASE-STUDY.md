@@ -29,16 +29,16 @@ checkable rather than quietly overwritten.
 
 | Metric | at `v1.0.0` | at `v1-closure` | How to check |
 |---|---|---|---|
-| Tests | 186 passing | **360 passing** | `pytest -q` |
+| Tests | 186 passing | **363 passing** | `pytest -q` |
 | Test files | 13 | 16 | `ls tests/test_*.py` |
-| Application Python | 2,750 lines | 4,270 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
-| CSS + templates | 925 lines | 1,082 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
-| Test code | 1,712 lines | 3,593 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | 39 | `git log --oneline \| wc -l` |
+| Application Python | 2,750 lines | 4,305 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
+| CSS + templates | 925 lines | 1,089 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
+| Test code | 1,712 lines | 3,668 lines | `find tests -name '*.py' \| xargs wc -l` |
+| Commits | 19 | 45 | `git log --oneline \| wc -l` |
 | v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
-| v1.0.0 → v1-closure | — | 30 files, +4,221 / −344 | `git diff --shortstat master..v1-closure` |
+| v1.0.0 → v1-closure | — | 44 files, +4,523 / −383 | `git diff --shortstat master..v1-closure` |
 
-Test code is **84%** the size of application code, up from 62%. The v1.0.0 rebuild **removed**
+Test code is **85%** the size of application code, up from 62%. The v1.0.0 rebuild **removed**
 715 more lines than it added; the closure branch adds, because most of it is either a
 correction with a test pinning it or the Hindi corpus.
 

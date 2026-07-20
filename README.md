@@ -140,7 +140,7 @@ saafsaans/
     config · normalize · guard · waqi · forecast · risk · es · metrics · llm
   data/advisories.py    34 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  360 tests
+tests/                  363 tests
 docs/                   design brief, screenshots, specs
 ```
 
