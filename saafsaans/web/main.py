@@ -29,7 +29,7 @@ from fastapi.templating import Jinja2Templates
 
 from saafsaans.attack_demo import ATTACKS
 from saafsaans.services import (
-    config, es, forecast, guard, llm, metrics, normalize, risk, waqi,
+    config, es, forecast, guard, i18n, llm, metrics, normalize, risk, waqi,
 )
 from saafsaans.web import presenters as pr
 
@@ -130,6 +130,54 @@ def read_theme(request: Request) -> str:
     return "dark" if value == "dark" else "light"
 
 
+def read_lang(request: Request) -> str:
+    """The language for this request: ``?lang=`` first, then the cookie.
+
+    Same shape as ``read_theme`` deliberately -- language is page state exactly
+    as theme is, so it travels in the query string (every view stays
+    shareable in the language it was read in) and is remembered in a cookie
+    (so a reader who switched once does not switch again on every visit).
+    ``i18n.normalise`` turns anything unrecognised into English rather than
+    into a half-rendered page.
+    """
+    value = request.query_params.get("lang") or request.cookies.get("lang") or ""
+    return i18n.normalise(value)
+
+
+def _translator(lang: str):
+    """``T(group, key, english)`` bound to this request's language.
+
+    Handed to the templates so the copy stays where a reader of the template
+    can see it: the English is written inline as the fallback argument, and the
+    Hindi -- when there is one -- replaces it. A missing translation therefore
+    renders the English that is right there in the markup.
+    """
+    def T(group: str, key: str, english: str) -> str:
+        return i18n.t(lang, group, key, english)
+    return T
+
+
+def _advisory_translator(lang: str):
+    """``advisory_text(doc)`` for a seeded advisory, translated when possible.
+
+    The seeded advisories carry no id, so the key is composed from the five
+    fields that together identify one: source, AQI band, and the persona triple.
+    The persona fields are not optional. Source plus band alone collides --
+    "WHO-AQG-2021:201-300" and "AHA-airpollution:201-300" each match two
+    different seeded rows -- and a colliding key would serve one persona's
+    health instruction under another persona's name, which is the worst
+    available failure for this particular string. i18n.py documents the same
+    rule and a test there fails the build if a future row collides.
+
+    Any key with no translation falls back to the English on the document.
+    """
+    def advisory_text(doc: dict) -> str:
+        key = (f"{doc.get('source')}:{doc.get('aqi_min')}-{doc.get('aqi_max')}"
+               f":{doc.get('condition')}:{doc.get('activity')}:{doc.get('age_group')}")
+        return i18n.t(lang, "advisory", key, doc.get("advice") or "")
+    return advisory_text
+
+
 def session_id(request: Request) -> str:
     """The chat-transcript key: the client's ``sid`` cookie when it is in the
     exact form this server issues, otherwise a fresh id.
@@ -178,7 +226,8 @@ def _share_card() -> dict:
     }
 
 
-def today_share_card(persona: dict, data: dict, verdict: str) -> dict:
+def today_share_card(persona: dict, data: dict, verdict: str,
+                     label: str = None) -> dict:
     """Card text for Today, built from the very values the page renders.
 
     ``data`` and ``verdict`` are the same objects passed to the template, so
@@ -189,10 +238,17 @@ def today_share_card(persona: dict, data: dict, verdict: str) -> dict:
     no particulate the reading is None; the card then says the reading is
     missing and repeats the page's own advice for that case, rather than
     naming a band it does not have.
+
+    ``label`` and the verdict are passed in already in the reader's language,
+    and ``data["meaning"]`` is translated by the caller, so a Hindi page's card
+    cannot show a band name or a verdict the page itself does not display. The
+    surrounding scaffolding is English in both cases: it is a link preview, and
+    the persona sentence it quotes has no Hindi source.
     """
-    label = data["category"][0]
+    label_en = data["category"][0]
+    label = label or label_en
     place = persona["locality"]
-    if data["reading"].get("aqi") is None or label == "Unknown":
+    if data["reading"].get("aqi") is None or label_en == "Unknown":
         return {"title": f"{place}: no air reading right now",
                 "description": data["meaning"]}
     return {
@@ -203,27 +259,44 @@ def today_share_card(persona: dict, data: dict, verdict: str) -> dict:
     }
 
 
-def _qs(persona: dict, theme: str, **extra) -> str:
-    """Query string carrying persona + theme, plus any disclosure state.
+def _qs(persona: dict, theme: str, lang: str, **extra) -> str:
+    """Query string carrying persona + theme + language, plus disclosure state.
+
+    ``lang`` is positional and required rather than defaulted, so a new link
+    cannot silently omit it: a link without the language returns a Hindi reader
+    to English the moment they click anything.
 
     Keys with a None value are dropped, which is how a disclosure link closes
     what is currently open.
     """
-    params = {**persona, "theme": theme}
+    params = {**persona, "theme": theme, "lang": lang}
     params.update(extra)
     return urlencode({k: v for k, v in params.items() if v is not None})
 
 
-def base_context(request: Request, persona: dict, theme: str, active: str) -> dict:
+def base_context(request: Request, persona: dict, theme: str, lang: str,
+                 active: str) -> dict:
     return {
         "request": request, "persona": persona, "theme": theme, "active": active,
+        "lang": lang,
         "path": request.url.path,
         "ages": AGES, "conditions": CONDITIONS, "activities": ACTIVITIES,
         "regions": waqi.REGIONS,
         "share": _share_card(),
-        "q": _qs(persona, theme),
-        "q_light": _qs(persona, "light"),
-        "q_dark": _qs(persona, "dark"),
+        "q": _qs(persona, theme, lang),
+        "q_light": _qs(persona, "light", lang),
+        "q_dark": _qs(persona, "dark", lang),
+        # The toggle keeps everything else about the page identical, so a
+        # reader switching language does not also lose their persona or theme.
+        "q_en": _qs(persona, theme, "en"),
+        "q_hi": _qs(persona, theme, "hi"),
+        # Shown on every Hindi page. Not a template literal: the wording of a
+        # caveat about unreviewed health copy belongs beside the copy it is
+        # about.
+        "review_banner": i18n.REVIEW_BANNER,
+        "review_banner_en": i18n.REVIEW_BANNER_EN,
+        "T": _translator(lang),
+        "advisory_text": _advisory_translator(lang),
         "pct": pr.pct,
     }
 
@@ -272,10 +345,11 @@ def advisor_data(persona: dict) -> dict:
 def today(request: Request):
     persona = read_persona(request)
     theme = read_theme(request)
+    lang = read_lang(request)
     sid = session_id(request)
     q = request.query_params
 
-    ctx = base_context(request, persona, theme, "today")
+    ctx = base_context(request, persona, theme, lang, "today")
     data = advisor_data(persona)
     ctx.update(data)
 
@@ -287,13 +361,21 @@ def today(request: Request):
     # re-read what they already asked, not have it replaced by the next answer.
     turns = list(reversed(read_turns(sid)))
     open_prov = q.get("prov")
-    verdict = pr.verdict_for(data["risk"]["band"])
+    band = data["risk"]["band"]
+    verdict = i18n.t(lang, "verdict", band, pr.verdict_for(band))
+    # The band label and the meaning are translated here rather than in the
+    # template because the share card is built from them too, and the card must
+    # not name a band in a language the page does not use.
+    band_label = i18n.t(lang, "band_label", data["category"][0], data["category"][0])
+    data["meaning"] = i18n.t(lang, "aqi_meaning", data["category"][0], data["meaning"])
+    ctx["meaning"] = data["meaning"]
 
     ctx.update({
         "verdict": verdict,
+        "band_label": band_label,
         # Built from `data` and `verdict` themselves, so a forwarded link's
         # preview cannot say something the page does not.
-        "share": today_share_card(persona, data, verdict),
+        "share": today_share_card(persona, data, verdict, band_label),
         "kicker": pr.persona_kicker(persona),
         "persona_line": pr.persona_line(persona),
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"], persona),
@@ -308,18 +390,19 @@ def today(request: Request):
         # The score is half published figure and half the author's judgement.
         # Saying so next to the number is the point; saying it only in the
         # README would repeat the mistake this project exists to record.
-        "risk_notice": risk.HEURISTIC_NOTICE,
+        "risk_notice": i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
         "who_line": pr.who_line(data["reading"].get("pm25")),
         # Each link toggles its own disclosure and clears the others.
-        "q_persona_toggle": _qs(persona, theme, edit=None if persona_open else "1"),
+        "q_persona_toggle": _qs(persona, theme, lang,
+                                edit=None if persona_open else "1"),
         # Provenance opens per turn, so history stays independently inspectable.
-        "q_prov": lambda tid: _qs(persona, theme,
+        "q_prov": lambda tid: _qs(persona, theme, lang,
                                   prov=None if open_prov == tid else tid),
-        "q_term_aqi": _qs(persona, theme, term=None if term == "AQI" else "AQI"),
-        "q_term_pm25": _qs(persona, theme, term=None if term == "PM2.5" else "PM2.5"),
-        "q_term_pm10": _qs(persona, theme, term=None if term == "PM10" else "PM10"),
+        "q_term_aqi": _qs(persona, theme, lang, term=None if term == "AQI" else "AQI"),
+        "q_term_pm25": _qs(persona, theme, lang, term=None if term == "PM2.5" else "PM2.5"),
+        "q_term_pm10": _qs(persona, theme, lang, term=None if term == "PM10" else "PM10"),
     })
-    return _render(request, "today.html", ctx, sid, theme)
+    return _render(request, "today.html", ctx, sid, theme, lang)
 
 
 @app.post("/ask")
@@ -327,6 +410,7 @@ def ask(request: Request, question: str = Form(...)):
     """Guard -> retrieve -> answer, then redirect so a refresh cannot resubmit."""
     persona = read_persona(request)
     theme = read_theme(request)
+    lang = read_lang(request)
     sid = session_id(request)
     client = get_client()
 
@@ -348,7 +432,7 @@ def ask(request: Request, question: str = Form(...)):
             "aqi_value": reading.get("aqi"), "locality": persona["locality"], "error": ""})
         add_turn(sid, {"kind": "refusal", "question": question,
                        "pattern": pattern, "persona_line": pr.persona_line(persona)})
-        return _back(request, sid, theme)
+        return _back(request, sid, theme, lang)
 
     try:
         advisories = es.search_advisories(
@@ -383,8 +467,11 @@ def ask(request: Request, question: str = Form(...)):
             "kind": "answer", "question": question,
             "persona_line": pr.persona_line(persona),
             "blocks": [{"heading": "Verdict", "lead": True,
-                        "text": "Something went wrong preparing your advice. When in "
-                                "doubt, minimise outdoor exposure and wear an N95 outside."}],
+                        "text": i18n.t(
+                            lang, "ui", "answer_error",
+                            "Something went wrong preparing your advice. When in "
+                            "doubt, minimise outdoor exposure and wear an N95 "
+                            "outside.")}],
             "disclaimer": None, "sources": [],
             "reading": reading, "waqi_status": waqi_status})
         es.log_telemetry(client, {
@@ -393,7 +480,7 @@ def ask(request: Request, question: str = Form(...)):
             "waqi_status": waqi_status, "llm_status": "error", "llm_tokens": 0,
             "aqi_value": reading.get("aqi"), "locality": persona["locality"],
             "error": normalize.sanitize_error(exc)})
-    return _back(request, sid, theme)
+    return _back(request, sid, theme, lang)
 
 
 # --- City Pulse ------------------------------------------------------------
@@ -401,6 +488,7 @@ def ask(request: Request, question: str = Form(...)):
 def city(request: Request):
     persona = read_persona(request)
     theme = read_theme(request)
+    lang = read_lang(request)
     client = get_client()
     selected = request.query_params.get("station")
     if selected not in waqi.LOCALITIES:
@@ -420,7 +508,9 @@ def city(request: Request):
         # so it must not carry the same tag as a genuine stored-but-old reading.
         aqi = row.get("aqi") if row else (waqi.SAMPLES.get(loc) or {}).get("aqi")
         label, _c, _h, slug = normalize.band_for(aqi)
-        stations.append({"name": loc, "aqi": aqi, "band": label, "slug": slug,
+        stations.append({"name": loc, "aqi": aqi,
+                         "band": i18n.t(lang, "band_label", label, label),
+                         "slug": slug,
                          "source": "live" if fresh else ("cached" if row else "sample"),
                          "age": None if fresh or row is None else _age_label(row.get("ts")),
                          "selected": loc == selected})
@@ -431,7 +521,7 @@ def city(request: Request):
         return sorted(rows, key=lambda s: (s["aqi"] is None, -(s["aqi"] or 0)))
 
     trend = metrics.aqi_trend(client, locality=selected, hours=24)
-    ctx = base_context(request, persona, theme, "city")
+    ctx = base_context(request, persona, theme, lang, "city")
     ctx.update({
         "delhi": group("Delhi"), "ncr": group("NCR"),
         "count": sum(1 for s in stations if s["aqi"] is not None),
@@ -440,9 +530,9 @@ def city(request: Request):
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points")),
-        "q_station": lambda name: _qs(persona, theme, station=name),
+        "q_station": lambda name: _qs(persona, theme, lang, station=name),
     })
-    return _render(request, "city.html", ctx, session_id(request), theme)
+    return _render(request, "city.html", ctx, session_id(request), theme, lang)
 
 
 # --- System ----------------------------------------------------------------
@@ -450,14 +540,20 @@ def city(request: Request):
 def system(request: Request):
     persona = read_persona(request)
     theme = read_theme(request)
+    # The System views are developer-facing and stay English by design, but the
+    # shared header still has to keep the reader's language on every link out.
+    lang = read_lang(request)
     client = get_client()
     view = "security" if request.query_params.get("view") == "security" else "observability"
 
-    ctx = base_context(request, persona, theme, "system")
+    ctx = base_context(request, persona, theme, lang, "system")
     ctx.update({
+        # Developer-facing and mono by design; it is not translated, so the
+        # document must not claim to be in a language it is not written in.
+        "doc_lang": "en",
         "view": view,
-        "q_obs": _qs(persona, theme, view="observability"),
-        "q_sec": _qs(persona, theme, view="security"),
+        "q_obs": _qs(persona, theme, lang, view="observability"),
+        "q_sec": _qs(persona, theme, lang, view="security"),
         "simulated": request.query_params.get("sim") == "1",
         "attack_count": len(ATTACKS),
     })
@@ -505,7 +601,7 @@ def system(request: Request):
                 [{**a, "when": _fmt_time(a["ts"])}
                  for a in metrics.recent_security_events(client, limit=40)])[:6],
         })
-    return _render(request, "system.html", ctx, session_id(request), theme)
+    return _render(request, "system.html", ctx, session_id(request), theme, lang)
 
 
 @app.post("/system/simulate")
@@ -513,6 +609,7 @@ def simulate(request: Request):
     """Fire the known attack prompts at the live guard and audit every block."""
     persona = read_persona(request)
     theme = read_theme(request)
+    lang = read_lang(request)
     client = get_client()
     hashed = normalize.session_hash("red-team-demo")
     for _name, prompt in ATTACKS:
@@ -528,7 +625,7 @@ def simulate(request: Request):
             client.indices.refresh(index=es.INDEX_SECURITY)
     except Exception:
         pass
-    url = "/system?" + _qs(persona, theme, view="security", sim="1")
+    url = "/system?" + _qs(persona, theme, lang, view="security", sim="1")
     return RedirectResponse(url, status_code=303)
 
 
@@ -541,20 +638,21 @@ def guide(request: Request):
     """
     persona = read_persona(request)
     theme = read_theme(request)
-    ctx = base_context(request, persona, theme, "guide")
+    lang = read_lang(request)
+    ctx = base_context(request, persona, theme, lang, "guide")
     ranges = ["0-50", "51-100", "101-200", "201-300", "301-400", "401-500"]
     labels = [b[1] for b in normalize.AQI_BANDS] + ["Severe"]
     slugs = [b[4] for b in normalize.AQI_BANDS] + ["g6"]
     ctx.update({
         "glossary": normalize.GLOSSARY,
         "conditions_help": normalize.CONDITION_HELP,
-        "bands": [{"label": l, "range": r, "slug": g,
-                   "meaning": normalize.aqi_meaning(l)}
+        "bands": [{"label": i18n.t(lang, "band_label", l, l), "range": r, "slug": g,
+                   "meaning": i18n.t(lang, "aqi_meaning", l, normalize.aqi_meaning(l))}
                   for l, r, g in zip(labels, ranges, slugs)],
         # A reader told "44/100 · HIGH" cannot check that without the cut-offs.
         "risk_bands": [{"label": n, "upper": u} for n, u, _c in risk._BAND_TABLE],
         "risk_weights": risk.weight_table(),
-        "risk_notice": risk.HEURISTIC_NOTICE,
+        "risk_notice": i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
         "source_epa": risk.SOURCE_EPA,
         "who_guideline": pr.WHO_PM25_24H,
         "source_unvalidated": risk.SOURCE_UNVALIDATED,
@@ -562,7 +660,7 @@ def guide(request: Request):
         "inhalation_rates": risk.INHALATION_RATES,
         "activity_intensity": risk.ACTIVITY_INTENSITY,
     })
-    return _render(request, "guide.html", ctx, session_id(request), theme)
+    return _render(request, "guide.html", ctx, session_id(request), theme, lang)
 
 
 @app.get("/health")
@@ -592,7 +690,8 @@ def _day_label(date_str: str) -> str:
         return str(date_str)[:3]
 
 
-def _set_cookies(response, request: Request, sid: str, theme: str = None):
+def _set_cookies(response, request: Request, sid: str, theme: str = None,
+                 lang: str = None):
     """Attach the session and theme cookies.
 
     ``secure`` follows the scheme actually in use rather than being hardcoded
@@ -612,12 +711,14 @@ def _set_cookies(response, request: Request, sid: str, theme: str = None):
     response.set_cookie("sid", sid, httponly=True, samesite="lax", secure=secure)
     if theme is not None:
         response.set_cookie("theme", theme, samesite="lax", secure=secure)
+    if lang is not None:
+        response.set_cookie("lang", lang, samesite="lax", secure=secure)
     return response
 
 
-def _render(request, template, ctx, sid, theme):
+def _render(request, template, ctx, sid, theme, lang):
     return _set_cookies(templates.TemplateResponse(request, template, ctx),
-                        request, sid, theme)
+                        request, sid, theme, lang)
 
 
 def _fmt_stamp() -> str:
@@ -655,7 +756,8 @@ def _age_label(ts) -> str:
     return f"{minutes // (60 * 24)} D"
 
 
-def _back(request: Request, sid: str, theme: str):
+def _back(request: Request, sid: str, theme: str, lang: str):
     persona = read_persona(request)
-    response = RedirectResponse("/?" + _qs(persona, theme) + "#ask", status_code=303)
+    response = RedirectResponse("/?" + _qs(persona, theme, lang) + "#ask",
+                                status_code=303)
     return _set_cookies(response, request, sid)

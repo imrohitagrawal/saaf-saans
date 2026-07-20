@@ -382,8 +382,11 @@ def test_guide_discloses_the_risk_band_cutoffs(client):
     """A page that says "44/100 - HIGH" without publishing the cut-off is
     asking to be taken on trust. Found by the Phase A walkthrough."""
     html = client.get("/guide").text
-    assert "under 20" in html
-    assert "80 and above" in html
+    # Every row is a range: "under 20" needed a pre-nominal word Hindi has no
+    # natural equivalent for, and the draft translation rendered it "at most
+    # 20" -- wrong by one at the boundary. A range has nothing to translate.
+    assert "0–19" in html
+    assert "80–100" in html
     for band in ("Low", "Moderate", "High", "Very High", "Extreme"):
         assert band in html, band
 
@@ -401,7 +404,8 @@ def test_reading_card_no_longer_credits_a_bare_cpcb(client):
     """The number is on the CPCB scale but computed from two pollutants where
     CPCB uses up to eight and requires three. A bare "CPCB" credit claimed a
     provenance the figure does not have."""
-    html = client.get("/").text
+    # The credit now goes through i18n.t, so Jinja escapes the apostrophe.
+    html = client.get("/").text.replace("&#39;", "'")
     assert "India's CPCB scale, from PM2.5 and PM10" in html
     assert "· CPCB · " not in html
 
@@ -548,6 +552,166 @@ def test_session_cookie_is_marked_secure_only_over_https():
     assert not any("Secure" in h for h in plain)
 
 
+# --- Language ---------------------------------------------------------------
+# The Hindi copy is being written in services/i18n.py and is largely empty, so
+# these tests assert the WIRING -- what language the page declares, which links
+# carry it, which font is fetched, and that the review banner is present --
+# never the presence of a particular Hindi sentence. A test that asserted a
+# translated string would fail today and again on every edit to the copy.
+HINDI_PAGES = ("/", "/city", "/guide", "/system")
+
+
+def _lang(path, lang=None, **extra):
+    """One page, fetched with no cookie jar, so the language is only what is asked
+    for. A shared client would remember the previous request's language."""
+    params = {**PERSONA, **extra}
+    if lang is not None:
+        params["lang"] = lang
+    with TestClient(app) as c:
+        return c.get(path, params=params).text
+
+
+def test_english_is_the_default():
+    body = _lang("/")
+    assert '<html lang="en"' in body
+    assert "Change details" in body
+
+
+def test_hindi_switches_the_content():
+    """The banner is committed Hindi and is on every Hindi page, so it is the one
+    string that proves the language actually changed while HI is still empty."""
+    from saafsaans.services import i18n
+    body = _lang("/", "hi")
+    assert i18n.REVIEW_BANNER in body
+
+
+@pytest.mark.parametrize("bad", ["xx", "", "hi-IN", "en-GB", "../etc"])
+def test_an_unrecognised_language_falls_back_to_english(bad):
+    """Not merely a 200: the page must be complete English, not a blank shell."""
+    body = _lang("/", bad)
+    assert '<html lang="en"' in body
+    assert "Change details" in body
+    assert "This advice is for" in body
+
+
+def test_the_root_element_declares_the_language():
+    """The System view is excluded deliberately -- it is not translated, so it
+    keeps lang="en" whatever the toggle says. See
+    test_the_system_view_does_not_claim_to_be_in_hindi."""
+    for path in HINDI_PAGES:
+        if path.startswith("/system"):
+            continue
+        assert '<html lang="hi"' in _lang(path, "hi"), path
+        assert '<html lang="en"' in _lang(path, "en"), path
+
+
+def test_the_review_banner_is_on_every_hindi_page_and_no_english_one():
+    """A hard gate on the feature: the translation is unreviewed, and a reader
+    must be told so before acting on a health instruction."""
+    from saafsaans.services import i18n
+    for path in HINDI_PAGES:
+        hindi = _lang(path, "hi")
+        assert i18n.REVIEW_BANNER in hindi, path
+        assert 'class="notice"' in hindi, path
+        assert i18n.REVIEW_BANNER not in _lang(path, "en"), path
+        assert 'class="notice"' not in _lang(path, "en"), path
+
+
+def test_the_banner_cannot_be_dismissed_and_precedes_the_content():
+    body = _lang("/", "hi")
+    assert body.index('class="notice"') < body.index('class="hero')
+    # No control of any kind inside it, so there is nothing to dismiss it with.
+    notice = body.split('class="notice"')[1].split("</aside>")[0]
+    assert "<a" not in notice and "<button" not in notice and "<form" not in notice
+
+
+def test_the_banner_does_not_break_the_skip_link():
+    body = _lang("/", "hi")
+    assert 'href="#main"' in body
+    # The banner sits inside the target, so skipping lands on it rather than
+    # past it, and the target itself is still there exactly once.
+    assert body.count('id="main"') == 1
+    assert body.index('id="main"') < body.index('class="notice"')
+
+
+def test_the_language_toggle_is_a_pair_of_plain_links():
+    body = _lang("/", "hi")
+    assert "<script" not in body.lower()
+    assert 'aria-label="Language"' in body or "lang_group" not in body
+    assert 'lang="hi" aria-current="true"' in body
+    assert 'lang="en" aria-current="false"' in body
+
+
+def test_the_toggle_carries_the_persona_and_theme_through_unchanged():
+    import re
+    body = _lang("/", "en", theme="dark", condition="COPD", age="Senior")
+    hrefs = re.findall(r'href="([^"]*lang=hi[^"]*)"', body)
+    assert hrefs, "no link to Hindi on the page"
+    toggle = hrefs[0]
+    for pair in ("theme=dark", "condition=COPD", "age=Senior",
+                 "activity=Outdoor+exercise", "locality=Anand+Vihar"):
+        assert pair in toggle, (pair, toggle)
+
+
+def test_every_link_carries_the_language():
+    """The first link a Hindi reader clicks must not return them to English."""
+    import re
+    body = _lang("/", "hi", edit="1")
+    internal = [h for h in re.findall(r'href="(/[^"]*)"', body) if "?" in h]
+    assert internal
+    # Exactly one link on a Hindi page may leave Hindi: the toggle itself.
+    to_english = [h for h in internal if "lang=en" in h]
+    assert len(to_english) == 1, to_english
+    for href in internal:
+        if href in to_english:
+            continue
+        assert "lang=hi" in href, href
+    # And the persona form, which replaces the query string wholesale.
+    assert '<input type="hidden" name="lang" value="hi">' in body
+
+
+def test_the_devanagari_font_is_requested_only_for_hindi():
+    """A real download an English reader would never see a glyph from."""
+    for path in HINDI_PAGES:
+        assert "Anek+Devanagari" in _lang(path, "hi"), path
+        assert "Anek+Devanagari" not in _lang(path, "en"), path
+
+
+def test_the_stylesheet_switches_the_display_face_for_hindi():
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css").read_text()
+    assert 'html[lang="hi"]' in css and "Anek Devanagari" in css
+
+
+def test_a_translated_string_reaches_the_page_and_english_never_sees_it(monkeypatch):
+    """With HI still being written, this pins the lookup itself.
+
+    Two stand-in strings are injected into the groups the copy is routed
+    through; the Hindi page must show them and the English page must not. It
+    asserts the wiring, so it keeps working whatever the real translation says.
+    """
+    from saafsaans.services import i18n
+    monkeypatch.setitem(i18n.HI, "ui", {"nav_today": "आज-नमूना"})
+    monkeypatch.setitem(i18n.HI, "glossary", {"PM2.5": "पीएम-नमूना"})
+    hindi = _lang("/", "hi", term="PM2.5")
+    assert "आज-नमूना" in hindi and "पीएम-नमूना" in hindi
+    english = _lang("/", "en", term="PM2.5")
+    assert "आज-नमूना" not in english and "पीएम-नमूना" not in english
+    # And a group with no entry falls back per string, not per page.
+    assert "Change details" in hindi
+
+
+def test_the_language_is_remembered_like_the_theme(client):
+    client.get("/", params={**PERSONA, "lang": "hi"})
+    assert '<html lang="hi"' in client.get("/", params=PERSONA).text
+
+
+def test_asking_a_question_keeps_the_language(client):
+    r = client.post("/ask", params={**PERSONA, "lang": "hi"},
+                    data={"question": "Can I go out?"}, follow_redirects=False)
+    assert "lang=hi" in r.headers["location"]
+
+
 def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
     """A feed carrying only gases yields aqi None, which is the honest result.
     Every view must survive it rather than 500."""
@@ -562,3 +726,34 @@ def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
     monkeypatch.setattr(waqi, "get_aqi", gasses_only)
     for path in ("/", "/guide", "/city"):
         assert client.get(path).status_code == 200, path
+
+
+def test_the_system_view_does_not_claim_to_be_in_hindi(client):
+    """System is developer-facing and stays English by design. Declaring the
+    document Hindi would tell a screen reader to pronounce English prose with
+    Hindi phonetics -- a lie about the content, told to the readers least able
+    to detect it."""
+    import re
+    assert re.search(r'<html lang="en"', client.get("/system?lang=hi").text)
+    # ...while a translated view does follow the language.
+    assert re.search(r'<html lang="hi"', client.get("/?lang=hi").text)
+
+
+def test_every_seeded_advisory_can_be_served_in_hindi(client):
+    """The advisory key is composed from five fields. Composing it from two --
+    source and band -- collides on four of the seeded rows and would have
+    served one persona's health instruction under another's name. It also
+    matched nothing, so all 34 translated advisories were dead on arrival."""
+    from saafsaans.services import i18n
+    from saafsaans.data.advisories import ADVISORIES
+    from saafsaans.web.main import _advisory_translator
+
+    translate = _advisory_translator("hi")
+    keys = {f"{a['source']}:{a['aqi_min']}-{a['aqi_max']}"
+            f":{a['condition']}:{a['activity']}:{a['age_group']}" for a in ADVISORIES}
+    assert len(keys) == len(ADVISORIES), "the key must identify a row uniquely"
+    assert keys <= set(i18n.HI["advisory"]), keys - set(i18n.HI["advisory"])
+    for advisory in ADVISORIES:
+        hindi = translate(advisory)
+        assert hindi != advisory["advice"], advisory["source"]
+        assert any("ऀ" <= ch <= "ॿ" for ch in hindi), advisory["source"]
