@@ -157,6 +157,36 @@ def _translator(lang: str):
     return T
 
 
+def _option_labels(lang: str) -> dict:
+    """Display text for every persona option, keyed by the value it submits.
+
+    The keys stay English because they are the wire format: ``read_persona``
+    validates against AGES / CONDITIONS / ACTIVITIES, the query string carries
+    them, and ``normalize`` maps them to scoring keywords. Only what the reader
+    sees is translated, so a Hindi page's persona editor still round-trips.
+
+    Written out one literal key at a time rather than composed from the option
+    name, because tests/test_i18n.py reads the requested keys back out of this
+    file: a key built by concatenation is invisible to that parser, and an
+    invisible key is one nobody notices is missing.
+    """
+    return {
+        "Child": i18n.t(lang, "ui", "age_child", "Child"),
+        "Adult": i18n.t(lang, "ui", "age_adult", "Adult"),
+        "Senior": i18n.t(lang, "ui", "age_senior", "Senior"),
+        "Fit": i18n.t(lang, "ui", "cond_fit", "Fit"),
+        "Asthma": i18n.t(lang, "ui", "cond_asthma", "Asthma"),
+        "Heart condition": i18n.t(lang, "ui", "cond_heart", "Heart condition"),
+        "Pregnancy": i18n.t(lang, "ui", "cond_pregnancy", "Pregnancy"),
+        "COPD": i18n.t(lang, "ui", "cond_copd", "COPD"),
+        "Outdoor exercise": i18n.t(lang, "ui", "act_outdoor_exercise",
+                                   "Outdoor exercise"),
+        "Commute": i18n.t(lang, "ui", "act_commute", "Commute"),
+        "School run": i18n.t(lang, "ui", "act_school_run", "School run"),
+        "Stay home": i18n.t(lang, "ui", "act_stay_home", "Stay home"),
+    }
+
+
 def _advisory_translator(lang: str):
     """``advisory_text(doc)`` for a seeded advisory, translated when possible.
 
@@ -281,6 +311,9 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         "lang": lang,
         "path": request.url.path,
         "ages": AGES, "conditions": CONDITIONS, "activities": ACTIVITIES,
+        # value -> what the reader sees. The values above stay English because
+        # they are what the form submits and what read_persona validates.
+        "option_label": _option_labels(lang),
         "regions": waqi.REGIONS,
         "share": _share_card(),
         "q": _qs(persona, theme, lang),
@@ -314,7 +347,13 @@ def _fmt_time(iso: str = None) -> str:
 
 
 # --- Today -----------------------------------------------------------------
-def advisor_data(persona: dict) -> dict:
+def advisor_data(persona: dict, lang: str = "en") -> dict:
+    """The reading and everything derived from it, in the reader's language.
+
+    ``lang`` defaults to English so the signature stays compatible with every
+    existing caller; the services it calls carry the same default, so a missing
+    translation degrades to English one string at a time rather than raising.
+    """
     reading, waqi_status = waqi.get_aqi(persona["locality"], es_client=get_client())
     aqi = reading.get("aqi")
     return {
@@ -325,8 +364,9 @@ def advisor_data(persona: dict) -> dict:
         "risk": risk.compute_risk(
             aqi, normalize.norm_condition(persona["condition"]),
             normalize.norm_activity(persona["activity"]),
-            normalize.norm_age(persona["age"])),
+            normalize.norm_age(persona["age"]), lang=lang),
         # Same air, same plans, healthy adult body -- the gap is the whole point.
+        # The baseline is a bare number, so it needs no language.
         "baseline": risk.compute_risk(
             aqi, "any", normalize.norm_activity(persona["activity"]), "adult")["score"],
         "window": forecast.best_window(
@@ -336,8 +376,9 @@ def advisor_data(persona: dict) -> dict:
             # our number.
             aqi, dominant_pollutant=(reading.get("feed_dominant")
                                      or reading.get("dominant_pollutant")),
-            forecast=reading.get("forecast")),
-        "outlook": pr.outlook_rows(forecast.daily_outlook(reading.get("forecast"))),
+            forecast=reading.get("forecast"), lang=lang),
+        "outlook": pr.outlook_rows(
+            forecast.daily_outlook(reading.get("forecast"), lang=lang), lang=lang),
     }
 
 
@@ -350,7 +391,7 @@ def today(request: Request):
     q = request.query_params
 
     ctx = base_context(request, persona, theme, lang, "today")
-    data = advisor_data(persona)
+    data = advisor_data(persona, lang)
     ctx.update(data)
 
     term = q.get("term") if q.get("term") in TERMS else None
@@ -376,11 +417,12 @@ def today(request: Request):
         # Built from `data` and `verdict` themselves, so a forwarded link's
         # preview cannot say something the page does not.
         "share": today_share_card(persona, data, verdict, band_label),
-        "kicker": pr.persona_kicker(persona),
-        "persona_line": pr.persona_line(persona),
-        "compare": pr.comparison_line(data["risk"]["score"], data["baseline"], persona),
+        "kicker": pr.persona_kicker(persona, lang=lang),
+        "persona_line": pr.persona_line(persona, lang=lang),
+        "compare": pr.comparison_line(data["risk"]["score"], data["baseline"],
+                                      persona, lang=lang),
         "scale_pos": pr.scale_position(data["reading"].get("aqi")),
-        "prov_chip": pr.provenance_chip(data["waqi_status"], obs_time),
+        "prov_chip": pr.provenance_chip(data["waqi_status"], obs_time, lang=lang),
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
         "term": term, "persona_open": persona_open,
@@ -391,7 +433,7 @@ def today(request: Request):
         # Saying so next to the number is the point; saying it only in the
         # README would repeat the mistake this project exists to record.
         "risk_notice": i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
-        "who_line": pr.who_line(data["reading"].get("pm25")),
+        "who_line": pr.who_line(data["reading"].get("pm25"), lang=lang),
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, lang,
                                 edit=None if persona_open else "1"),
@@ -415,7 +457,7 @@ def ask(request: Request, question: str = Form(...)):
     client = get_client()
 
     hashed = normalize.session_hash(sid)
-    data = advisor_data(persona)
+    data = advisor_data(persona, lang)
     reading, waqi_status = data["reading"], data["waqi_status"]
     start = time.time()
 
@@ -436,7 +478,8 @@ def ask(request: Request, question: str = Form(...)):
         # precisely to refuse it. It is also raw user text, which the transcript
         # cap is meant to bound rather than accumulate.
         add_turn(sid, {"kind": "refusal", "question": normalize.excerpt(question),
-                       "pattern": pattern, "persona_line": pr.persona_line(persona)})
+                       "pattern": pattern,
+                       "persona_line": pr.persona_line(persona, lang=lang)})
         return _back(request, sid, theme, lang)
 
     try:
@@ -450,12 +493,12 @@ def ask(request: Request, question: str = Form(...)):
             {"age_group": persona["age"], "condition": persona["condition"],
              "activity": persona["activity"]},
             advisories, question, locality=persona["locality"],
-            timestamp=es.now_iso(), best_window=data["window"])
+            timestamp=es.now_iso(), best_window=data["window"], lang=lang)
         parsed = llm.parse_advice(text)
         add_turn(sid, {
             "kind": "answer", "question": question,
-            "persona_line": pr.persona_line(persona),
-            "blocks": pr.answer_sections(parsed),
+            "persona_line": pr.persona_line(persona, lang=lang),
+            "blocks": pr.answer_sections(parsed, lang=lang),
             "disclaimer": parsed.get("disclaimer"),
             "sources": advisories,
             "reading": reading, "waqi_status": waqi_status})
@@ -470,8 +513,9 @@ def ask(request: Request, question: str = Form(...)):
     except Exception as exc:  # pragma: no cover - top-level safety net
         add_turn(sid, {
             "kind": "answer", "question": question,
-            "persona_line": pr.persona_line(persona),
-            "blocks": [{"heading": "Verdict", "lead": True,
+            "persona_line": pr.persona_line(persona, lang=lang),
+            "blocks": [{"heading": i18n.t(lang, "ui", "heading_verdict", "Verdict"),
+                        "lead": True,
                         "text": i18n.t(
                             lang, "ui", "answer_error",
                             "Something went wrong preparing your advice. When in "
@@ -517,7 +561,7 @@ def city(request: Request):
                          "band": i18n.t(lang, "band_label", label, label),
                          "slug": slug,
                          "source": "live" if fresh else ("cached" if row else "sample"),
-                         "age": None if fresh or row is None else _age_label(row.get("ts")),
+                         "age": None if fresh or row is None else _age_label(row.get("ts"), lang),
                          "selected": loc == selected})
 
     def group(region):
@@ -531,7 +575,7 @@ def city(request: Request):
         "delhi": group("Delhi"), "ncr": group("NCR"),
         "count": sum(1 for s in stations if s["aqi"] is not None),
         "median": pr.median_aqi(stations),
-        "now": _fmt_stamp(),
+        "now": _fmt_stamp(lang),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points")),
@@ -640,6 +684,72 @@ def simulate(request: Request):
     return RedirectResponse(url, status_code=303)
 
 
+# The Guide renders three of risk.py's tables, whose keys are scoring keywords
+# ("copd", "outdoor_exercise", "sedentary") rather than copy. Capitalising a
+# keyword in the template produced "Copd" in English and left it in English on
+# a Hindi page; these builders name each row instead. The persona words reuse
+# the picker's own labels, so a condition cannot be called one thing in the
+# editor and another in the Guide.
+_EPA_AGE_ORDER = ("child", "adult", "senior")
+_INTENSITY_ORDER = ("sedentary", "light", "moderate", "high")
+# risk.py's scoring keyword -> the persona option it stands for.
+_FACTOR_OPTION = {
+    "copd": "COPD", "heart": "Heart condition", "pregnancy": "Pregnancy",
+    "asthma": "Asthma", "senior": "Senior", "child": "Child",
+}
+
+
+def _intensity_labels(lang: str) -> dict:
+    return {
+        "sedentary": i18n.t(lang, "guide", "level_sedentary", "sedentary"),
+        "light": i18n.t(lang, "guide", "level_light", "light"),
+        "moderate": i18n.t(lang, "guide", "level_moderate", "moderate"),
+        "high": i18n.t(lang, "guide", "level_high", "high"),
+    }
+
+
+def _epa_rows(lang: str) -> list:
+    """EPA's inhalation table, one row per age group this site offers.
+
+    The age band ("6 to <11 years") is EPA's own bracket, restated rather than
+    quoted, so it is translated -- unlike the citation under the table.
+    """
+    labels = _option_labels(lang)
+    bands = {
+        "child": i18n.t(lang, "guide", "age_band_child", "6 to <11 years"),
+        "adult": i18n.t(lang, "guide", "age_band_adult", "21 to <31 years"),
+        "senior": i18n.t(lang, "guide", "age_band_senior", "61 to <71 years"),
+    }
+    return [{"label": labels[age.capitalize()], "band": bands[age],
+             "rates": [risk.INHALATION_RATES[age][level]
+                       for level in _INTENSITY_ORDER]}
+            for age in _EPA_AGE_ORDER]
+
+
+def _intensity_rows(lang: str) -> list:
+    """Which planned activity this site treats as which EPA effort level.
+
+    "any" is the unknown-plans fallback and is never a thing a reader picked,
+    so it is not shown.
+    """
+    labels, levels = _option_labels(lang), _intensity_labels(lang)
+    activity_option = {"outdoor_exercise": "Outdoor exercise",
+                       "school_run": "School run", "commute": "Commute",
+                       "stay_home": "Stay home"}
+    return [{"activity": labels[activity_option[keyword]], "level": levels[level]}
+            for keyword, level in risk.ACTIVITY_INTENSITY.items()
+            if keyword in activity_option]
+
+
+def _factor_rows(lang: str) -> list:
+    """The ungrounded weights: condition and age, named as the picker names them."""
+    labels = _option_labels(lang)
+    return [{"label": labels[_FACTOR_OPTION[w["key"]]], "value": w["value"]}
+            for w in risk.weight_table()
+            if w["table"] in ("condition_pts", "age_susceptibility_pts")
+            and w["value"] and w["key"] in _FACTOR_OPTION]
+
+
 @app.get("/guide")
 def guide(request: Request):
     """Plain-language explanation of every number and term the site shows.
@@ -660,16 +770,29 @@ def guide(request: Request):
         "bands": [{"label": i18n.t(lang, "band_label", l, l), "range": r, "slug": g,
                    "meaning": i18n.t(lang, "aqi_meaning", l, normalize.aqi_meaning(l))}
                   for l, r, g in zip(labels, ranges, slugs)],
+        # Only the two glossary terms that are ordinary English. AQI, PM2.5,
+        # PM10, CPCB, N95 and µg/m³ are how a Delhi reader says them out loud,
+        # so the template falls back to the term itself for those.
+        "glossary_terms": {
+            "Dominant pollutant": i18n.t(lang, "guide", "term_dominant",
+                                         "Dominant pollutant"),
+            "Risk score": i18n.t(lang, "guide", "term_risk_score", "Risk score"),
+        },
         # A reader told "44/100 · HIGH" cannot check that without the cut-offs.
         "risk_bands": [{"label": n, "upper": u} for n, u, _c in risk._BAND_TABLE],
-        "risk_weights": risk.weight_table(),
         "risk_notice": i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
+        # Citations, not copy: an identifier a reader is meant to look up. Left
+        # in Latin on purpose -- translating it would make the source harder to
+        # find, which is the opposite of why it is printed.
         "source_epa": risk.SOURCE_EPA,
         "who_guideline": pr.WHO_PM25_24H,
-        "source_unvalidated": risk.SOURCE_UNVALIDATED,
-        "epa_age_bands": risk.EPA_AGE_BANDS,
-        "inhalation_rates": risk.INHALATION_RATES,
-        "activity_intensity": risk.ACTIVITY_INTENSITY,
+        # Not a citation. It is this site's own statement about its own numbers,
+        # and a reader must be able to read it in the language they chose.
+        "source_unvalidated": i18n.t(lang, "guide", "source_unvalidated",
+                                     risk.SOURCE_UNVALIDATED),
+        "epa_rows": _epa_rows(lang),
+        "intensity_rows": _intensity_rows(lang),
+        "factor_rows": _factor_rows(lang),
     })
     return _render(request, "guide.html", ctx, session_id(request), theme, lang)
 
@@ -738,18 +861,39 @@ def _render(request, template, ctx, sid, theme, lang):
                         request, sid, theme, lang)
 
 
-def _fmt_stamp() -> str:
+def _month_abbr(lang: str, month: int) -> str:
+    """The month, short. ``strftime('%b')`` would hand a Hindi page 'Jul'.
+
+    Twelve literal keys rather than a formatted one, so tests/test_i18n.py can
+    read them back out of this file and fail when one is missing.
+    """
+    return (
+        i18n.t(lang, "ui", "month_1", "Jan"), i18n.t(lang, "ui", "month_2", "Feb"),
+        i18n.t(lang, "ui", "month_3", "Mar"), i18n.t(lang, "ui", "month_4", "Apr"),
+        i18n.t(lang, "ui", "month_5", "May"), i18n.t(lang, "ui", "month_6", "Jun"),
+        i18n.t(lang, "ui", "month_7", "Jul"), i18n.t(lang, "ui", "month_8", "Aug"),
+        i18n.t(lang, "ui", "month_9", "Sep"), i18n.t(lang, "ui", "month_10", "Oct"),
+        i18n.t(lang, "ui", "month_11", "Nov"), i18n.t(lang, "ui", "month_12", "Dec"),
+    )[month - 1]
+
+
+def _fmt_stamp(lang: str = "en") -> str:
     """Now, as '3:05 AM IST, 20 Jul' -- placeable on a calendar.
 
     Comparing two pages is impossible without the date and the zone, so both
-    are always spelled out. Deliberately takes no argument: this stamps the
-    moment the page was rendered, and accepting a timestamp would invite it to
-    be used for an observation time, which is what ``_fmt_time`` is for.
+    are always spelled out. Takes no timestamp on purpose: this stamps the
+    moment the page was rendered, and accepting one would invite it to be used
+    for an observation time, which is what ``_fmt_time`` is for.
+
+    The month is looked up rather than left to ``%b``, which is either English
+    or at the mercy of the server's locale -- neither of which is the language
+    the reader asked for.
     """
-    return datetime.now(timezone.utc).astimezone(IST).strftime("%-I:%M %p IST, %-d %b")
+    now = datetime.now(timezone.utc).astimezone(IST)
+    return f"{now.strftime('%-I:%M %p IST')}, {now.day} {_month_abbr(lang, now.month)}"
 
 
-def _age_label(ts) -> str:
+def _age_label(ts, lang: str = "en") -> str:
     """How old a stored reading is, terse enough for a tag: '40 MIN', '5 H', '3 D'.
 
     Empty when the timestamp is missing or unparseable -- an invented age would
@@ -767,10 +911,10 @@ def _age_label(ts) -> str:
     if minutes < 0:
         return ""
     if minutes < 60:
-        return f"{minutes} MIN"
+        return f"{minutes} " + i18n.t(lang, "ui", "age_unit_min", "MIN")
     if minutes < 60 * 48:
-        return f"{minutes // 60} H"
-    return f"{minutes // (60 * 24)} D"
+        return f"{minutes // 60} " + i18n.t(lang, "ui", "age_unit_hours", "H")
+    return f"{minutes // (60 * 24)} " + i18n.t(lang, "ui", "age_unit_days", "D")
 
 
 def _back(request: Request, sid: str, theme: str, lang: str):

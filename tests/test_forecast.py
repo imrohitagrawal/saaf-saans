@@ -95,3 +95,76 @@ def test_best_window_high_aqi_overrides_pollutant():
     for pol in ("o3", "no2", "pm25"):
         win = forecast.best_window(380, dominant_pollutant=pol)
         assert "no safe outdoor window" in win["window"].lower()
+
+
+# --- Language --------------------------------------------------------------
+# The window is the site's "if you must go out" answer, so it has to be
+# readable by the person the page is written for.
+
+import re
+
+import pytest
+
+from saafsaans.services import i18n
+
+LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z'’.\-]{2,}")
+
+
+def _stub_hindi(monkeypatch, *groups):
+    """Answer every lookup in whole groups with a Devanagari marker.
+
+    Phase 1 writes no Hindi. The marker proves the sentence is routed through
+    ``i18n.t``; a sentence typed inline stays English and this test names it.
+    """
+    real = i18n.t
+
+    def fake(lang, group, key, english):
+        return "अनुवादित" if lang == "hi" and group in groups else real(
+            lang, group, key, english)
+
+    monkeypatch.setattr(i18n, "t", fake)
+
+
+@pytest.mark.parametrize("aqi,dominant", [
+    (350, "pm25"),   # no safe window
+    (250, "pm25"),   # Poor tail
+    (150, "o3"),     # ozone clause + Moderate tail
+    (150, "no2"),    # traffic-gas clause
+    (60, "pm10"),    # no severity tail
+])
+def test_the_window_leaves_no_english_sentence_in_hindi(monkeypatch, aqi, dominant):
+    _stub_hindi(monkeypatch, "window")
+    w = forecast.best_window(aqi, dominant_pollutant=dominant, lang="hi")
+    stray = LATIN_RUN.findall(w["window"] + " " + w["rationale"])
+    assert not stray, f"still written in English: {sorted(set(stray))}"
+
+
+@pytest.mark.parametrize("aqi,dominant", [(350, "pm25"), (250, "o3"), (60, "no2")])
+def test_the_window_is_unchanged_english_by_default(aqi, dominant):
+    assert forecast.best_window(aqi, dominant_pollutant=dominant) == \
+        forecast.best_window(aqi, dominant_pollutant=dominant, lang="en")
+
+
+def test_the_rationale_sentences_are_joined_with_one_space():
+    """The tail used to be concatenated onto the clause. Assembling it from
+    separately translated sentences must not change the English spacing."""
+    r = forecast.best_window(250, dominant_pollutant="o3")["rationale"]
+    assert "  " not in r
+    assert r.endswith("wear an N95.")
+    assert "This is a general pattern, not an hourly station forecast." in r
+
+
+def test_the_outlook_category_uses_the_shared_band_words():
+    """The forecast band and the live reading band are the same seven words, so
+    they come from one group -- a second copy could drift from what the reading
+    card says today's air is called."""
+    rows = forecast.daily_outlook(SAMPLE_FORECAST, lang="hi")
+    assert [r["category"] for r in rows] == [
+        i18n.HI["band_label"][label]
+        for label in (r["category"] for r in forecast.daily_outlook(SAMPLE_FORECAST))
+    ]
+
+
+def test_the_outlook_is_unchanged_english_by_default():
+    assert forecast.daily_outlook(SAMPLE_FORECAST) == \
+        forecast.daily_outlook(SAMPLE_FORECAST, lang="en")

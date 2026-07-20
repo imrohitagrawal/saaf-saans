@@ -23,13 +23,35 @@ enough that you should re-read the pricing page before relying on any figure her
    the deterministic behaviour, and the Observability view reports the fallback rate
    rather than hiding it.
 
-## Recommended: Hugging Face Spaces (Docker)
+## Correction, 20 July 2026: Hugging Face Docker Spaces are not free
 
-Chosen because it is the only option that is genuinely $0 with no card on file, and
-because its idle window is 48 hours rather than 15 minutes. The trade-off is latency,
-not money — see below.
+This document previously recommended Hugging Face Spaces on the grounds that it was the
+only genuinely $0 option. **That was wrong, and it was found by trying it rather than by
+reading harder.** Creating the Space returned:
 
-1. Create a Space: <https://huggingface.co/new-space>, SDK **Docker**, blank template.
+```
+Error: Client error '402 Payment Required' for url 'https://huggingface.co/api/repos/create'
+Static Spaces are free for everyone, but hosting Gradio and Docker Spaces on free
+cpu-basic requires a PRO subscription. Subscribe at https://huggingface.co/pro
+```
+
+Hugging Face's own pricing page still lists "Create Gradio & Docker Spaces" under the free
+tier, so the marketing page and the API contradict each other. The API is what governs, and
+PRO is $9/month — more than Fly.io costs for a better-placed server.
+
+The research behind the original recommendation quoted real documentation pages and was
+careful to mark what it could not verify. It still produced a false conclusion, because
+every source it read was a *description* of the platform rather than the platform. This is
+the same failure this repository was written to document, one level up: a claim that
+survived review because nobody executed it. **A platform's terms are not verified until you
+have tried to use them.**
+
+## Recommended: Fly.io, Mumbai
+
+The honest first choice once cost is equalised. It has a region in India, which no free
+option does, and scale-to-zero means an idle demo costs approximately nothing.
+
+1. `flyctl launch --no-deploy --name saafsaans --region bom` — writes `fly.toml`.
 2. Put this at the very top of the Space's `README.md`, before anything else:
 
    ```yaml

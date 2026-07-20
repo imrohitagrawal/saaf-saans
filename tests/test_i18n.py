@@ -7,6 +7,7 @@ it walks the real source dictionaries rather than a copy of their keys, so a new
 advisory or a sixth risk band fails the build instead of silently rendering in
 English on a page that says it is in Hindi.
 """
+import ast
 import re
 from pathlib import Path
 
@@ -96,10 +97,29 @@ def test_no_hindi_value_is_just_the_english():
     assert not same
 
 
+# A handful of entries are correct with no Devanagari in them at all, and both
+# kinds have to be exempted by rule rather than by name, or the exemption
+# becomes a list somebody adds an untranslated string to.
+#
+#   * pure format frames -- "{who}, {condition}" -- where every word the reader
+#     sees arrives through a field and the only thing being translated is the
+#     order and the punctuation between them;
+#   * a value that is nothing but a term this file keeps in Latin on purpose
+#     ("COPD" as a picker label).
+_PLACEHOLDER = re.compile(r"{\w+}")
+
+
+def _carries_translatable_text(value: str) -> bool:
+    remainder = _PLACEHOLDER.sub("", value)
+    for term in LATIN_TERMS + ["FFP2", "SpO2", "N95", "WHO", "WAQI"]:
+        remainder = remainder.replace(term, "")
+    return bool(re.search(r"[A-Za-zऀ-ॿ]", remainder))
+
+
 @pytest.mark.parametrize("group", sorted(i18n.HI))
 def test_every_hindi_value_contains_devanagari(group):
     latin_only = [key for key, value in i18n.HI[group].items()
-                  if not DEVANAGARI.search(value)]
+                  if _carries_translatable_text(value) and not DEVANAGARI.search(value)]
     assert not latin_only, f"no Devanagari in {group}: {latin_only}"
 
 
@@ -149,96 +169,285 @@ def test_t_falls_back_to_english_for_a_missing_key():
     del i18n.HI["_probe"]
 
 
-# --- The chrome ------------------------------------------------------------
-# ``ui`` and ``guide`` have no English source dictionary to walk: their strings
-# live inline in the templates as the fallback argument of a ``T`` call. The
-# keys are therefore read back out of the templates rather than listed here.
-# An earlier version of this test pinned a hand-written list, which passed
-# green while every key the templates actually asked for was missing, so the
-# rule now is that nothing in this section may name a key.
+# --- Every key the code asks for -------------------------------------------
+# ``ui``, ``guide`` and the sentence groups (``answer``, ``window``, ``driver``,
+# ``persona``, ``compare``, ``who``, ``prov``, ``day``) have no English source
+# dictionary to walk: their strings live inline at the call site as the fallback
+# argument of ``i18n.t`` / ``T`` / ``presenters._fmt``. The keys are therefore
+# read back out of the code rather than listed here.
+#
+# An earlier version of this file pinned a hand-written list, which passed green
+# while every key the templates actually asked for was missing. Two agents'
+# hand-written lists then disagreed with each other. So the rule is now absolute:
+# nothing in this section may name a key. Every key checked below comes either
+# from parsing the source or from the same dictionaries the source indexes by.
 
 REPO = Path(__file__).resolve().parents[1]
-CALL_SITES = sorted((REPO / "saafsaans/web/templates").glob("*.html")) + [
-    REPO / "saafsaans/web/main.py"
-]
+PACKAGE = REPO / "saafsaans"
 
-# ``T('ui', 'nav_today', 'Today')`` and ``i18n.t(lang, "ui", "risk_notice", x)``.
-# Group and key are literals; the English fallback is not captured because the
-# key is what the corpus is indexed by.
-_LITERAL = re.compile(
-    r"""(?:\bT|\bi18n\.t)\(\s*(?:lang\s*,\s*)?
-        (['"])(?P<group>\w+)\1\s*,\s*
-        (['"])(?P<key>[\w. ]*)\3
-        (?P<dynamic>\s*~)?""",
-    re.VERBOSE,
-)
-# Any call at all, so a call the parser cannot read is caught rather than
-# skipped -- being skipped is exactly how the missing keys stayed hidden.
-_ANY_CALL = re.compile(r"(?:\bT|\bi18n\.t)\(\s*(?:lang\s*,\s*)?['\"]?\w*['\"]?\s*,")
+
+class _CallVisitor(ast.NodeVisitor):
+    """Collect ``(group, key)`` from every translation call in one module.
+
+    A call whose group or key is an expression rather than a literal is
+    recorded as unreadable rather than skipped -- being skipped is exactly how
+    the missing keys stayed hidden last time.
+    """
+
+    def __init__(self):
+        self.found = set()
+        self.unreadable = []
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        func = node.func
+        if (isinstance(func, ast.Attribute) and func.attr == "t"
+                and isinstance(func.value, ast.Name) and func.value.id == "i18n"):
+            args = node.args[1:]          # drop lang
+        elif isinstance(func, ast.Name) and func.id == "_fmt":
+            args = node.args[1:]          # drop lang
+        elif isinstance(func, ast.Name) and func.id == "T":
+            args = node.args              # the template helper is already bound
+        else:
+            return
+        literals = [a.value if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                    else None for a in args[:2]]
+        if len(literals) < 2 or None in literals:
+            self.unreadable.append(ast.unparse(node))
+            return
+        self.found.add(tuple(literals))
+
+
+def _scan_python():
+    found, unreadable = set(), []
+    for path in sorted(PACKAGE.rglob("*.py")):
+        if "__pycache__" in str(path):
+            continue
+        visitor = _CallVisitor()
+        visitor.visit(ast.parse(path.read_text(encoding="utf-8")))
+        found |= visitor.found
+        unreadable += [f"{path.name}: {call}" for call in visitor.unreadable]
+    return found, unreadable
+
+
+# ``{{ T('ui', 'nav_today', 'Today') }}`` in a Jinja template. Parsed as a
+# Python call so a key spelled with an escape or a nested quote is read the same
+# way the template engine reads it.
+_TEMPLATE_CALL = re.compile(r"(?<![A-Za-z_.])T\(")
+
+
+def _template_call_args(source: str, start: int) -> str:
+    depth, quote, i = 1, None, start
+    while i < len(source) and depth:
+        char = source[i]
+        if quote:
+            if char == "\\":
+                i += 2
+                continue
+            if char == quote:
+                quote = None
+        elif char in "'\"":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    return source[start:i]
+
+
+def _scan_templates():
+    found, unreadable = set(), []
+    for path in sorted((PACKAGE / "web/templates").glob("*.html")):
+        source = path.read_text(encoding="utf-8")
+        for match in _TEMPLATE_CALL.finditer(source):
+            inner = _template_call_args(source, match.end())
+            try:
+                call = ast.parse("f(" + inner + ")", mode="eval").body
+            except SyntaxError:
+                unreadable.append(f"{path.name}: T({inner})")
+                continue
+            literals = [a.value if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                        else None for a in call.args[:2]]
+            if len(literals) < 2 or None in literals:
+                unreadable.append(f"{path.name}: T({inner})")
+                continue
+            found.add(tuple(literals))
+    return found, unreadable
+
+
+def _keys_built_at_runtime():
+    """Keys the code composes from a lookup table, expanded over that table.
+
+    ``i18n.t(lang, "driver", f"cond_{condition_kw}", ...)`` asks for one key per
+    entry in ``risk._COND_LABEL``. The corpus has to carry all of them or a chip
+    renders in English, so the expansion walks the real dictionary rather than a
+    copy of its keys. Every source imported here is the one the call site
+    itself indexes by, so a new condition or a sixth weekday fails this file.
+    """
+    from saafsaans.services import llm, risk
+    from saafsaans.web import presenters as pr
+
+    keys = set()
+    keys |= {("driver", f"cond_{kw}") for kw in risk._COND_LABEL}
+    keys |= {("driver", f"act_{kw}") for kw in risk._ACT_LABEL}
+    keys |= {("driver", f"age_{kw}") for kw in risk._AGE_LABEL}
+    keys |= {("persona", key) for key in pr._AGE_KEYS.values()}
+    keys |= {("persona", key) for key in pr._CONDITION_KEYS.values()}
+    keys |= {("persona", key) for key in pr._ACTIVITY_KEYS.values()}
+    keys |= {("compare", key) for key in pr._CONDITION_REASON_KEYS.values()}
+    keys |= {("compare", key) for key in pr._AGE_REASON_KEYS.values()}
+    # The fallback key ``_reasons`` passes when the condition is not in the map.
+    keys.add(("compare", "reason_condition"))
+    keys |= {("who", f"multiple_{value}") for value in pr._MULTIPLE_WORDS}
+    keys |= {("day", key) for key, _ in pr._WEEKDAYS}
+    for _, slug, _, _ in llm._ACTIVITY_KEYWORDS:
+        keys |= {("answer", f"activity_{slug}"), ("answer", f"precaution_{slug}")}
+    # ``T('ui', 'risk_band_' ~ b.label, b.label)`` -- one label per risk band.
+    keys |= {("ui", f"risk_band_{label}") for label in RISK_BANDS}
+    return keys
 
 
 def requested_keys():
-    """Every (group, key) the templates and views ask ``i18n.t`` for.
+    """Every ``(group, key)`` the application asks ``i18n.t`` for."""
+    python_keys, python_unreadable = _scan_python()
+    template_keys, template_unreadable = _scan_templates()
+    return (python_keys | template_keys | _keys_built_at_runtime(),
+            python_unreadable + template_unreadable)
 
-    Keys built by concatenation -- ``'risk_band_' ~ b.label`` -- are expanded
-    over the labels the views can pass, since the corpus has to carry all of
-    them or a band renders in English.
+
+# Groups whose keys come from an English source dictionary instead of a call
+# site, because the call passes the source's own key through as a variable.
+_SOURCE_KEYED = set(SOURCES)
+
+
+def test_the_call_site_parser_reads_the_whole_package():
+    """If the parser stopped reading files, every test below would pass on an
+    empty set. Assert it found the shape of the real application first."""
+    found, _ = requested_keys()
+    groups = {group for group, _ in found}
+    assert groups >= {"ui", "guide", "answer", "window", "driver",
+                      "persona", "compare", "who", "prov", "day"}
+    assert len(found) > 200
+
+
+def test_every_unreadable_call_is_covered_some_other_way():
+    """A call whose key the parser cannot read is only safe if something else
+    supplies that key: an English source dictionary, or the runtime expansion
+    above. Anything else is a hole the size of the last one.
+
+    The two exceptions are the forwarding helpers -- ``main._translator`` and
+    ``presenters._fmt`` -- whose group and key are their own parameters. They
+    request nothing; their callers do, and the parser reads those.
     """
-    found, seen_calls = set(), 0
-    for path in CALL_SITES:
-        text = path.read_text(encoding="utf-8")
-        seen_calls += len(_ANY_CALL.findall(text))
-        for match in _LITERAL.finditer(text):
-            group, key = match.group("group"), match.group("key")
-            if match.group("dynamic"):
-                found.update((group, key + label) for label in RISK_BANDS)
-            else:
-                found.add((group, key))
-    return found, seen_calls
+    _, unreadable = requested_keys()
+    covered = _SOURCE_KEYED | {group for group, _ in _keys_built_at_runtime()}
+    forwarders = ("i18n.t(lang, group, key, english)",)
+    uncovered = [call for call in unreadable
+                 if not call.endswith(forwarders)
+                 and not any(f"'{group}'" in call or f'"{group}"' in call
+                             for group in covered)]
+    assert not uncovered, f"translation calls nothing checks: {uncovered}"
 
 
-def test_the_template_parser_sees_every_call():
-    """If a call site is written in a shape the regex above cannot read, this
-    test must fail rather than quietly shrink the set it checks."""
-    found, seen_calls = requested_keys()
-    # Calls whose group or key is an expression (``T('glossary', term, text)``)
-    # are covered by SOURCES instead, so the two counts are not equal; what
-    # matters is that the parser is reading the files at all and finding the
-    # chrome groups in them.
-    assert seen_calls > 0
-    assert {group for group, _ in found} >= {"ui", "guide"}
+def test_the_corpus_carries_every_key_the_code_requests():
+    """The anti-hole test for everything assembled in Python.
 
-
-@pytest.mark.parametrize("group", ["ui", "guide"])
-def test_ui_and_guide_carry_the_keys_the_templates_request(group):
-    """Every key a page asks for must exist, spelled the way the page spells it.
-
-    A key the corpus spells differently is not a fallback, it is a page of
-    English chrome under a banner announcing Hindi.
+    A key the corpus lacks is not a fallback anyone notices: it is one English
+    sentence in the middle of a Hindi page, under a banner announcing Hindi.
     """
     found, _ = requested_keys()
-    wanted = sorted(key for wanted_group, key in found if wanted_group == group)
-    assert wanted, f"no {group} keys parsed out of the templates"
-    missing = [key for key in wanted if key not in i18n.HI[group]]
-    assert not missing, f"templates ask for {group} keys the corpus lacks: {missing}"
+    missing = sorted(f"{group}/{key}" for group, key in found
+                     if key not in i18n.HI.get(group, {}))
+    assert not missing, f"the code asks for keys the corpus lacks: {missing}"
 
 
-@pytest.mark.parametrize("group", ["ui", "guide"])
-def test_ui_and_guide_carry_nothing_the_templates_do_not_ask_for(group):
+def test_the_corpus_carries_nothing_the_code_never_asks_for():
     """This file exists to be read by a reviewer, so a string no page renders is
     not harmless: it is prose they have to check for nothing."""
     found, _ = requested_keys()
-    wanted = {key for wanted_group, key in found if wanted_group == group}
-    orphans = sorted(key for key in i18n.HI[group] if key not in wanted)
-    assert not orphans, f"{group} keys no page asks for: {orphans}"
+    orphans = sorted(f"{group}/{key}"
+                     for group, entries in i18n.HI.items()
+                     if group not in _SOURCE_KEYED
+                     for key in entries
+                     if (group, key) not in found)
+    assert not orphans, f"corpus keys no page asks for: {orphans}"
+
+
+def test_format_fields_survive_translation():
+    """A Hindi sentence may reorder ``{score}`` and ``{baseline}``; it may not
+    rename or drop one. ``presenters._fmt`` would fall back to the English
+    sentence, and ``llm._fill`` would leave the braces on screen for the
+    reader."""
+    from saafsaans.web import presenters as pr
+
+    mismatched = []
+    for group, key in requested_keys()[0]:
+        hindi = i18n.HI.get(group, {}).get(key)
+        if not hindi:
+            continue
+        english = _ENGLISH_DEFAULTS.get((group, key))
+        if english is None:
+            continue
+        if set(_PLACEHOLDER.findall(english)) != set(_PLACEHOLDER.findall(hindi)):
+            mismatched.append(f"{group}/{key}")
+    assert not mismatched, f"format fields changed in: {mismatched}"
+
+
+def _english_defaults():
+    """``(group, key) -> english`` for every call whose fallback is a literal.
+
+    Only literals: a fallback read out of ``risk.SOURCE_EPA`` is not text this
+    file can compare against without importing half the application.
+    """
+    defaults = {}
+
+    class Visitor(_CallVisitor):
+        def visit_Call(self, node):
+            ast.NodeVisitor.generic_visit(self, node)
+            func = node.func
+            if (isinstance(func, ast.Attribute) and func.attr == "t"
+                    and isinstance(func.value, ast.Name) and func.value.id == "i18n"):
+                args = node.args[1:]
+            elif isinstance(func, ast.Name) and func.id in ("T", "_fmt"):
+                args = node.args[1:] if func.id == "_fmt" else node.args
+            else:
+                return
+            values = [a.value if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                      else None for a in args[:3]]
+            if len(values) == 3 and None not in values:
+                defaults[(values[0], values[1])] = values[2]
+
+    for path in sorted(PACKAGE.rglob("*.py")):
+        if "__pycache__" in str(path):
+            continue
+        Visitor().visit(ast.parse(path.read_text(encoding="utf-8")))
+    for path in sorted((PACKAGE / "web/templates").glob("*.html")):
+        source = path.read_text(encoding="utf-8")
+        for match in _TEMPLATE_CALL.finditer(source):
+            inner = _template_call_args(source, match.end())
+            try:
+                call = ast.parse("f(" + inner + ")", mode="eval").body
+            except SyntaxError:
+                continue
+            values = [a.value if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                      else None for a in call.args[:3]]
+            if len(values) == 3 and None not in values:
+                defaults[(values[0], values[1])] = values[2]
+    return defaults
+
+
+_ENGLISH_DEFAULTS = _english_defaults()
 
 
 def test_the_chrome_uses_no_format_placeholders():
     """Every number, time and place name in the chrome is printed by the
-    template between two fragments, so nothing here is passed through
+    template between two fragments, so nothing there is passed through
     ``str.format``. A ``{field}`` would reach the reader as literal braces."""
     stray = [f"{group}/{key}"
              for group in ("ui", "guide")
              for key, value in i18n.HI[group].items()
-             if re.search(r"{\w+}", value)]
+             if _PLACEHOLDER.search(value)]
     assert not stray, f"unsubstituted placeholder in: {stray}"

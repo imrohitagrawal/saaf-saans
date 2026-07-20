@@ -14,7 +14,7 @@ documented CPCB-style scale.
 """
 import datetime
 
-from . import aqi_scale
+from . import aqi_scale, i18n
 
 # CPCB 24h PM2.5 concentration (µg/m3) -> label. Applied to a real
 # concentration, which is what daily_outlook now produces.
@@ -46,7 +46,7 @@ def _pm25_category(value) -> str:
     return _PM25_SEVERE
 
 
-def daily_outlook(forecast) -> list:
+def daily_outlook(forecast, lang: str = "en") -> list:
     """Parse a WAQI forecast dict into per-day PM2.5 rows.
 
     Expects ``forecast["daily"]["pm25"]`` to be a list of
@@ -54,6 +54,13 @@ def daily_outlook(forecast) -> list:
     Returns ``[{date, pm25_avg:int, pm25_max:int, category:str}]`` for every
     parseable day, sorted by date. Returns ``[]`` for missing/empty/malformed
     input so the UI can simply hide the section.
+
+    ``category`` is a display label, so ``lang`` translates it -- through the
+    existing ``band_label`` group, which already carries these exact seven
+    words for the live reading, rather than a second copy under a forecast key.
+    The row's date and its "Today" label are NOT this function's: they are
+    formatted in ``presenters.outlook_rows``, which is also the only caller and
+    which currently drops ``category`` before the template sees it.
     """
     if not isinstance(forecast, dict):
         return []
@@ -81,11 +88,12 @@ def daily_outlook(forecast) -> list:
             continue
         avg = int(round(avg))
         mx = int(round(mx))
+        label = _pm25_category(avg)
         out.append({
             "date": date,
             "pm25_avg": avg,
             "pm25_max": mx,
-            "category": _pm25_category(avg),
+            "category": i18n.t(lang, "band_label", label, label),
         })
 
     out.sort(key=lambda r: r["date"])
@@ -109,7 +117,7 @@ def _pollutant_key(dominant) -> str:
     return "pm"  # PM is the default driver in Delhi
 
 
-def best_window(aqi: int, dominant_pollutant=None, forecast=None) -> dict:
+def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "en") -> dict:
     """Return ``{window, rationale}`` — a Delhi diurnal heuristic.
 
     The window now varies by three things, so it is not constant within a
@@ -126,6 +134,11 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None) -> dict:
 
     When AQI > 300 there is no safe outdoor window regardless of time.
     ``forecast`` is accepted for future refinement; the window works without it.
+
+    ``lang`` translates both returned strings. The rationale is assembled from
+    two or three separately translated sentences rather than one, because the
+    severity tail is chosen independently of the pollutant clause; each piece
+    is a whole sentence, so no clause has to be built word by word.
     """
     try:
         aqi_val = int(aqi)
@@ -137,50 +150,55 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None) -> dict:
 
     if aqi_val > 300:
         return {
-            "window": "No safe outdoor window today",
-            "rationale": (
+            "window": i18n.t(lang, "window", "none", "No safe outdoor window today"),
+            "rationale": i18n.t(
+                lang, "window", "none_rationale",
                 "Current AQI is in the Very Poor/Severe range, so pollution "
                 "stays hazardous across the whole day. It is best to stay "
                 "indoors and keep windows shut. This is a rule of thumb, not "
-                "an hourly station forecast."
-            ),
+                "an hourly station forecast."),
         }
 
     if pollutant == "o3":
-        window = "Early morning (about 6-9 AM)"
-        rationale = (
+        window = i18n.t(lang, "window", "o3", "Early morning (about 6-9 AM)")
+        rationale = i18n.t(
+            lang, "window", "o3_rationale",
             "Today's air is driven by ozone, which builds up under afternoon "
             "sunlight — so the early morning is the cleaner window and "
-            "afternoons are worst."
-        )
+            "afternoons are worst.")
     elif pollutant == "no2":
-        window = "Midday (about 11 AM-3 PM)"
-        rationale = (
+        window = i18n.t(lang, "window", "no2", "Midday (about 11 AM-3 PM)")
+        rationale = i18n.t(
+            lang, "window", "no2_rationale",
             "Today's air is driven by traffic gases (like NO2), which spike "
             "during the morning and evening rush hours — so the midday lull "
-            "between them is the calmer window."
-        )
+            "between them is the calmer window.")
     elif winter:
-        window = "Early afternoon (about 1-4 PM)"
-        rationale = (
+        window = i18n.t(lang, "window", "winter", "Early afternoon (about 1-4 PM)")
+        rationale = i18n.t(
+            lang, "window", "winter_rationale",
             "Fine particles are the main driver. In Delhi winter, overnight "
             "temperature inversions trap smog near the ground, so ~6-10 AM is "
             "usually worst and the air eases by early afternoon once the "
-            "mixing layer lifts."
-        )
+            "mixing layer lifts.")
     else:
-        window = "Late morning (about 9 AM-12 PM)"
-        rationale = (
+        window = i18n.t(lang, "window", "default", "Late morning (about 9 AM-12 PM)")
+        rationale = i18n.t(
+            lang, "window", "default_rationale",
             "Fine particles are the main driver. Outside winter, afternoon sun "
             "can lift ozone too, so late morning tends to be the calmer window "
-            "before the afternoon peak."
-        )
+            "before the afternoon peak.")
 
-    rationale += " This is a general pattern, not an hourly station forecast."
+    parts = [rationale, i18n.t(
+        lang, "window", "general_note",
+        "This is a general pattern, not an hourly station forecast.")]
     if aqi_val > 200:
-        rationale += (" Air is already Poor, so keep any outdoor activity short "
-                      "and wear an N95.")
+        parts.append(i18n.t(
+            lang, "window", "note_poor",
+            "Air is already Poor, so keep any outdoor activity short and wear an N95."))
     elif aqi_val > 100:
-        rationale += " Air is Moderate, so ease off intense exertion."
+        parts.append(i18n.t(
+            lang, "window", "note_moderate",
+            "Air is Moderate, so ease off intense exertion."))
 
-    return {"window": window, "rationale": rationale}
+    return {"window": window, "rationale": " ".join(parts)}

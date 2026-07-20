@@ -10,8 +10,11 @@
   <section class="card">
     <h2 class="kicker">{{ T('guide', 'h_numbers', 'The numbers') }}</h2>
     <dl class="faq">
+      {#- Terms with no entry in glossary_terms print as they are: AQI, PM2.5,
+          PM10, CPCB, N95 and µg/m³ are what a Delhi reader says out loud, and
+          spelling them in Devanagari would make them harder to recognise. -#}
       {% for term, text in glossary.items() %}
-      <div><dt>{{ term }}</dt><dd>{{ T('glossary', term, text) }}</dd></div>
+      <div><dt>{{ glossary_terms.get(term, term) }}</dt><dd>{{ T('glossary', term, text) }}</dd></div>
       {% endfor %}
     </dl>
   </section>
@@ -20,7 +23,7 @@
     <h2 class="kicker">{{ T('guide', 'h_conditions', 'Health conditions in the picker') }}</h2>
     <dl class="faq">
       {% for name, text in conditions_help.items() %}
-      <div><dt>{{ name }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
+      <div><dt>{{ option_label[name] }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
       {% endfor %}
     </dl>
   </section>
@@ -85,7 +88,7 @@
     <p class="hint">{{ T('guide', 'who_2', 'The guideline is also stricter than it sounds in one direction and looser in another. WHO defines the 24-hour level as the 99th percentile of a year\'s daily averages — that is, three or four days above it a year is still within the guideline. It is not a limit for any one day. We round the comparison to a single figure and always say "about", because the underlying reading is not precise enough to deserve more.') }}</p>
     {#- A citation is not copy: it is the identifier of a published document, and
         translating it would make it harder to look up, not easier. -#}
-    <p class="caption">WHO global air quality guidelines. Particulate matter (PM2.5 and PM10),
+    <p class="caption" lang="en">WHO global air quality guidelines. Particulate matter (PM2.5 and PM10),
       ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide. Geneva: World Health
       Organization; 2021.</p>
   </section>
@@ -115,26 +118,28 @@
     <p class="hint">{{ T('guide', 'researched_intro', 'Breathing harder means breathing in more of the same air. How much more is measured, and we use those measurements rather than guessing. The figures below are litres of air per minute (shown as cubic metres per minute, the unit the source uses), for the three age groups this site offers.') }}</p>
     <table style="margin-top:8px">
       <tr><th>{{ T('guide', 'th_age', 'Age group') }}</th><th>{{ T('guide', 'th_rest', 'At rest') }}</th><th>{{ T('guide', 'th_light', 'Light') }}</th><th>{{ T('guide', 'th_moderate', 'Moderate') }}</th><th>{{ T('guide', 'th_hard', 'Hard') }}</th></tr>
-      {% for age, band in epa_age_bands.items() %}
+      {% for row in epa_rows %}
       <tr>
-        <td>{{ age | capitalize }} <span class="mono" style="color:var(--text-3)">{{ band }}</span></td>
-        {% for level in ["sedentary", "light", "moderate", "high"] %}
-        <td class="mono">{{ "%.4f" | format(inhalation_rates[age][level]) }}</td>
+        <td>{{ row.label }} <span class="mono" style="color:var(--text-3)">{{ row.band }}</span></td>
+        {% for rate in row.rates %}
+        <td class="mono">{{ "%.4f" | format(rate) }}</td>
         {% endfor %}
       </tr>
       {% endfor %}
     </table>
-    <p class="caption">{{ source_epa }}</p>
+    {#- A citation, not copy: the identifier of a published document. Left in
+        Latin so a reader can look it up, which is the only reason it is here. -#}
+    <p class="caption" lang="en">{{ source_epa }}</p>
     <p class="hint">{{ T('guide', 'mapping_ours', "Which of your plans counts as which effort level is our reading, not the source's:") }}
-      {% for activity, level in activity_intensity.items() if activity != 'any' %}<span
-        class="mono">{{ activity.replace('_', ' ') }} = {{ level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
+      {% for row in intensity_rows %}<span
+        class="mono">{{ row.activity }} = {{ row.level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
 
     <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
     <p class="hint">{{ T('guide', 'judgement_body', 'There is no single published number for how much worse polluted air is for a person with asthma, or COPD, or a heart condition. Rather than invent one that would look authoritative, we say plainly that the figures below are our ordering of who is most affected — the order is well supported, the exact sizes are not. The same applies to the extra weight given to children and older people, which is there for reasons that are real but do not reduce to a number: developing lungs, more air breathed per kilogram of body weight, less reserve to draw on.') }}</p>
     <table style="margin-top:8px">
       <tr><th>{{ T('guide', 'th_factor', 'Factor') }}</th><th>{{ T('guide', 'th_points', 'Points added') }}</th></tr>
-      {% for w in risk_weights if w.table in ("condition_pts", "age_susceptibility_pts") and w.value %}
-      <tr><td>{{ w.key | capitalize }}</td><td class="mono">+{{ w.value }}</td></tr>
+      {% for row in factor_rows %}
+      <tr><td>{{ row.label }}</td><td class="mono">+{{ row.value }}</td></tr>
       {% endfor %}
     </table>
     <p class="caption">{{ source_unvalidated }}</p>

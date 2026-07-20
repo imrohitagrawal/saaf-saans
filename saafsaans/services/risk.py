@@ -35,6 +35,7 @@ Bands: <20 Low, <40 Moderate, <60 High, <80 Very High, else Extreme.
 """
 from math import log
 
+from . import i18n
 from .normalize import aqi_category
 
 # --- Provenance -----------------------------------------------------------
@@ -233,6 +234,27 @@ BAND_ADVICE = {
 }
 
 
+# --- Driver chip labels ----------------------------------------------------
+# The short phrases under the score that say WHY it is what it is. Module-level
+# so the i18n keys they map to are readable next to the English, and so a test
+# can walk them without calling the scorer.
+_COND_LABEL = {
+    "copd": "COPD raises risk",
+    "heart": "Heart condition raises risk",
+    "pregnancy": "Pregnancy raises risk",
+    "asthma": "Asthma raises risk",
+}
+_ACT_LABEL = {
+    "outdoor_exercise": "Outdoor exertion multiplies dose",
+    "school_run": "School run adds outdoor exposure",
+    "commute": "Commute adds outdoor exposure",
+}
+_AGE_LABEL = {
+    "child": "Child is more vulnerable",
+    "senior": "Senior is more vulnerable",
+}
+
+
 def band_advice(band: str) -> str:
     """Plain 'what to do' guidance for a risk band."""
     return BAND_ADVICE.get(band, BAND_ADVICE["High"])
@@ -246,13 +268,21 @@ def _band_for(score: int):
     return _BAND_TABLE[-1][0], _BAND_TABLE[-1][2]
 
 
-def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str) -> dict:
+def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str,
+                 lang: str = "en") -> dict:
     """Score persona risk from an AQI reading. Returns the RISK dict contract.
 
     Keys: ``score`` (int 0-100), ``band`` (RISK_BANDS), ``color`` (hex),
     ``drivers`` (list of short strings), ``headline`` (one line), ``advice``.
     Pure and defensive: a ``None``/invalid AQI is treated as 0, unknown persona
     keywords score the neutral bucket.
+
+    ``lang`` translates ``drivers`` only. ``headline`` and ``advice`` are
+    already translated where they are rendered -- today.html asks for
+    ``T('band_advice', risk.band, risk.advice)``, keyed on the band this
+    function returns -- so translating them here would hand that lookup a Hindi
+    key and lose the translation, not add one. ``band`` and ``color`` stay
+    English/hex because they are keys and CSS, not copy.
     """
     try:
         aqi_val = max(int(aqi), 0)
@@ -270,25 +300,17 @@ def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str) -> dict:
 
     # --- Drivers: rank the biggest contributors, AQI always shown first ---
     if known:
-        drivers = [f"AQI {aqi_val} ({aqi_category(aqi_val)[0]})"]
+        # The band word comes from the shared band_label group, the same one
+        # the reading card uses, so the chip and the card cannot disagree about
+        # what today's air is called. The whole chip is one template because
+        # Hindi does not put the parenthetical where English does.
+        label = aqi_category(aqi_val)[0]
+        drivers = [i18n.t(lang, "driver", "aqi", "AQI {aqi} ({band})")
+                   .replace("{aqi}", str(aqi_val))
+                   .replace("{band}", i18n.t(lang, "band_label", label, label))]
     else:
-        drivers = ["No reading — treated as unhealthy"]
-
-    _COND_LABEL = {
-        "copd": "COPD raises risk",
-        "heart": "Heart condition raises risk",
-        "pregnancy": "Pregnancy raises risk",
-        "asthma": "Asthma raises risk",
-    }
-    _ACT_LABEL = {
-        "outdoor_exercise": "Outdoor exertion multiplies dose",
-        "school_run": "School run adds outdoor exposure",
-        "commute": "Commute adds outdoor exposure",
-    }
-    _AGE_LABEL = {
-        "child": "Child is more vulnerable",
-        "senior": "Senior is more vulnerable",
-    }
+        drivers = [i18n.t(lang, "driver", "no_reading",
+                          "No reading — treated as unhealthy")]
 
     # (weight, label) so we can surface the strongest persona factors. An
     # activity only appears when it actually moved the score: "stay home" no
@@ -296,11 +318,14 @@ def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str) -> dict:
     # not in the arithmetic.
     factors = []
     if condition_kw in _COND_LABEL:
-        factors.append((cond_pts, _COND_LABEL[condition_kw]))
+        factors.append((cond_pts, i18n.t(lang, "driver", f"cond_{condition_kw}",
+                                         _COND_LABEL[condition_kw])))
     if activity_kw in _ACT_LABEL and dose_pts > 0:
-        factors.append((dose_pts, _ACT_LABEL[activity_kw]))
+        factors.append((dose_pts, i18n.t(lang, "driver", f"act_{activity_kw}",
+                                         _ACT_LABEL[activity_kw])))
     if age_kw in _AGE_LABEL:
-        factors.append((age_pts, _AGE_LABEL[age_kw]))
+        factors.append((age_pts, i18n.t(lang, "driver", f"age_{age_kw}",
+                                        _AGE_LABEL[age_kw])))
     factors.sort(key=lambda f: abs(f[0]), reverse=True)
     drivers.extend(label for _, label in factors[:2])
 

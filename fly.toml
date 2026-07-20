@@ -1,0 +1,40 @@
+# Fly.io deployment. See docs/DEPLOY.md for why this host and not a free one.
+app = "saafsaans"
+
+# Mumbai. The audience is in Delhi, and this is the only region among the hosts
+# surveyed that is in the same country as the people the app is for.
+primary_region = "bom"
+
+[build]
+
+[env]
+  # Matches internal_port below and the Dockerfile's default. Set explicitly so
+  # the two cannot drift apart silently.
+  PORT = "7860"
+
+[http_service]
+  internal_port = 7860
+  force_https = true
+
+  # Scale to zero. A portfolio demo is idle almost always, and a stopped
+  # machine bills only its rootfs rather than its CPU and memory. The cost of
+  # this choice is a cold start for the first visitor after a quiet spell;
+  # suspend resumes faster than a full stop, which is why it is preferred here.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  # The app is healthy when it can answer for itself. /health reports which
+  # back ends are actually wired up, so a pass means "serving", not merely
+  # "the process started".
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

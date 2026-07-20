@@ -10,11 +10,13 @@
        aria-current="{{ 'true' if s.selected else 'false' }}">
       <span class="dot" aria-hidden="true"></span>
       <span class="nm">{{ s.name }}</span>
-      {#- The tags stay in Latin script: they are the same two words used in the
-          caption and in the Guide, and a reader matching one to the other is
-          better served by one spelling than by two. -#}
-      {% if s.source == 'cached' %}<span class="tag">CACHED{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
-      {% elif s.source == 'sample' %}<span class="tag">SAMPLE</span>{% endif %}
+      {#- The tag is the same word in three places -- here, the caption below,
+          and the Guide's data-source answer -- so all three have to move
+          together into whichever language the page is in. A reader who cannot
+          read the tag cannot tell a stored reading from a stand-in, which is
+          the one distinction this page exists to make. -#}
+      {% if s.source == 'cached' %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {% elif s.source == 'sample' %}<span class="tag">{{ T('ui', 'tag_sample', 'SAMPLE') }}</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       <span class="bd">{{ s.band }}</span>
     </a>
@@ -47,7 +49,7 @@
     {% endif %}
   </section>
 
-  {{ station_list("Delhi", delhi) }}
-  {{ station_list("NCR", ncr) }}
+  {{ station_list(T('ui', 'region_delhi', 'Delhi'), delhi) }}
+  {{ station_list(T('ui', 'region_ncr', 'NCR'), ncr) }}
 </div>
 {% endblock %}

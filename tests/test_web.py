@@ -374,7 +374,10 @@ def test_guide_publishes_every_risk_weight_and_its_source(client):
     assert "Exposure Factors Handbook" in html
     # And the weights that are not evidenced, named as such.
     assert "Unvalidated clinical heuristic" in html
-    for cond in ("Copd", "Heart", "Asthma", "Pregnancy"):
+    # Named as the persona picker names them. The table used to print the
+    # scoring keyword capitalised -- "Copd", "Heart" -- which is neither the
+    # word the reader chose nor anything they could translate.
+    for cond in ("COPD", "Heart condition", "Asthma", "Pregnancy"):
         assert cond in html, cond
 
 
@@ -396,7 +399,9 @@ def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
     ours. The Guide has to say which is which."""
     html = client.get("/guide").text
     assert "our reading, not" in html
-    assert "outdoor exercise = high" in html
+    # The picker's own wording, so the row can be matched to the option that
+    # produced it -- and so it has something to translate.
+    assert "Outdoor exercise = high" in html
 
 
 # --- The corrected scale, on the page --------------------------------------
@@ -757,3 +762,148 @@ def test_every_seeded_advisory_can_be_served_in_hindi(client):
         hindi = translate(advisory)
         assert hindi != advisory["advice"], advisory["source"]
         assert any("ऀ" <= ch <= "ॿ" for ch in hindi), advisory["source"]
+
+
+# --- Language reaches the strings the templates hold themselves -------------
+# These do not depend on any particular Hindi being written yet: each one
+# installs a marker string into the corpus for the key the page asks for, and
+# checks the page renders the marker instead of its English. That is the whole
+# claim -- the string goes through i18n rather than being printed raw -- and it
+# stays true whatever the reviewed Hindi turns out to say.
+@pytest.fixture
+def hindi(monkeypatch):
+    """Install marker translations for ui/guide keys, and yield a putter."""
+    from saafsaans.services import i18n
+
+    def put(group, key, value):
+        monkeypatch.setitem(i18n.HI[group], key, value)
+    return put
+
+
+def test_persona_options_submit_english_whatever_the_label_says(client, hindi):
+    """The option text is the reader's; the option value is the wire format.
+
+    Translating the value would break the shareable link, because read_persona
+    validates against the English CONDITIONS list and would silently fall back
+    to the default persona -- giving a Hindi reader advice for somebody else.
+    """
+    hindi("ui", "cond_asthma", "MARKER-ASTHMA")
+    html = client.get("/", params={**PERSONA, "lang": "hi", "edit": "1"}).text
+    assert 'value="Asthma"' in html
+    assert "MARKER-ASTHMA" in html
+    # And the round trip still lands on the persona that was picked.
+    again = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert 'value="Asthma" selected' not in again  # editor closed
+    assert client.get("/", params={**PERSONA, "lang": "hi"}).status_code == 200
+
+
+def test_the_provenance_ground_line_is_not_raw_english(client, hindi):
+    """The "Measured at the time" block was assembled from English literals in
+    the template, so a Hindi reader opening the provenance panel met a line of
+    English under a Hindi heading."""
+    hindi("ui", "prov_feed_figure", "MARKER-FEED")
+    hindi("ui", "prov_our_scale", "MARKER-SCALE")
+    client.post("/ask", params={**PERSONA, "lang": "hi"},
+                data={"question": "Can I go out?"})
+    html = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
+    assert "MARKER-FEED" in html and "MARKER-SCALE" in html
+    assert "WAQI&#39;s own figure" not in html
+    # The figures themselves are not translatable text and must survive.
+    assert "AQI " in html and "µg/m³" in html
+
+
+def test_the_page_load_stamp_does_not_hand_a_hindi_page_an_english_month(client, hindi):
+    """strftime('%b') is English (or the server locale's), never the reader's."""
+    from datetime import datetime
+    from saafsaans.web.main import IST
+    month = datetime.now(IST).month
+    hindi("ui", f"month_{month}", "MARKER-MONTH")
+    html = client.get("/city", params={**PERSONA, "lang": "hi"}).text
+    assert "MARKER-MONTH" in html
+    assert datetime.now(IST).strftime("%b") not in html
+
+
+def test_the_cached_and_sample_tags_translate(client, hindi):
+    """A reader who cannot read the tag cannot tell a stored reading from a
+    stand-in figure, which is the distinction City Pulse exists to make."""
+    hindi("ui", "tag_sample", "MARKER-SAMPLE")
+    html = client.get("/city", params={**PERSONA, "lang": "hi"}).text
+    assert "MARKER-SAMPLE" in html
+    assert ">SAMPLE" not in html
+
+
+def test_the_age_tag_unit_translates():
+    """'40 MIN' is three Latin letters printed by Python, not by a template."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    from saafsaans.web.main import _age_label
+    ts = (datetime.now(timezone.utc) - timedelta(minutes=40)).isoformat()
+    assert _age_label(ts) == "40 " + i18n.t("en", "ui", "age_unit_min", "MIN")
+    assert _age_label(ts, "hi") == "40 " + i18n.t("hi", "ui", "age_unit_min", "MIN")
+
+
+def test_the_english_page_keeps_its_english(client):
+    """Everything above is a translation path; this is the guard on it. None of
+    it may change what an English reader sees."""
+    html = client.get("/", params={**PERSONA, "edit": "1"}).text
+    for phrase in ("Anand Vihar", "Asthma", "Outdoor exercise", "Ask SaafSaans"):
+        assert phrase in html, phrase
+    assert "ANAND VIHAR" not in html      # upper-cased in CSS, not in the markup
+
+
+def test_hindi_headings_are_a_step_heavier_and_english_is_untouched():
+    """Devanagari at 600 reads lighter than Latin at 600, so the Hindi page
+    looked de-emphasised rather than translated. The remedy must be scoped:
+    an English reader's weights cannot move."""
+    from pathlib import Path
+    css = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
+    text = css.read_text(encoding="utf-8")
+    for rule in ('html[lang="hi"] .page-h1 { font-weight: 800; }',
+                 'html[lang="hi"] .ask-h2 { font-weight: 700; }',
+                 'html[lang="hi"] .hero-window .val { font-weight: 700; }'):
+        assert rule in text, rule
+    # The English values these override, still where they were.
+    assert ".page-h1 { font-size: 26px; font-weight: 700;" in text
+    assert ".ask-h2 { font-size: 20px; font-weight: 600; }" in text
+    assert ".hero-window .val { font-family: var(--disp); font-weight: 600;" in text
+
+
+def test_a_normal_question_never_takes_the_error_path(client):
+    """The /ask handler wraps everything in `except Exception` so a failure
+    still renders something. That safety net turned a real defect into a
+    plausible-looking page: a signature mismatch raised TypeError, was
+    swallowed, and the reader got a generic answer with NO sources -- the
+    provenance panel silently lost the guidance it exists to show.
+
+    A net that catches bugs and hides them is worse than no net, so the happy
+    path is now asserted directly: sources present, and not the error copy."""
+    from saafsaans.web import main as web_main
+
+    took_error_path = []
+    original = web_main.add_turn
+
+    def watch(sid, turn):
+        if turn.get("kind") == "answer" and not turn.get("sources"):
+            took_error_path.append(turn)
+        return original(sid, turn)
+
+    web_main.add_turn = watch
+    try:
+        client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    finally:
+        web_main.add_turn = original
+
+    assert not took_error_path, "the answer path raised and was swallowed by the net"
+    body = client.get("/", params={**PERSONA, "prov": "0"}).text
+    assert "src-tag" in body and "Published guidance used" in body
+
+
+def test_the_answer_headings_follow_the_language(client):
+    from saafsaans.web import presenters as pr
+    english = pr.answer_sections({"verdict_detail": "x", "precautions": ["y"],
+                                  "symptoms": ["z"]})
+    hindi = pr.answer_sections({"verdict_detail": "x", "precautions": ["y"],
+                                "symptoms": ["z"]}, lang="hi")
+    assert [b["heading"] for b in english] == ["Verdict", "What to do", "When to seek help"]
+    for block in hindi:
+        assert any("ऀ" <= ch <= "ॿ" for ch in block["heading"]), block["heading"]

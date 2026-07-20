@@ -218,3 +218,90 @@ def test_the_heuristic_notice_names_both_halves_of_the_model():
     notice = risk.HEURISTIC_NOTICE
     assert "EPA" in notice
     assert "not a validated" in notice
+
+
+# --- Language --------------------------------------------------------------
+# The chips under the score say why it is what it is. They were the last piece
+# of the Today page still in English under a Hindi banner.
+
+import re
+
+import pytest
+
+from saafsaans.services import i18n
+
+LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z'’.\-]{2,}")
+
+
+def _stub_hindi(monkeypatch, *groups):
+    """Answer every lookup in whole groups with a Devanagari marker.
+
+    Phase 1 writes no Hindi. The marker proves the chip is routed through
+    ``i18n.t``; a label typed inline stays English and this test names it.
+    """
+    real = i18n.t
+
+    def fake(lang, group, key, english):
+        return "अनुवादित" if lang == "hi" and group in groups else real(
+            lang, group, key, english)
+
+    monkeypatch.setattr(i18n, "t", fake)
+
+
+@pytest.mark.parametrize("aqi,condition,activity,age", [
+    (199, "asthma", "outdoor_exercise", "adult"),
+    (350, "copd", "school_run", "child"),
+    (80, "heart", "commute", "senior"),
+    (150, "pregnancy", "stay_home", "adult"),
+    (None, "any", "any", "any"),
+])
+def test_the_drivers_leave_no_english_in_hindi(monkeypatch, aqi, condition,
+                                               activity, age):
+    _stub_hindi(monkeypatch, "driver", "band_label")
+    drivers = compute_risk(aqi, condition, activity, age, lang="hi")["drivers"]
+    stray = {w for d in drivers for w in LATIN_RUN.findall(d)}
+    assert not stray, f"still written in English: {sorted(stray)}"
+
+
+def test_the_aqi_chip_takes_its_band_word_from_the_shared_group():
+    """The chip and the reading card name the same air. A second copy of the
+    seven band words could drift; this reuses band_label."""
+    chip = compute_risk(199, "any", "any", "adult", lang="hi")["drivers"][0]
+    assert i18n.HI["band_label"]["Moderate"] in chip
+    assert "199" in chip
+    assert "Moderate" not in chip
+
+
+def test_the_chip_is_one_template_so_hindi_can_reorder_it(monkeypatch):
+    """Not "AQI " + n + " (" + band + ")": Hindi does not put the parenthetical
+    where English does, and a concatenation would fix the English order."""
+    monkeypatch.setitem(i18n.HI, "driver", {"aqi": "{band} — AQI {aqi}"})
+    assert compute_risk(199, "any", "any", "adult", lang="hi")["drivers"][0] == \
+        f"{i18n.HI['band_label']['Moderate']} — AQI 199"
+
+
+def test_the_drivers_are_unchanged_english_by_default():
+    for args in [(199, "asthma", "outdoor_exercise", "adult"),
+                 (None, "copd", "commute", "senior")]:
+        assert compute_risk(*args) == compute_risk(*args, lang="en")
+
+
+def test_headline_and_advice_stay_english_keys_for_the_call_site_to_translate():
+    """today.html asks for ``T('band_advice', risk.band, risk.advice)``, keyed
+    on the band this returns. Translating them here would hand that lookup a
+    Hindi key and lose the translation rather than add one."""
+    r = compute_risk(350, "copd", "outdoor_exercise", "senior", lang="hi")
+    assert r["band"] in RISK_BANDS
+    assert r["headline"] == risk._HEADLINE[r["band"]]
+    assert r["advice"] == risk.BAND_ADVICE[r["band"]]
+
+
+def test_every_driver_label_has_a_key_a_translator_can_find():
+    """The keys are derived from the persona vocab, so a new condition or
+    activity arrives with its key already named rather than silently English."""
+    for kw in risk._COND_LABEL:
+        assert kw in risk.CONDITION_PTS
+    for kw in risk._ACT_LABEL:
+        assert kw in risk.ACTIVITY_INTENSITY
+    for kw in risk._AGE_LABEL:
+        assert kw in risk.AGE_SUSCEPTIBILITY_PTS

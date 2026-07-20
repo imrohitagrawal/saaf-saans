@@ -13,7 +13,10 @@
 
     <div class="hero-body">
       <div class="hero-meta">
-        <span>{{ persona.locality | upper }}</span>
+        {#- Upper-cased in CSS, not by a filter: `| upper` turns the locality
+            into ANAND VIHAR, which is neither the spelling the picker uses nor
+            a proper noun a reader can match to the map. -#}
+        <span class="place">{{ persona.locality }}</span>
         <span class="prov">{{ prov_chip }}</span>
         <span class="hero-pill">AQI {{ reading.aqi if reading.aqi is not none else '--' }} · {{ band_label | upper }}</span>
       </div>
@@ -55,7 +58,7 @@
     </div>
 
     {% if not persona_open and condition_help %}
-      <p class="hint">{{ persona.condition }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
+      <p class="hint">{{ option_label[persona.condition] }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
     {% endif %}
 
     {% if persona_open %}
@@ -66,20 +69,24 @@
       <input type="hidden" name="lang" value="{{ lang }}">
       <label>
         <span class="lbl">{{ T('ui', 'lbl_age', 'AGE') }}</span>
+        {#- The value stays English on every option: it is what the form
+            submits, what read_persona validates and what the query string
+            carries, so translating it would break the shareable link. Only the
+            text between the tags is the reader's. -#}
         <select name="age">
-          {% for a in ages %}<option {% if a == persona.age %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          {% for a in ages %}<option value="{{ a }}" {% if a == persona.age %}selected{% endif %}>{{ option_label[a] }}</option>{% endfor %}
         </select>
       </label>
       <label>
         <span class="lbl">{{ T('ui', 'lbl_condition', 'HEALTH CONDITION') }}</span>
         <select name="condition">
-          {% for c in conditions %}<option {% if c == persona.condition %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          {% for c in conditions %}<option value="{{ c }}" {% if c == persona.condition %}selected{% endif %}>{{ option_label[c] }}</option>{% endfor %}
         </select>
       </label>
       <label>
         <span class="lbl">{{ T('ui', 'lbl_activity', 'WHAT YOU ARE PLANNING') }}</span>
         <select name="activity">
-          {% for a in activities %}<option {% if a == persona.activity %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          {% for a in activities %}<option value="{{ a }}" {% if a == persona.activity %}selected{% endif %}>{{ option_label[a] }}</option>{% endfor %}
         </select>
       </label>
       <label>
@@ -98,7 +105,7 @@
          explained where it is offered, not only in the Guide. #}
       <dl class="opt-help">
         {% for name, text in conditions_help.items() %}
-        <div><dt>{{ name }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
+        <div><dt>{{ option_label[name] }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
         {% endfor %}
       </dl>
       <p class="hint">{{ T('ui', 'hint_session', 'Stays in this session only — never logged.') }}</p>
@@ -147,7 +154,7 @@
       <div>
         <span class="lbl">
           <a class="term" href="/?{{ q_term_pm10 }}" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
-          {% if reading.dominant_pollutant == 'pm10' %} · DOMINANT{% endif %}
+          {% if reading.dominant_pollutant == 'pm10' %} · {{ T('ui', 'dominant_tag', 'DOMINANT') }}{% endif %}
         </span>
         <span class="val">{{ reading.pm10 | round | int if reading.pm10 is not none else '--' }}
           <span class="unit">µg/m³</span></span>
@@ -186,7 +193,13 @@
   {# --- Ask. Full history, newest first, so a decision can be retraced. ---- #}
   <section class="card wide" aria-label="{{ T('ui', 'sec_ask', 'Ask SaafSaans') }}" id="ask">
     <div class="row" style="align-items:baseline;gap:10px">
-      <h2 style="font-size:20px;font-weight:600">{{ T('ui', 'ask_heading', 'Ask SaafSaans') }}</h2>
+      {#- A new key, not the old ask_heading: the owner asked for the product
+          name in Devanagari here ("साफ़ साँस से पूछिए"), and Hindi puts the name
+          before the verb where English puts it after, so the string cannot be
+          composed from a shared name fragment -- it has to be written whole.
+          The class replaces an inline style so the Hindi weight bump in
+          app.css can reach it. -#}
+      <h2 class="ask-h2">{{ T('ui', 'ask_title', 'Ask SaafSaans') }}</h2>
       <span style="font-size:12.5px;color:var(--text-3)">{{ T('ui', 'ask_sub', 'grounded in the reading above · written for your persona') }}</span>
     </div>
 
@@ -202,7 +215,7 @@
     <ol class="thread">
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
-        <div class="q"><span class="mark">Q ·</span><p>{{ t.question }}</p></div>
+        <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
         <p class="answered-for">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
 
         {% if t.kind == 'refusal' %}
@@ -210,7 +223,7 @@
           <div class="refusal">
             <b>{{ T('ui', 'refusal_title', 'Not processed.') }}</b>
             <p>{{ T('ui', 'refusal_body', 'That looked like an attempt to change how the assistant works, so it was stopped before reaching the model. Air, precautions, masks, timing — all fair game.') }}</p>
-            <p class="audit mono">blocked pre-model · audited in security-events</p>
+            <p class="audit mono">{{ T('ui', 'refusal_audit', 'blocked pre-model · audited in security-events') }}</p>
           </div>
         {% else %}
           <div class="answer">
@@ -237,12 +250,16 @@
               <div class="prov-body">
                 <div>
                   <div class="kicker">{{ T('ui', 'prov_measured', 'Measured at the time') }}</div>
+                  {#- Every figure keeps its own place between two translated
+                      labels, so no translation can be edited into disagreeing
+                      with the number it describes. AQI, PM2.5, PM10, WAQI and
+                      EPA stay Latin: they are what the reading is called. -#}
                   <div class="prov-ground">
-                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} (CPCB scale, from PM2.5 and PM10)
+                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} {{ T('ui', 'prov_our_scale', '(CPCB scale, from PM2.5 and PM10)') }}
                     · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }} µg/m³
-                    · dominant {{ t.reading.dominant_pollutant | upper if t.reading.dominant_pollutant else '--' }}
-                    · WAQI's own figure {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} (US EPA scale)
-                    · {{ 'live reading' if t.waqi_status == 'ok' else 'cached sample (feed missed)' }}
+                    · {{ T('ui', 'prov_dominant', 'dominant') }} {{ t.reading.dominant_pollutant | upper if t.reading.dominant_pollutant else '--' }}
+                    · {{ T('ui', 'prov_feed_figure', "WAQI's own figure") }} {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} {{ T('ui', 'prov_feed_scale', '(US EPA scale)') }}
+                    · {{ T('ui', 'prov_live', 'live reading') if t.waqi_status == 'ok' else T('ui', 'prov_cached', 'cached sample (feed missed)') }}
                   </div>
                 </div>
                 {% if t.sources %}

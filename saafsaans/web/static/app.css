@@ -133,6 +133,10 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
              font-family: var(--mono); font-size: 11px; letter-spacing: .08em; }
 .hero-meta .prov { opacity: 1; }
+/* The locality is upper-cased here rather than by a template filter, so the
+   markup still carries the name as it is spelled in the picker and in the
+   query string. */
+.hero-meta .place { text-transform: uppercase; }
 .hero-pill { padding: 3px 10px; border-radius: 999px;
              background: rgba(247,243,236,.16); border: 1px solid rgba(247,243,236,.35); }
 .hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; }
@@ -237,6 +241,7 @@ select, input[type="text"] {
 .refusal b { display: block; font-size: 13.5px; }
 .refusal p { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .refusal .audit { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.ask-h2 { font-size: 20px; font-weight: 600; }
 .ask-form { margin-top: 16px; display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; font-size: 14px; }
 .btn { border: none; cursor: pointer; padding: 11px 20px; border-radius: 10px;
@@ -340,6 +345,24 @@ select, input[type="text"] {
 html[lang="hi"] {
   --disp: "Anek Devanagari", "Anek Latin", "Nirmala UI", sans-serif;
 }
+
+/* Devanagari at a given weight reads lighter than Latin at the same weight:
+   the script's strokes are thinner relative to its x-height, and the shirorekha
+   is a horizontal that does not thicken with weight the way a Latin stem does.
+   Matched at 600 the Hindi headings look like a de-emphasised version of the
+   English page rather than the same page in another language. Each display-face
+   heading is therefore moved up one step when Hindi is active. The English
+   weights are untouched -- these rules are scoped to html[lang="hi"] and set no
+   value the English page reads.
+
+   Two headings are already at 800, the top of the range base.html requests for
+   Anek Devanagari (500-800), and so cannot be raised: .verdict and .wordmark b.
+   The remaining Hindi text is set in the body and mono faces, neither of which
+   ships Devanagari, so it falls back to the reader's system font and gets no
+   benefit from a weight named here. */
+html[lang="hi"] .page-h1 { font-weight: 800; }
+html[lang="hi"] .ask-h2 { font-weight: 700; }
+html[lang="hi"] .hero-window .val { font-weight: 700; }
 
 /* The unreviewed-translation banner. Styled as a caveat, not an error: this is
    a statement about how much to trust the copy, and red would read as a

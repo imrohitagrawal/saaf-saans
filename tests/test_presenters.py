@@ -1,4 +1,7 @@
 """Presentation-layer tests: the copy and the geometry the design specifies."""
+import pytest
+
+from saafsaans.services import i18n
 from saafsaans.web import presenters as p
 
 PERSONA = {"age": "Adult", "condition": "Asthma",
@@ -338,3 +341,143 @@ def test_who_line_carries_no_microgram_figure():
         line = p.who_line(value)
         assert "µg" not in line and "microgram" not in line
         assert str(int(value)) not in line
+
+
+# --- Translation -----------------------------------------------------------
+# These sentences are assembled in Python, which is exactly why the first
+# translation pass shipped them in English on a Hindi page. The tests below use
+# stub Hindi rather than the real corpus: they pin that the composition routes
+# through i18n and that the translation controls WORD ORDER, which is the whole
+# reason the strings are whole formats instead of concatenated fragments.
+
+@pytest.fixture
+def hindi(monkeypatch):
+    """Install a stub Hindi group for one test, restored afterwards."""
+    def install(group, mapping):
+        monkeypatch.setitem(i18n.HI, group, mapping)
+    return install
+
+
+def test_persona_translation_controls_word_order_and_keeps_the_locality(hindi):
+    """Hindi puts the place before its postposition and the phrase after it.
+    Translating the parts and joining them in English order would produce a
+    sentence no Hindi speaker would write, so the shape is one format string."""
+    hindi("persona", {
+        "age_adult": "एक वयस्क",
+        "condition_asthma": "अस्थमा के साथ",
+        "activity_exercise": "बाहर कसरत की योजना",
+        "with_activity_and_place": "{place} में {who}, {condition}, {activity}",
+    })
+    assert p.persona_sentence(PERSONA, lang="hi") == \
+        "Anand Vihar में एक वयस्क, अस्थमा के साथ, बाहर कसरत की योजना"
+
+
+def test_persona_falls_back_per_string_not_per_page(hindi):
+    """A missing part shows one English phrase among the Hindi, which is
+    survivable; raising or blanking the sentence is not."""
+    hindi("persona", {"age_adult": "एक वयस्क",
+                      "with_activity_and_place": "{who} {condition}, {activity}, {place}"})
+    line = p.persona_sentence(PERSONA, lang="hi")
+    assert line.startswith("एक वयस्क with asthma")
+
+
+def test_a_malformed_translation_does_not_take_the_page_down(hindi):
+    """The Hindi is unreviewed. A format string naming a field that does not
+    exist would raise inside the template and lose the whole page, so it falls
+    back to the English sentence instead."""
+    hindi("persona", {"with_activity_and_place": "{whom} में {who}"})
+    assert p.persona_sentence(PERSONA, lang="hi") == p.persona_sentence(PERSONA)
+
+
+def test_persona_shapes_each_have_their_own_key(hindi):
+    hindi("persona", {"with_activity": "क्रिया", "with_place": "जगह", "plain": "सादा"})
+    assert p.persona_sentence(PERSONA, with_place=False, lang="hi") == "क्रिया"
+    assert p.persona_sentence({"age": "Adult", "locality": "Rohini"}, lang="hi") == "जगह"
+    assert p.persona_sentence({}, lang="hi") == "सादा"
+
+
+def test_kicker_is_one_format_string_so_hindi_need_not_lead_with_for(hindi):
+    """English prefixes "FOR"; Hindi marks the same thing with a postposition
+    at the end, which a prepended prefix cannot express."""
+    hindi("persona", {"plain": "एक वयस्क", "kicker": "{persona} के लिए"})
+    assert p.persona_kicker({}, lang="hi") == "एक वयस्क के लिए"
+    assert p.persona_kicker(PERSONA) == "FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE"
+
+
+def test_every_persona_value_the_picker_offers_has_a_translation_key():
+    """A value present in the English phrase map but missing from the key map
+    would fall back to the adult/healthy key and describe the wrong person."""
+    assert set(p._AGE_PHRASE) == set(p._AGE_KEYS)
+    assert set(p._CONDITION_PHRASE) == set(p._CONDITION_KEYS)
+    assert set(p._ACTIVITY_PHRASE) == set(p._ACTIVITY_KEYS)
+    assert set(p._CONDITION_REASON) == set(p._CONDITION_REASON_KEYS)
+    assert set(p._AGE_REASON) == set(p._AGE_REASON_KEYS)
+
+
+def test_comparison_translation_reorders_the_numbers_and_the_reasons(hindi):
+    hindi("compare", {
+        "reason_asthma": "आपका अस्थमा",
+        "reason_senior": "आपकी उम्र",
+        "reason_join": " और ",
+        "gap_with_reasons": "{baseline} के मुक़ाबले आपका {score} — {reasons}।",
+    })
+    senior = {**PERSONA, "age": "Senior"}
+    assert p.comparison_line(56, 44, senior, lang="hi") == \
+        "44 के मुक़ाबले आपका 56 — आपका अस्थमा और आपकी उम्र।"
+
+
+def test_comparison_branches_each_have_their_own_key(hindi):
+    hindi("compare", {"gap_plain": "ऊँचा", "same": "बराबर"})
+    plain = {"age": "Adult", "condition": "Fit", "activity": "Stay home"}
+    assert p.comparison_line(50, 44, plain, lang="hi") == "ऊँचा"
+    assert p.comparison_line(44, 44, PERSONA, lang="hi") == "बराबर"
+
+
+def test_who_multiple_word_is_looked_up_per_value_not_printed_as_a_digit(hindi):
+    """English spells "six times as much"; Hindi needs its own number word, so
+    each multiple carries its own key rather than a formatted integer."""
+    hindi("who", {"multiple_6": "छह गुना",
+                  "multiple": "अभी यहाँ की हवा में {word} प्रदूषण है।"})
+    assert p.who_line(84, lang="hi") == "अभी यहाँ की हवा में छह गुना प्रदूषण है।"
+    assert "6" not in p.who_line(84, lang="hi")
+
+
+def test_who_line_translates_all_four_branches(hindi):
+    hindi("who", {"below": "कम", "about_at": "बराबर", "far_more": "बहुत ज़्यादा",
+                  "multiple": "{word}", "multiple_6": "छह गुना"})
+    assert p.who_line(7.5, lang="hi") == "कम"
+    assert p.who_line(15, lang="hi") == "बराबर"
+    assert p.who_line(84, lang="hi") == "छह गुना"
+    assert p.who_line(15000, lang="hi") == "बहुत ज़्यादा"
+    assert p.who_line(None, lang="hi") == ""
+
+
+def test_provenance_chip_translates_and_keeps_its_glyph(hindi):
+    """The glyph is the only thing separating the two chips at a glance."""
+    hindi("prov", {"live": "● लाइव · {when}", "cached": "◌ पुरानी · {when}"})
+    assert p.provenance_chip("ok", "2:00 PM", lang="hi") == "● लाइव · 2:00 PM"
+    assert p.provenance_chip("fallback", "2:00 PM", lang="hi") == "◌ पुरानी · 2:00 PM"
+
+
+def test_outlook_day_labels_are_translated_not_strftimed(hindi):
+    """strftime("%a") returns English whatever the language asked for, and
+    changing the process locale per request would race between requests."""
+    from datetime import date
+    hindi("day", {"today": "आज", "mon": "सोम", "label": "{date} {weekday}"})
+    rows = p.outlook_rows([{"date": "2026-07-19", "pm25_avg": 146},
+                           {"date": "2026-07-20", "pm25_avg": 156}],
+                          today=date(2026, 7, 19), lang="hi")
+    assert [r["label"] for r in rows] == ["आज", "20 सोम"]
+
+
+def test_every_weekday_has_a_key():
+    """A missing weekday would silently render one day of the week in English."""
+    assert len(p._WEEKDAYS) == 7
+    assert len({key for key, _ in p._WEEKDAYS}) == 7
+
+
+def test_english_is_unchanged_when_a_hindi_group_exists(hindi):
+    """lang defaults to English, and every existing caller relies on it."""
+    hindi("persona", {"with_activity_and_place": "हिंदी"})
+    assert p.persona_line(PERSONA) == \
+        "an adult with asthma, planning outdoor exercise in Anand Vihar"
