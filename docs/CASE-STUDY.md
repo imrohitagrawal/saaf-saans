@@ -219,3 +219,119 @@ The counts are support for that claim, not the claim itself.
 heavy AI assistance whether or not it is stated; stating it first is the difference
 between candour and being caught. The same applies to "no real users" — it is the obvious
 first question, and answering it before it is asked is worth more than hiding it.
+
+## 11. Decisions taken autonomously
+
+An unattended run on 20 July 2026 worked through a closure brief on the `v1-closure`
+branch. The brief said to take the owner's decisions where the work needed them and record
+each one here. These are those decisions, with the reasoning, for review.
+
+### The brief asked for a WHO line that could not honestly be written
+
+The brief specified this sentence:
+
+> *Today you breathed in about **ten times** more pollution than the World Health
+> Organization says is safe in a day.*
+
+It shipped in a different shape, because that sentence asserts three things the app cannot
+support. It claims a **daily average**, from a single near-instantaneous station reading.
+It claims an **inhaled dose**, which needs the exposure model this project deliberately
+cancelled. And it treats 15 µg/m³ as a **daily ceiling**, which is not what it is: WHO
+defines the 24-hour AQG level as the 99th percentile of a year's daily means, so three or
+four days above it still meet the guideline (WHO AQG 2021, p. 88).
+
+What ships compares the air **right now** against a guideline defined over a whole day, and
+says so in those words rather than hiding the mismatch. Both qualifications are in the
+Guide. The phrasing is also "six times **as much as**" rather than "six times **more
+than**" — the loose form literally means seven times, and overstating by one multiple every
+time is exactly the failure this repository exists to record.
+
+### The app was misreporting its own data, in two ways
+
+Neither was in the brief. Both were found while building B1, and both are the same class as
+the false privacy claim.
+
+**The pollutant figures were not concentrations.** `iaqi.pm25.v` from the WAQI feed is an
+AQI sub-index; the UI rendered it with the literal label `µg/m³`. WAQI's own field
+documentation says "Individual AQI for the PM2.5". Across a sample of 237 stations
+worldwide the dominant pollutant's sub-index equalled `data.aqi` in **237 of 237** cases,
+and 91% of stations reported PM2.5 above PM10 — impossible for mass concentrations, since
+PM10 contains PM2.5. Four of the six Phase A personas independently noticed something wrong
+here without being able to name the cause.
+
+**The scale was not India's.** The number was credited to CPCB and bucketed with CPCB band
+boundaries. WAQI publishes on the US EPA scale worldwide and states specifically for India
+that it moved every Indian station onto that scale in January 2016, warning that its figures
+will therefore differ from India's own National AQI portal. The scales are not close: 60
+µg/m³ of PM2.5 is CPCB 100 "Satisfactory" and US EPA about 154 "Unhealthy".
+
+**Decision: convert rather than relabel.** The smaller fix was to delete the `µg/m³` label
+and rename the bands to the US EPA ones. That would have been honest and cost almost
+nothing. It was rejected because it makes the product worse for the people it is for — a
+Delhi resident checking this against any other Indian source would see a different number
+under different words. Instead the feed's sub-index is inverted through the EPA table WAQI
+actually uses, and India's index is computed from the resulting concentrations. The
+trade-off, disclosed on the page and in the Guide: the result uses **two** pollutants where
+CPCB uses up to eight and requires at least three, so on a gas-dominated day the official
+figure would be higher. The provenance panel shows both numbers so a reader can watch them
+disagree.
+
+### Three places where a gap was left visible instead of filled
+
+- **CPCB publishes its top category open-ended** ("PM2.5 above 250" → 401–500), so there is
+  no upper concentration to interpolate towards. Values past the last breakpoint report the
+  floor of Severe with a flag rather than an invented slope. A verification agent was sent
+  to find whether CPCB publishes an upper bound and was cut off by a session limit before
+  answering; the question is open, and the code says so.
+- **A feed with no usable particulate yields no AQI at all**, and the page shows `--`. The
+  obvious fallback — use WAQI's own number — would put a US figure under Indian band names,
+  which is the defect being removed.
+- **Children's extra vulnerability stayed unvalidated.** Grounding age in EPA's published
+  inhalation rates has an uncomfortable consequence: a 6–11 year old moves *less* air per
+  minute than an adult, so a purely rate-based model scores a child as safer. The reasons
+  children are more affected are real but do not reduce to a citable number, so those weights
+  sit in a term labelled unvalidated rather than beside a citation they do not have. A test
+  asserts the inversion so it cannot be quietly reversed.
+
+### Two claims were deleted rather than softened
+
+- **"Staying home" no longer subtracts 6 points.** That discount assumed indoor air is
+  cleaner; in Delhi indoor PM2.5 tracks outdoor closely and the claim was never evidenced.
+  Staying home still scores lowest, but now only because a resting body inhales least.
+- **The "you scored below the baseline" message is gone.** An exhaustive sweep of the input
+  space shows the case cannot occur. Copy for an unreachable state can never be shown and
+  never be checked. A test now pins the property, so if a future weight makes the case
+  reachable the suite fails and the branch gets written.
+
+### The false privacy claim was still on every page
+
+The 45-agent review corrected the README and stopped there. The site footer went on saying
+"Persona stays in session — never logged" on all four pages, and the Guide said the persona
+"is never written to a database", while `locality` was written to `app-telemetry` on every
+request. The fix had moved the sentence rather than retiring the claim. Both surfaces now
+say what the code does, and a test walks every page and fails on the old wording.
+
+That this survived a 45-agent review is the most useful thing in this section. The review
+found the claim; the fix was applied where the finding pointed, not everywhere the claim
+lived. **A finding is about a sentence. The defect is about a belief, and beliefs are
+usually written down more than once.**
+
+### Findings recorded but not acted on in this run
+
+- The `noida` feed slug returns the Anand Vihar, Delhi station byte-for-byte. Any UI
+  labelling it Noida is mislabelling Delhi data.
+- The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`, which the
+  freshness check would have presented as live.
+- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path.
+- `_TRANSCRIPTS` is unbounded in both sessions and turns per session, and the session cookie
+  is unsigned and client-controlled.
+
+### Phase A was a heuristic evaluation, not user testing
+
+Six agents walked the running site as six personas. They are **heuristic reviewers, not
+users**: they cannot be genuinely ignorant, they have no stakes, and they do not see a
+rendered page. Where a finding depended on visual rendering they were required to say so.
+25 findings were raised and each was attacked by an independent refuter instructed to
+default to rejection; **10 survived, a 60% kill rate**. This does not substitute for the
+open item at the top of section 9 — putting v1 in front of real people — and nothing here
+should be read as having done that.
