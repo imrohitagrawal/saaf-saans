@@ -23,7 +23,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -806,6 +806,18 @@ def guide(request: Request):
         "factor_rows": _factor_rows(lang),
     })
     return _render(request, "guide.html", ctx, session_id(request), theme, lang)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Browsers probe the site root for this whatever the link tags say.
+
+    Without it every page view logged a 404, which is noise in the one view
+    this project uses to check its own behaviour.
+    """
+    return FileResponse(BASE / "static" / "favicon.ico",
+                        media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/health")

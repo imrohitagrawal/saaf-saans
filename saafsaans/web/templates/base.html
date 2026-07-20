@@ -28,6 +28,11 @@
 {% if lang == 'hi' %}
 <link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 {% endif %}
+{#- SVG first for anything modern, .ico as the fallback, and a square PNG for
+    an iOS home screen, which masks its own corners. -#}
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
