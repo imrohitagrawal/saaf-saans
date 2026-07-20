@@ -531,3 +531,29 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .disclaimer,
 :lang(hi) .foot,
 :lang(hi) .excerpt { font-size: 13.5px; line-height: 1.65; }
+
+
+/* Optical centring for Devanagari in pill-shaped controls.
+
+   Measured in the browser with canvas TextMetrics: at 13px, Anek Devanagari
+   reserves 9px below the baseline, but a string with no below-line matras --
+   "जानकारी बदलें", "सेहतमंद बड़ा व्यक्ति" -- inks only 0.8-2.4px of it. So a box
+   that is geometrically centred leaves the visible text about 3px high, which
+   is what the eye reports and what the box measurements deny.
+
+   The strings that DO carry marks below the line ("बहुत ज़्यादा", with ु and ़)
+   already centre within 0.1px, which is why only some chips looked wrong.
+
+   Two pixels moves off the top padding and onto the bottom, so the ink shifts
+   down without the control changing height. A constant rather than a
+   per-string correction: the residual varies with the words, and chasing it
+   exactly would mean measuring text the server has not composed yet. */
+:lang(hi) .chip-risk,
+:lang(hi) .chip-base { padding-top: 7px; padding-bottom: 3px; }
+:lang(hi) .pill-btn  { padding-top: 8px; padding-bottom: 4px; }
+:lang(hi) .band-chip { padding-top: 5px; padding-bottom: 1px; }
+:lang(hi) .driver    { padding-top: 6px; padding-bottom: 2px; }
+:lang(hi) .hero-pill { padding-top: 5px; padding-bottom: 1px; }
+@media (pointer: coarse) {
+  :lang(hi) .pill-btn { padding-top: 13px; padding-bottom: 9px; }
+}
