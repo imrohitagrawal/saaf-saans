@@ -241,7 +241,7 @@ phase was adversarially reviewed before merge, with the kill rate recorded.
 | C | Hindi for the advice, behind an unreviewed banner | 8 defects, 2 of them high |
 | D | Feed integrity, bounded transcripts, share preview, measured a11y | 6 defects |
 | E | Deployment prepared and the container actually run | — |
-| F | This record | see below |
+| F | This record, and a final review of the whole branch | **38%** (50 examined) |
 
 Two supporting studies ran alongside: a verification of the WAQI data question (**51
 conclusions, 31% killed**) and a repo-wide review (**47 findings, 64% killed**).
@@ -278,6 +278,20 @@ Each finding was then attacked by an independent refuter defaulting to rejection
 
 **This is not the user test.** Open item 1 in section 9 stands untouched. Nothing here
 should be read as having put this in front of a person.
+
+### The correction that created a new defect
+
+The scale correction made a latent bug reachable. Before it, the app always had
+an AQI, because it used WAQI's — the number on the wrong scale. Afterwards a feed with no
+usable particulate correctly yields no index at all, and `compute_risk` coerced that `None`
+to zero. Zero is the cleanest possible air, so the hero offered *"A good day to breathe —
+enjoy it outside"* on a page that simultaneously said UNKNOWN and *"treat conditions as
+unhealthy until you can confirm"*.
+
+Nobody wrote that bug. It was created by fixing a different one, and the only thing that
+caught it was reviewing the whole branch again at the end rather than trusting the
+per-phase reviews that had each passed. **Fixing something correctly is not the same as
+leaving the system correct.**
 
 ### The most useful finding was about a process, not a defect
 
@@ -393,9 +407,18 @@ usually written down more than once.**
   labelling it Noida is mislabelling Delhi data.
 - The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`, which the
   freshness check would have presented as live.
-- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path.
-- `_TRANSCRIPTS` is unbounded in both sessions and turns per session, and the session cookie
-  is unsigned and client-controlled.
+- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path. Still
+  open: a per-locality TTL memo is the obvious fix and was not made, because it is a
+  behaviour change to the freshness story rather than a correction, and this run was closing
+  v1 rather than tuning it.
+- `_TRANSCRIPTS` was unbounded and the session cookie unsigned. **Both were fixed** — the
+  store is capped at 500 LRU sessions of 20 turns, and the cookie is validated as a
+  canonical v4 uuid rather than signed, with the docstring stating what that does not
+  protect against.
+- The test suite was calling the live WAQI and OpenRouter APIs on every run, so its results
+  depended on Delhi's weather and on model output. **Fixed**; the suite went from three
+  minutes to half a second, and that runtime had been visible the whole time without anyone
+  asking why.
 
 ### Phase A was a heuristic evaluation, not user testing
 
