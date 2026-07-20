@@ -358,18 +358,26 @@ def hindi(monkeypatch):
     return install
 
 
-def test_persona_translation_controls_word_order_and_keeps_the_locality(hindi):
+def test_persona_translation_controls_word_order_and_localises_the_place(hindi):
     """Hindi puts the place before its postposition and the phrase after it.
     Translating the parts and joining them in English order would produce a
-    sentence no Hindi speaker would write, so the shape is one format string."""
+    sentence no Hindi speaker would write, so the shape is one format string.
+
+    The place name is translated too. It used to be left in Latin on the
+    grounds that the picker's value is load-bearing -- but that confused the
+    value with the label. The value is still "Anand Vihar"; only what the
+    reader sees is आनंद विहार, which is how the metro signs and the Hindi
+    papers write it, and the only form a Devanagari-only reader can read."""
     hindi("persona", {
         "age_adult": "एक वयस्क",
         "condition_asthma": "अस्थमा के साथ",
-        "activity_exercise": "बाहर कसरत की योजना",
+        "activity_exercise": "बाहर कसरत करने वाले हैं",
         "with_activity_and_place": "{place} में {who}, {condition}, {activity}",
     })
     assert p.persona_sentence(PERSONA, lang="hi") == \
-        "Anand Vihar में एक वयस्क, अस्थमा के साथ, बाहर कसरत की योजना"
+        "आनंद विहार में एक वयस्क, अस्थमा के साथ, बाहर कसरत करने वाले हैं"
+    # ...and the English sentence is untouched.
+    assert "Anand Vihar" in p.persona_sentence(PERSONA)
 
 
 def test_persona_falls_back_per_string_not_per_page(hindi):
@@ -386,7 +394,10 @@ def test_a_malformed_translation_does_not_take_the_page_down(hindi):
     exist would raise inside the template and lose the whole page, so it falls
     back to the English sentence instead."""
     hindi("persona", {"with_activity_and_place": "{whom} में {who}"})
-    assert p.persona_sentence(PERSONA, lang="hi") == p.persona_sentence(PERSONA)
+    # Falls back to the English SHAPE; the place name stays localised, because
+    # that lookup is a plain dict hit and cannot be malformed.
+    assert "Anand Vihar" in p.persona_sentence(PERSONA)
+    assert p.persona_sentence(PERSONA, lang="hi").startswith("an adult")
 
 
 def test_persona_shapes_each_have_their_own_key(hindi):

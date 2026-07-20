@@ -320,7 +320,10 @@ def requested_keys():
 
 # Groups whose keys come from an English source dictionary instead of a call
 # site, because the call passes the source's own key through as a variable.
-_SOURCE_KEYED = set(SOURCES)
+# "locality" is keyed by waqi.LOCALITIES rather than by literal call sites --
+# see test_the_locality_names_match_the_localities_the_app_offers, which
+# checks it against that list instead.
+_SOURCE_KEYED = set(SOURCES) | {"locality"}
 
 
 def test_the_call_site_parser_reads_the_whole_package():
@@ -362,6 +365,19 @@ def test_the_corpus_carries_every_key_the_code_requests():
     missing = sorted(f"{group}/{key}" for group, key in found
                      if key not in i18n.HI.get(group, {}))
     assert not missing, f"the code asks for keys the corpus lacks: {missing}"
+
+
+def test_the_locality_names_match_the_localities_the_app_offers():
+    """The locality group is keyed by data, not by literal call sites -- nothing
+    greps as i18n.t(lang, "locality", "Rohini", ...) because it is reached
+    through i18n.place() over waqi.LOCALITIES. So it is checked against that
+    list directly: a station added to the picker without a Devanagari name
+    would silently render Latin inside a Hindi sentence."""
+    from saafsaans.services import waqi
+    needed = set(waqi.LOCALITIES) | set(waqi.REGIONS)
+    have = set(i18n.HI["locality"])
+    assert needed <= have, f"no Devanagari name for: {sorted(needed - have)}"
+    assert have <= needed, f"Devanagari name for a place the app never shows: {sorted(have - needed)}"
 
 
 def test_the_corpus_carries_nothing_the_code_never_asks_for():

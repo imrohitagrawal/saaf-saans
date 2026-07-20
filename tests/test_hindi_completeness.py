@@ -49,9 +49,11 @@ ALLOWED = {
     # needs them unchanged.
     "pm25", "pm10", "no2", "so2",
 }
-# Locality names are proper nouns and stay in Latin: the picker's values are
-# load-bearing and people say them in English.
-ALLOWED |= {word for loc in waqi.LOCALITIES for word in LATIN_RUN.findall(loc)}
+# Locality names USED to be exempted here, on the grounds that the picker's
+# values are load-bearing. That confused the value with the label: the value is
+# still the English string, but what the reader sees is now Devanagari. The
+# exemption is gone deliberately, so a station added without a Hindi name fails
+# this test instead of quietly rendering Latin inside a Hindi sentence.
 # The review banner deliberately appears in BOTH languages -- an English reader
 # who lands on a Hindi page must be able to read the warning about the Hindi.
 ALLOWED |= set(LATIN_RUN.findall(i18n.REVIEW_BANNER_EN))

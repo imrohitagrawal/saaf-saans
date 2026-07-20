@@ -132,7 +132,7 @@ def persona_sentence(persona: dict, with_place: bool = True, lang: str = "en") -
                   _CONDITION_PHRASE.get(condition, "in good health"))
     act = (i18n.t(lang, "persona", _ACTIVITY_KEYS[activity], _ACTIVITY_PHRASE[activity])
            if activity in _ACTIVITY_PHRASE else None)
-    place = persona.get("locality") if with_place else None
+    place = i18n.place(lang, persona.get("locality") or "") or None if with_place else None
     if act and place:
         return _fmt(lang, "persona", "with_activity_and_place",
                     "{who} {condition}, {activity} in {place}",

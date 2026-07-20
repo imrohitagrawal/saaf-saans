@@ -77,6 +77,17 @@ def normalise(value: str) -> str:
     return value if value in LANGUAGES else DEFAULT_LANG
 
 
+def place(lang: str, name: str) -> str:
+    """A locality or region name for display. Falls back to the English.
+
+    Separate from ``t`` because the caller almost always needs the untranslated
+    string too -- it is the form value, the query parameter and the key into
+    ``waqi.FEED_MAP``. Translating the label while keeping the value is the
+    whole point; translating both would break the picker.
+    """
+    return t(lang, "locality", name, name)
+
+
 def t(lang: str, group: str, key: str, english: str) -> str:
     """Hindi for ``group``/``key`` when asked for and present, else the English.
 
@@ -749,6 +760,36 @@ HI: dict = {
     },
     # presenters.provenance_chip. The glyph is part of the string: it is the
     # only thing telling the two chips apart at a glance.
+    # Delhi locality and region names. These are Hindi place names; a reader who
+    # reads only Devanagari cannot read "Anand Vihar" at all, and the metro
+    # signs and the newspapers write them this way. The picker's VALUE stays the
+    # English string -- it is the key into waqi.FEED_MAP and the query
+    # parameter -- and only the label is translated.
+    "locality": {
+        "Anand Vihar": "आनंद विहार",
+        "ITO": "आईटीओ",
+        "Rohini": "रोहिणी",
+        "RK Puram": "आर.के. पुरम",
+        "Punjabi Bagh": "पंजाबी बाग",
+        "Mandir Marg": "मंदिर मार्ग",
+        "Dwarka": "द्वारका",
+        "Najafgarh": "नजफगढ़",
+        "Wazirpur": "वज़ीरपुर",
+        "Jahangirpuri": "जहांगीरपुरी",
+        "Okhla": "ओखला",
+        "Ashok Vihar": "अशोक विहार",
+        "Nehru Nagar": "नेहरू नगर",
+        "Patparganj": "पटपड़गंज",
+        "DTU": "डीटीयू",
+        "Delhi (city)": "दिल्ली (शहर)",
+        "Noida": "नोएडा",
+        "Greater Noida": "ग्रेटर नोएडा",
+        "Gurugram": "गुरुग्राम",
+        "Ghaziabad": "गाज़ियाबाद",
+        "Faridabad": "फ़रीदाबाद",
+        "Delhi": "दिल्ली",
+        "NCR": "एनसीआर",
+    },
     "prov": {
         "sample": "◌ नमूना — यह माप नहीं है",
         "live": "● लाइव · {when}",

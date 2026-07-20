@@ -281,7 +281,8 @@ def today_share_card(persona: dict, data: dict, verdict: str,
     """
     label_en = data["category"][0]
     label = label or label_en
-    place = persona["locality"]
+    # The forwarded card is read by the same person as the page.
+    place = i18n.place(lang, persona["locality"])
     if data["reading"].get("aqi") is None or label_en == "Unknown":
         return {"title": i18n.t(lang, "ui", "share_no_reading",
                                 "{place}: no air reading right now").replace("{place}", place),
@@ -321,6 +322,9 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         # value -> what the reader sees. The values above stay English because
         # they are what the form submits and what read_persona validates.
         "option_label": _option_labels(lang),
+        # The picker's option VALUE stays English (it is the FEED_MAP key and
+        # the query parameter); only what the reader sees is translated.
+        "place": lambda name: i18n.place(lang, name),
         "regions": waqi.REGIONS,
         "share": _share_card(lang),
         "q": _qs(persona, theme, lang),

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}SaafSaans — {{ persona.locality }}{% endblock %}
+{% block title %}SaafSaans — {{ place(persona.locality) }}{% endblock %}
 
 {% block content %}
 <div class="grid">
@@ -16,7 +16,7 @@
         {#- Upper-cased in CSS, not by a filter: `| upper` turns the locality
             into ANAND VIHAR, which is neither the spelling the picker uses nor
             a proper noun a reader can match to the map. -#}
-        <span class="place">{{ persona.locality }}</span>
+        <span class="place">{{ place(persona.locality) }}</span>
         <span class="prov">{{ prov_chip }}</span>
         <span class="hero-pill">AQI {{ reading.aqi if reading.aqi is not none else '--' }} · {{ band_label | upper }}</span>
       </div>
@@ -92,8 +92,8 @@
         <span class="lbl">{{ T('ui', 'lbl_locality', 'WHERE YOU ARE') }}</span>
         <select name="locality">
           {% for region, locs in regions.items() %}
-          <optgroup label="{{ region }}">
-            {% for loc in locs %}<option {% if loc == persona.locality %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+          <optgroup label="{{ place(region) }}">
+            {% for loc in locs %}<option value="{{ loc }}" {% if loc == persona.locality %}selected{% endif %}>{{ place(loc) }}</option>{% endfor %}
           </optgroup>
           {% endfor %}
         </select>

@@ -9,7 +9,7 @@
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"
        aria-current="{{ 'true' if s.selected else 'false' }}">
       <span class="dot" aria-hidden="true"></span>
-      <span class="nm">{{ s.name }}</span>
+      <span class="nm">{{ place(s.name) }}</span>
       {#- The tag is the same word in three places -- here, the caption below,
           and the Guide's data-source answer -- so all three have to move
           together into whichever language the page is in. A reader who cannot
@@ -33,7 +33,7 @@
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
     <div class="row" style="align-items:baseline;gap:8px">
-      <span style="font-weight:600;font-size:15px">{{ selected }}</span>
+      <span style="font-weight:600;font-size:15px">{{ place(selected) }}</span>
       <span class="mono" style="font-size:11px;color:var(--text-3)">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
       <span class="mono" style="margin-left:auto;font-size:13px;font-weight:600">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
     </div>
@@ -42,7 +42,7 @@
       <div class="spark-x"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>{{ T('ui', 'now', 'NOW') }}</span></div>
       <p class="caption">{{ T('ui', 'spark_caption', 'Delhi pattern: overnight build-up, mid-day relief. Pick a station to see its curve.') }}</p>
     {% else %}
-      <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ selected }}
+      <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ place(selected) }}
         {{ T('ui', 'no_trend_after', 'yet. Run') }}
         <code>python -m saafsaans.seed_demo_history</code>
         {{ T('ui', 'no_trend_tail', 'to backfill, or keep using the app — every live reading is indexed as it arrives.') }}</p>
