@@ -926,3 +926,26 @@ def test_a_stand_in_figure_is_never_called_a_reading(client, monkeypatch):
     assert "CACHED" not in body
     assert "last good reading" not in body
     assert "stand-in, not a measurement" in body
+
+
+def test_every_disclosure_link_returns_the_reader_to_what_it_opened(client):
+    """This app ships no JavaScript, so opening a disclosure is a real page
+    load. That is fine only if the reader lands back where they were: without a
+    fragment the browser jumps to the top, and the thing they just opened is
+    below the fold, so the page appears to reload and do nothing.
+
+    The persona editor and the provenance panel always carried anchors; the
+    three term links did not, which made them the one control on the page that
+    looked broken when it was working."""
+    import re
+    body = client.get("/", params=PERSONA).text
+    links = re.findall(r'<a[^>]+href="(/\?[^"]*\b(?:term|edit|prov)=[^"]*)"', body)
+    assert links, "no disclosure links found"
+    missing = [href for href in links if "#" not in href]
+    assert not missing, f"disclosure links with no anchor to return to: {missing}"
+
+
+def test_opening_a_term_lands_on_the_card_that_holds_the_definition(client):
+    body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
+    assert 'id="reading"' in body
+    assert 'class="def-slot"' in body

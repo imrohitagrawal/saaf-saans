@@ -122,12 +122,12 @@
   </section>
 
   {# --- Reading ------------------------------------------------------------ #}
-  <section class="card band-{{ band }}" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
+  <section class="card band-{{ band }}" id="reading" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
     <div class="row" style="align-items:baseline;gap:12px">
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
       <span class="band-chip">{{ band_label | upper }}</span>
       <span class="mono" style="font-size:11px;color:var(--text-3)">
-        <a class="term" href="/?{{ q_term_aqi }}" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
+        <a class="term" href="/?{{ q_term_aqi }}#reading" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
         · {{ T('ui', 'cpcb_scale', "India's CPCB scale, from PM2.5 and PM10") }} · {{ obs_time }}
       </span>
     </div>
@@ -145,14 +145,14 @@
     <div class="pollutants">
       <div>
         <span class="lbl">
-          <a class="term" href="/?{{ q_term_pm25 }}" aria-expanded="{{ 'true' if term == 'PM2.5' else 'false' }}">PM2.5</a>
+          <a class="term" href="/?{{ q_term_pm25 }}#reading" aria-expanded="{{ 'true' if term == 'PM2.5' else 'false' }}">PM2.5</a>
         </span>
         <span class="val">{{ reading.pm25 | round | int if reading.pm25 is not none else '--' }}
           <span class="unit">µg/m³</span></span>
       </div>
       <div>
         <span class="lbl">
-          <a class="term" href="/?{{ q_term_pm10 }}" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
+          <a class="term" href="/?{{ q_term_pm10 }}#reading" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
           {% if reading.dominant_pollutant == 'pm10' %} · {{ T('ui', 'dominant_tag', 'DOMINANT') }}{% endif %}
         </span>
         <span class="val">{{ reading.pm10 | round | int if reading.pm10 is not none else '--' }}
