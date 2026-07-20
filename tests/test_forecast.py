@@ -19,17 +19,22 @@ def test_daily_outlook_parses_rows():
     assert len(rows) == 3
     first = rows[0]
     assert first["date"] == "2026-07-18"
-    assert first["pm25_avg"] == 55
-    assert first["pm25_max"] == 95
+    # 55 in the feed is a US EPA sub-index, not micrograms: it inverts to
+    # 14.3 µg/m3. Reading it as a concentration overstated the day by 4x.
+    assert first["pm25_avg"] == 14
+    assert first["pm25_max"] == 33
     assert set(first) == {"date", "pm25_avg", "pm25_max", "category"}
 
 
 def test_daily_outlook_categories_and_sort():
     rows = forecast.daily_outlook(SAMPLE_FORECAST)
     by_date = {r["date"]: r for r in rows}
-    assert by_date["2026-07-18"]["category"] == "Moderate"   # 55 µg/m3
-    assert by_date["2026-07-19"]["category"] == "Very Poor"  # 130 µg/m3
-    assert by_date["2026-07-20"]["category"] == "Good"       # 25 µg/m3
+    # Bands now apply to real concentrations. The sub-indices 55/130/25 invert
+    # to about 14 / 47 / 6 µg/m3, which is a materially calmer -- and correct --
+    # picture than the old reading of those same numbers as micrograms.
+    assert by_date["2026-07-18"]["category"] == "Good"        # ~14 µg/m3
+    assert by_date["2026-07-19"]["category"] == "Satisfactory"  # ~47 µg/m3
+    assert by_date["2026-07-20"]["category"] == "Good"        # ~6 µg/m3
     # sorted ascending by date
     assert [r["date"] for r in rows] == sorted(r["date"] for r in rows)
 

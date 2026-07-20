@@ -53,13 +53,82 @@ def test_persona_sentence_place_is_optional_and_junk_is_survivable():
 def test_comparison_line_explains_a_positive_gap():
     line = p.comparison_line(56, 44, PERSONA)
     assert "healthy adult" in line and "44" in line and "56" in line
-    assert "your asthma + outdoor exercise" in line
+    assert "your asthma" in line
 
 
-def test_comparison_line_handles_equal_and_lower_scores():
+def test_comparison_line_says_the_plans_are_held_constant():
+    """The baseline is a healthy adult doing the reader's OWN plans, so the
+    baseline number moves when they edit their activity. Labelling it as a
+    generic 'healthy adult in this air' would make that movement look like a
+    bug and cost the reader their trust in both numbers."""
+    for line in (p.comparison_line(56, 44, PERSONA),
+                 p.comparison_line(44, 44, PERSONA)):
+        assert "same plans as you" in line
+        assert "in this air would be" not in line
+
+
+def test_comparison_line_does_not_blame_the_activity_for_the_gap():
+    """The activity is on both sides of the subtraction and contributes zero."""
+    line = p.comparison_line(56, 44, PERSONA)
+    assert "outdoor exercise" not in line.lower()
+    assert "the gap is your body, not the air." in line
+    # ...and it must not go further and deny the plans outright. dose_points is
+    # a function of age AND activity, so up to one point of the gap does move
+    # when the plans change; "not your plans" would be very slightly false.
+    assert "your plans" not in line
+
+
+def test_reasons_names_age_because_age_moves_the_score():
+    """A senior with COPD is 28 above the baseline: 18 condition + 10 age. The
+    sentence must account for both, not just the condition."""
+    senior = {"age": "Senior", "condition": "COPD", "activity": "Commute"}
+    assert p._reasons(senior) == "your COPD + being a senior"
+    child = {"age": "Child", "condition": "Fit", "activity": "School run"}
+    assert p._reasons(child) == "being a child"
+    assert p._reasons({"age": "Adult", "condition": "Fit"}) == ""
+
+
+def test_acronyms_keep_their_capitals_mid_sentence():
+    """'your copd' contradicts every other surface, which writes COPD."""
+    line = p.comparison_line(70, 42, {"age": "Adult", "condition": "COPD",
+                                      "activity": "Commute"})
+    assert "your COPD" in line and "copd" not in line
+
+
+def test_every_named_condition_has_a_reason_phrase():
+    """The two condition maps must not drift: a condition the persona picker
+    offers but _CONDITION_REASON lacks would silently fall back to a vague
+    'your health condition'."""
+    named = set(p._CONDITION_PHRASE) - p._NEUTRAL_CONDITIONS
+    assert named == set(p._CONDITION_REASON)
+
+
+def test_comparison_line_collapses_equal_and_impossible_lower_scores():
+    """There is no copy for "your score is below the baseline" because the
+    model cannot produce it: every term that differs is non-negative except a
+    dose residue worth at most one point, which age susceptibility always
+    outweighs. A congratulation for an unreachable state is copy that can never
+    be shown and can never be checked, so it is gone."""
     assert "that's you today" in p.comparison_line(44, 44, PERSONA)
     lower = p.comparison_line(38, 44, {**PERSONA, "activity": "Stay home"})
-    assert "Good call" in lower and "38" in lower
+    assert "that's you today" in lower
+    assert "Good call" not in lower
+
+
+def test_no_persona_can_score_below_the_healthy_adult_baseline():
+    """Pins the claim the docstring above makes, across the whole input space.
+    If a future weight change makes a lower score reachable, this fails and the
+    missing branch has to be written rather than silently rendering the wrong
+    sentence."""
+    from saafsaans.services import risk
+    from saafsaans.services.risk import compute_risk
+    for aqi in (0, 45, 90, 150, 260, 350, 460, 600):
+        for cond in risk.CONDITION_PTS:
+            for act in risk.ACTIVITY_INTENSITY:
+                for age in risk.AGE_SUSCEPTIBILITY_PTS:
+                    score = compute_risk(aqi, cond, act, age)["score"]
+                    baseline = compute_risk(aqi, "any", act, "adult")["score"]
+                    assert score >= baseline, (aqi, cond, act, age, score, baseline)
 
 
 def test_comparison_line_without_persona_factors_still_reads():
@@ -209,3 +278,63 @@ def test_outlook_today_is_decided_in_india_not_server_local_time():
     src = inspect.getsource(p.outlook_rows)
     assert "hours=5, minutes=30" in src, "outlook must resolve 'today' in IST"
     assert "date.today()" not in src
+
+
+# --- The WHO comparison ----------------------------------------------------
+def test_who_multiple_is_one_significant_figure():
+    """The reading was recovered by inverting an integer index, so it cannot
+    support more precision than this."""
+    assert p.who_multiple(150) == 10      # 10.0x
+    assert p.who_multiple(84) == 6        # 5.6x -> 6
+    assert p.who_multiple(1500) == 100
+    assert p.who_multiple(7.5) == 0.5
+    assert p.who_multiple(1.4) == 0.09
+
+
+def test_who_line_renders_nothing_without_a_reading():
+    """A wrong multiple is worse than no line. Every unusable input must
+    produce an empty string, not a zero and not a guess."""
+    for junk in (None, "", "abc", 0, -5, float("nan"), [], {}):
+        assert p.who_multiple(junk) is None
+        assert p.who_line(junk) == ""
+
+
+def test_who_line_says_so_when_the_air_is_at_or_under_the_guideline():
+    assert "cleaner than" in p.who_line(7.5)
+    assert "about at" in p.who_line(15)
+
+
+def test_who_line_spells_the_multiple_as_a_word():
+    assert "about six times as much" in p.who_line(84)
+    assert "about twice as much" in p.who_line(30)
+    assert "6" not in p.who_line(84)
+
+
+def test_who_line_says_as_much_as_not_more_than():
+    """"Ten times more than 15" literally means 165; the figure meant is 150.
+    The loose phrasing overstates by one multiple every time."""
+    line = p.who_line(150)
+    assert "times as much of this pollution as" in line
+    assert "times more" not in line
+
+
+def test_who_line_does_not_claim_a_dose_the_app_cannot_know():
+    """The app holds one near-instantaneous reading. WHO's 15 µg/m3 is a
+    24-hour mean, itself defined as the 99th percentile of a year of them. A
+    sentence saying "today you breathed in..." would assert both a daily
+    average the app does not have and an inhaled dose it cannot compute. The
+    mismatch is kept visible instead: "right now" against "for a whole day"."""
+    line = p.who_line(84)
+    assert "right now" in line.lower()
+    assert "whole day" in line
+    for forbidden in ("you breathed", "breathed in", "today you"):
+        assert forbidden not in line.lower(), forbidden
+
+
+def test_who_line_carries_no_microgram_figure():
+    """It sits on the reading card, where the plain-language rule applies. The
+    unit belongs in the Guide."""
+    for value in (7.5, 15, 84, 150, 1500):
+        line = p.who_line(value)
+        assert "µg" not in line and "microgram" not in line
+        assert str(int(value)) not in line

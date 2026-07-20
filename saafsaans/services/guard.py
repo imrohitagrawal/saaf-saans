@@ -54,6 +54,12 @@ PATTERNS = [(label, re.compile(pat, re.IGNORECASE)) for label, pat in _PATTERNS]
 def _normalize(text: str) -> str:
     """Fold unicode, lowercase, and collapse whitespace for robust matching."""
     t = unicodedata.normalize("NFKC", text)
+    # Drop format characters (Cf): zero-width space, zero-width joiner, the
+    # bidi overrides. NFKC leaves them in place, so a single invisible
+    # codepoint inside a keyword -- "ig<ZWSP>nore your instructions" -- walked
+    # past every pattern in the table and reached the model unaudited. They
+    # carry no meaning in a question about air quality.
+    t = "".join(c for c in t if unicodedata.category(c) != "Cf")
     t = t.lower()
     t = re.sub(r"\s+", " ", t)
     return t

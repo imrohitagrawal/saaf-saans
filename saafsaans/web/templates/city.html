@@ -10,7 +10,8 @@
        aria-current="{{ 'true' if s.selected else 'false' }}">
       <span class="dot" aria-hidden="true"></span>
       <span class="nm">{{ s.name }}</span>
-      {% if s.stale %}<span class="tag">CACHED</span>{% endif %}
+      {% if s.source == 'cached' %}<span class="tag">CACHED{% if s.age %} · {{ s.age }} OLD{% endif %}</span>
+      {% elif s.source == 'sample' %}<span class="tag">SAMPLE</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       <span class="bd">{{ s.band }}</span>
     </a>
@@ -21,7 +22,10 @@
 
 {% block content %}
 <h1 class="page-h1">City Pulse</h1>
-<p class="page-sub">{{ count }} stations · {{ now }} · median AQI {{ median }} · worst first</p>
+<p class="page-sub">{{ count }} stations · page loaded {{ now }} · median AQI {{ median }} · worst first</p>
+<p class="caption">CACHED means we hold a reading for that place but it is older than three hours,
+  and the tag says how old. SAMPLE means we hold no reading at all, so a typical figure for that
+  place is shown instead — treat it as a stand-in, not as the air right now.</p>
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="24 hour trend">

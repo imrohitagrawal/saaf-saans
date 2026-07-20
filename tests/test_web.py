@@ -125,6 +125,54 @@ def test_city_lists_every_station_worst_first():
     assert "worst first" in body
 
 
+def test_city_timestamp_says_what_it_is_and_which_zone():
+    """A bare clock time cannot be compared with the Today page's reading time."""
+    import re
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    assert re.search(r"page loaded \d{1,2}:\d\d [AP]M IST, \d{1,2} \w{3}", body)
+
+
+def _city_rows(monkeypatch, rows):
+    """Render /city with the station grid pinned, so freshness and age are fixed.
+
+    Returns {station name: its rendered row}, so an assertion about one station's
+    tag cannot be satisfied by the tag legend elsewhere on the page.
+    """
+    import re
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    found = re.findall(r'<a class="station .*?</a>', body, re.S)
+    return {re.search(r'class="nm">([^<]+)<', row).group(1): row for row in found}
+
+
+def test_stale_stored_reading_says_how_old_it_is(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}])
+    # A cached 390 is only actionable if the reader knows its age.
+    assert "CACHED · 9 H OLD" in rows["Rohini"]
+
+
+def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
+    from saafsaans.services import waqi
+    rows = _city_rows(monkeypatch, [])
+    assert len(rows) == len(waqi.LOCALITIES)
+    for name, row in rows.items():
+        assert "CACHED" not in row, name       # nothing is stored, so nothing is cached
+        assert "SAMPLE" in row, name
+
+
+def test_fresh_stored_reading_carries_no_tag(monkeypatch):
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 120, "ts": now}])
+    assert "tag" not in rows["Rohini"]
+
+
 def test_system_segments_render_their_own_content():
     with TestClient(app) as c:
         obs = c.get("/system", params={**PERSONA, "view": "observability"}).text
@@ -289,3 +337,91 @@ def test_simulation_note_reports_the_real_attack_count():
     with TestClient(app) as c:
         body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
     assert f"Simulation fired {len(ATTACKS)} known attack prompts" in body
+
+
+# --- Risk-score provenance is on the page, not only in the repo ------------
+def test_today_labels_the_score_as_part_judgement(client):
+    """B2's rule: the unvalidated half of the score is named in the UI. A
+    reader must not have to open the README to learn that."""
+    html = client.get("/").text
+    assert "not a validated medical model" in html
+    assert "US EPA" in html or "EPA" in html
+
+
+def test_guide_publishes_every_risk_weight_and_its_source(client):
+    from saafsaans.services import risk
+    html = client.get("/guide").text
+    # The EPA figures themselves, so a reader can check them against the source.
+    for rate in ("0.0042", "0.0048", "0.0500", "0.0420"):
+        assert rate in html, rate
+    assert "Exposure Factors Handbook" in html
+    # And the weights that are not evidenced, named as such.
+    assert "Unvalidated clinical heuristic" in html
+    for cond in ("Copd", "Heart", "Asthma", "Pregnancy"):
+        assert cond in html, cond
+
+
+def test_guide_discloses_the_risk_band_cutoffs(client):
+    """A page that says "44/100 - HIGH" without publishing the cut-off is
+    asking to be taken on trust. Found by the Phase A walkthrough."""
+    html = client.get("/guide").text
+    assert "under 20" in html
+    assert "80 and above" in html
+    for band in ("Low", "Moderate", "High", "Very High", "Extreme"):
+        assert band in html, band
+
+
+def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
+    """EPA publishes rates per effort level; deciding a commute is "light" is
+    ours. The Guide has to say which is which."""
+    html = client.get("/guide").text
+    assert "our reading, not" in html
+    assert "outdoor exercise = high" in html
+
+
+# --- The corrected scale, on the page --------------------------------------
+def test_reading_card_no_longer_credits_a_bare_cpcb(client):
+    """The number is on the CPCB scale but computed from two pollutants where
+    CPCB uses up to eight and requires three. A bare "CPCB" credit claimed a
+    provenance the figure does not have."""
+    html = client.get("/").text
+    assert "India's CPCB scale, from PM2.5 and PM10" in html
+    assert "· CPCB · " not in html
+
+
+def test_guide_states_that_the_feed_is_on_a_different_scale(client):
+    html = client.get("/guide").text
+    assert "United States" in html
+    assert "eight pollutants" in html
+
+
+def test_guide_states_the_who_averaging_time_and_percentile(client):
+    """The comparison is only honest if the reader can find out what the 15
+    actually is. Both qualifications have to be on the page."""
+    html = client.get("/guide").text
+    assert "averaged over 24 hours" in html
+    assert "99th percentile" in html
+    # Jinja escapes and the template wraps lines, so normalise before matching.
+    flat = " ".join(html.replace("&#39;", "'").split())
+    assert "World Health Organization; 2021" in flat
+
+
+def test_who_line_appears_on_today_when_there_is_a_reading(client):
+    flat = " ".join(client.get("/").text.replace("&#39;", "'").split())
+    assert "World Health Organization's safe level for a whole day" in flat
+
+
+def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
+    """A feed carrying only gases yields aqi None, which is the honest result.
+    Every view must survive it rather than 500."""
+    from saafsaans.services import waqi
+
+    def gasses_only(locality, es_client=None):
+        return ({"aqi": None, "aqi_beyond_scale": False, "pm25": None, "pm10": None,
+                 "dominant_pollutant": None, "feed_aqi": 150, "feed_dominant": "o3",
+                 "station": locality, "city": "Delhi", "stale": False,
+                 "forecast": None, "obs_time": None}, "ok")
+
+    monkeypatch.setattr(waqi, "get_aqi", gasses_only)
+    for path in ("/", "/guide", "/city"):
+        assert client.get(path).status_code == 200, path

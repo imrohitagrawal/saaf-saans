@@ -71,6 +71,39 @@ def test_glossary_has_core_terms():
         assert len(normalize.GLOSSARY[term]) > 20
 
 
+def test_glossary_expands_every_acronym_and_unit_shown_in_the_ui():
+    """Terms stamped on the pages were never spelled out anywhere on the site."""
+    expansions = {
+        "CPCB": "Central Pollution Control Board",
+        "PM2.5": "micrometres",
+        "PM10": "micrometres",
+        "µg/m³": "Micrograms per cubic metre",
+    }
+    for term, expansion in expansions.items():
+        assert term in normalize.GLOSSARY
+        assert len(normalize.GLOSSARY[term]) > 20
+        assert expansion in normalize.GLOSSARY[term]
+
+
+def test_unit_entry_describes_the_unit_not_the_sites_numbers():
+    """What the figures on the site are measured in is a separate question, so
+    the unit definition must not assert anything about them."""
+    text = normalize.GLOSSARY["µg/m³"].lower()
+    for claim in ("pm2.5", "aqi", "delhi", "this site", "the reading"):
+        assert claim not in text
+
+
+def test_n95_entry_explains_the_mask_without_claiming_a_benefit():
+    """Cochrane rates the mask evidence very low certainty; the glossary says
+    what an N95 is and stops there."""
+    text = normalize.GLOSSARY["N95"]
+    assert len(text) > 20
+    assert "mask" in text.lower()
+    for claim in ("%", "protect", "effective", "prevent", "block", "reduce",
+                  "safe", "filters out", "keeps out"):
+        assert claim not in text.lower()
+
+
 def test_dark_severity_ramp_is_monotonic_in_luminance():
     """Severity must track contrast-against-background in BOTH themes.
 

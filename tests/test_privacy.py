@@ -72,3 +72,29 @@ def test_security_excerpt_within_index_path():
     })
     assert len(captured["doc"]["prompt_excerpt"]) == 120
     assert set(captured["doc"].keys()) <= es.SECURITY_FIELDS
+
+
+def test_no_page_repeats_the_false_never_logged_claim():
+    """The README's version of this claim was the worst defect this project
+    found in itself: it said the persona is never written to any index while
+    locality was written on every request. The footer and the Guide were still
+    saying it after the README was corrected. Any surface making a blanket
+    "never logged" promise about the persona is making a false one."""
+    from fastapi.testclient import TestClient
+    from saafsaans.web.main import app
+    with TestClient(app) as client:
+        for path in ("/", "/guide", "/city", "/system"):
+            flat = " ".join(client.get(path).text.replace("&#39;", "'").split())
+            assert "Persona stays in session — never logged" not in flat, path
+            assert "persona stays in the page address and your session — it is never" \
+                not in flat.lower(), path
+
+
+def test_the_pages_name_locality_as_the_logged_exception():
+    from fastapi.testclient import TestClient
+    from saafsaans.web.main import app
+    with TestClient(app) as client:
+        footer = " ".join(client.get("/").text.replace("&#39;", "'").split())
+        assert "hashed session id and the area you picked" in footer
+        guide = " ".join(client.get("/guide").text.replace("&#39;", "'").split())
+        assert "is the one exception and is stored deliberately" in guide

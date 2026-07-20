@@ -133,7 +133,12 @@ def advisor_data(persona: dict) -> dict:
         "baseline": risk.compute_risk(
             aqi, "any", normalize.norm_activity(persona["activity"]), "adult")["score"],
         "window": forecast.best_window(
-            aqi, dominant_pollutant=reading.get("dominant_pollutant"),
+            # The feed's own dominant pollutant, which may be a gas the app's
+            # particulate-only index does not model. The window advice differs
+            # for ozone, so it must not be told "pm25" merely because PM drove
+            # our number.
+            aqi, dominant_pollutant=(reading.get("feed_dominant")
+                                     or reading.get("dominant_pollutant")),
             forecast=reading.get("forecast")),
         "outlook": pr.outlook_rows(forecast.daily_outlook(reading.get("forecast"))),
     }
@@ -172,6 +177,11 @@ def today(request: Request):
         "transcript": turns, "open_prov": open_prov,
         "condition_help": normalize.condition_help(persona["condition"]),
         "conditions_help": normalize.CONDITION_HELP,
+        # The score is half published figure and half the author's judgement.
+        # Saying so next to the number is the point; saying it only in the
+        # README would repeat the mistake this project exists to record.
+        "risk_notice": risk.HEURISTIC_NOTICE,
+        "who_line": pr.who_line(data["reading"].get("pm25")),
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, edit=None if persona_open else "1"),
         # Provenance opens per turn, so history stays independently inspectable.
@@ -276,14 +286,17 @@ def city(request: Request):
         # A stored reading is only "live" if it is recent. Treating a week-old
         # document as current would present stale air as the air outside now --
         # the one thing this product promises never to do.
-        stale = row is None or not _is_fresh(row.get("ts"), hours=3)
+        fresh = row is not None and _is_fresh(row.get("ts"), hours=3)
         # No stored reading: fall back to the labelled per-locality sample rather
-        # than showing a dead row. It is marked CACHED, never passed off as live,
-        # and costs no HTTP -- 21 live fetches would make this page crawl.
+        # than showing a dead row. It costs no HTTP -- 21 live fetches would make
+        # this page crawl -- but it is a stand-in figure, not a reading we hold,
+        # so it must not carry the same tag as a genuine stored-but-old reading.
         aqi = row.get("aqi") if row else (waqi.SAMPLES.get(loc) or {}).get("aqi")
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi, "band": label, "slug": slug,
-                         "stale": stale, "selected": loc == selected})
+                         "source": "live" if fresh else ("cached" if row else "sample"),
+                         "age": None if fresh or row is None else _age_label(row.get("ts")),
+                         "selected": loc == selected})
 
     def group(region):
         rows = [s for s in stations if s["name"] in waqi.REGIONS[region]]
@@ -296,7 +309,7 @@ def city(request: Request):
         "delhi": group("Delhi"), "ncr": group("NCR"),
         "count": sum(1 for s in stations if s["aqi"] is not None),
         "median": pr.median_aqi(stations),
-        "now": _fmt_time(),
+        "now": _fmt_stamp(),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points")),
@@ -411,6 +424,16 @@ def guide(request: Request):
         "bands": [{"label": l, "range": r, "slug": g,
                    "meaning": normalize.aqi_meaning(l)}
                   for l, r, g in zip(labels, ranges, slugs)],
+        # A reader told "44/100 · HIGH" cannot check that without the cut-offs.
+        "risk_bands": [{"label": n, "upper": u} for n, u, _c in risk._BAND_TABLE],
+        "risk_weights": risk.weight_table(),
+        "risk_notice": risk.HEURISTIC_NOTICE,
+        "source_epa": risk.SOURCE_EPA,
+        "who_guideline": pr.WHO_PM25_24H,
+        "source_unvalidated": risk.SOURCE_UNVALIDATED,
+        "epa_age_bands": risk.EPA_AGE_BANDS,
+        "inhalation_rates": risk.INHALATION_RATES,
+        "activity_intensity": risk.ACTIVITY_INTENSITY,
     })
     return _render(request, "guide.html", ctx, session_id(request), theme)
 
@@ -447,6 +470,41 @@ def _render(request, template, ctx, sid, theme):
     response.set_cookie("sid", sid, httponly=True, samesite="lax")
     response.set_cookie("theme", theme, samesite="lax")
     return response
+
+
+def _fmt_stamp() -> str:
+    """Now, as '3:05 AM IST, 20 Jul' -- placeable on a calendar.
+
+    Comparing two pages is impossible without the date and the zone, so both
+    are always spelled out. Deliberately takes no argument: this stamps the
+    moment the page was rendered, and accepting a timestamp would invite it to
+    be used for an observation time, which is what ``_fmt_time`` is for.
+    """
+    return datetime.now(timezone.utc).astimezone(IST).strftime("%-I:%M %p IST, %-d %b")
+
+
+def _age_label(ts) -> str:
+    """How old a stored reading is, terse enough for a tag: '40 MIN', '5 H', '3 D'.
+
+    Empty when the timestamp is missing or unparseable -- an invented age would
+    be worse than none.
+    """
+    if not ts:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    minutes = int((datetime.now(timezone.utc) - dt).total_seconds() // 60)
+    if minutes < 0:
+        return ""
+    if minutes < 60:
+        return f"{minutes} MIN"
+    if minutes < 60 * 48:
+        return f"{minutes // 60} H"
+    return f"{minutes // (60 * 24)} D"
 
 
 def _back(request: Request, sid: str, theme: str):
