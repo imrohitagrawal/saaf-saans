@@ -470,3 +470,32 @@ def test_the_share_card_placeholders_survive_translation():
                         ("share_for", {"{who}"})):
         value = i18n.HI["ui"][key]
         assert set(_PLACEHOLDER.findall(value)) == fields, (key, value)
+
+
+# Polite-imperative endings in Hindi. A verdict that lacks one is describing a
+# state rather than telling the reader what to do.
+_IMPERATIVE = ("िए", "िये", "एँ", "ें")
+
+
+def test_every_hindi_verdict_tells_the_reader_what_to_do():
+    """The Very High verdict once read "आज आपके फेफड़ों को घर के अंदर रहने की
+    ज़रूरत है।" -- the only one of the five with no instruction in it, and
+    softer in tone than the *less* severe High band above it. So escalating
+    from High to Very High made the message weaker.
+
+    That is the same defect this project already documented in its colour ramp,
+    one layer up: severity has to increase monotonically with the band, and a
+    ramp that reverses is worst exactly where it matters most. Colour was
+    caught by computing luminance; this one needed a Hindi speaker to read it.
+    """
+    from saafsaans.services import risk
+    for band in risk.RISK_BANDS:
+        verdict = i18n.HI["verdict"][band]
+        assert any(m in verdict for m in _IMPERATIVE), (band, verdict)
+
+
+def test_the_hindi_verdicts_are_all_different():
+    """Two bands sharing a line would flatten the ramp just as effectively."""
+    from saafsaans.services import risk
+    verdicts = [i18n.HI["verdict"][b] for b in risk.RISK_BANDS]
+    assert len(set(verdicts)) == len(verdicts)
