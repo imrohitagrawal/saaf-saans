@@ -168,3 +168,19 @@ def test_the_outlook_category_uses_the_shared_band_words():
 def test_the_outlook_is_unchanged_english_by_default():
     assert forecast.daily_outlook(SAMPLE_FORECAST) == \
         forecast.daily_outlook(SAMPLE_FORECAST, lang="en")
+
+
+def test_the_hindi_window_says_which_half_of_the_day():
+    """English suffixes AM/PM; Hindi marks the time of day before the number.
+    Dropping the marker left "क़रीब 11 से 3 बजे" readable as 11pm to 3am -- an
+    ambiguity in the single line that tells somebody when it is safer to go
+    outside."""
+    from saafsaans.services import i18n
+    marks = ("सुबह", "दोपहर", "शाम", "रात")
+    for key in ("o3", "no2", "winter", "default"):
+        value = i18n.HI["window"][key]
+        assert any(m in value for m in marks), (key, value)
+        # ...and the marker has to be inside the bracket with the clock times,
+        # not only in the label before it.
+        bracket = value[value.index("(") + 1:value.index(")")]
+        assert any(m in bracket for m in marks), (key, bracket)
