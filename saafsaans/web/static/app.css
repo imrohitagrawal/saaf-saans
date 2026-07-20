@@ -431,3 +431,68 @@ select { padding: 12px 10px; }
 /* h2 styled as a kicker: the level carries the outline, the class carries the look. */
 h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
             letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+
+
+/* ------------------------------------------------- Devanagari typography -- */
+/* Two rules the Latin design breaks when the text is not Latin.
+
+   Tracking: Devanagari must not be letter-spaced. Latin small-caps labels gain
+   clarity from it; Devanagari loses it, because the extra space pulls matras
+   and conjunct clusters away from the consonants they belong to. The hero
+   kicker, the meta row and the risk chips were all set in tracked small-caps
+   and came apart.
+
+   Face: IBM Plex Mono carries no Devanagari, so every one of those labels was
+   silently falling back to whatever the system offered -- a different face on
+   every machine, and none of them the one the design chose. The body and
+   display faces both have real Devanagari, so the labels use those instead.
+
+   `:lang(hi)` rather than `[lang="hi"]` deliberately: it follows the computed
+   language, so a citation marked lang="en" inside a Hindi page keeps its
+   Latin treatment rather than inheriting this. */
+:lang(hi) .hero-kicker,
+:lang(hi) .hero-meta,
+:lang(hi) .chip-risk,
+:lang(hi) .chip-base,
+:lang(hi) .hero-window .lbl,
+:lang(hi) .kicker,
+:lang(hi) .lbl,
+:lang(hi) .driver,
+:lang(hi) .station .tag,
+:lang(hi) .station .bd,
+:lang(hi) .prov-btn,
+:lang(hi) .prov-count,
+:lang(hi) .src-tag,
+:lang(hi) .answer h3,
+:lang(hi) .caption {
+  font-family: var(--body);
+  letter-spacing: normal;
+}
+
+/* Size. Devanagari carries its distinguishing detail above and below the
+   line -- the matras and the shirorekha -- so the glyph body at a given
+   font-size is effectively smaller than Latin's, and the label sizes in this
+   stylesheet were all chosen against Latin. At 10-12px the matras stop
+   resolving and the text reads as texture rather than words. Every small label
+   goes up roughly two points, with a little more leading to fit the marks that
+   sit above and below.
+
+   Uppercasing is dropped too: Devanagari is unicameral, so text-transform does
+   nothing except signal to a screen reader that this is an abbreviation. */
+:lang(hi) .hero-kicker { font-size: 14px; line-height: 1.6; text-transform: none; }
+:lang(hi) .hero-meta   { font-size: 13px; line-height: 1.6; }
+:lang(hi) .chip-risk,
+:lang(hi) .chip-base   { font-size: 13.5px; }
+:lang(hi) .hero-window .lbl { font-size: 12.5px; }
+:lang(hi) .kicker      { font-size: 12.5px; line-height: 1.6; text-transform: none; }
+:lang(hi) .lbl         { font-size: 12px; text-transform: none; }
+:lang(hi) .driver      { font-size: 12.5px; }
+:lang(hi) .caption     { font-size: 12.5px; line-height: 1.6; }
+:lang(hi) .station .tag,
+:lang(hi) .station .bd { font-size: 12px; }
+:lang(hi) .prov-btn,
+:lang(hi) .prov-count,
+:lang(hi) .src-tag     { font-size: 12.5px; }
+:lang(hi) .answer h3   { font-size: 12.5px; text-transform: none; }
+:lang(hi) .hint,
+:lang(hi) .disclaimer  { font-size: 13.5px; line-height: 1.65; }
