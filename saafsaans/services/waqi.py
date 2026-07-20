@@ -6,45 +6,78 @@ returns a clearly-labelled cached sample so the demo cannot die. The WAQI
 status ("ok" / "fallback") is returned *separately* from the reading so it is
 never written into the aqi-readings index.
 """
+import re
+from datetime import datetime, timedelta, timezone
+
 import requests
 
 from . import aqi_scale, config, es
 
 TIMEOUT = 5
 
-# UI locality -> WAQI feed slug. Named-station feeds use the ``delhi/<name>``
-# path form (the ``@<id>`` form is for numeric station UIDs). If any station
-# feed 404s, get_aqi retries the ``delhi`` city feed, so a wrong slug degrades
-# gracefully rather than breaking the demo.
-# WAQI feed slugs. Delhi stations use the ``delhi/<station>`` path form; NCR
-# cities use their own city feed. Any feed that 404s falls back to the Delhi
-# city feed, so a wrong slug degrades gracefully rather than breaking the demo.
+# UI locality -> WAQI feed slug, or None where WAQI has no station for that
+# locality at all. Two path forms exist: ``<city>/<station>`` by name and
+# ``@<uid>`` by numeric station id. The named form silently resolves to an
+# unrelated station for some slugs -- the ``noida`` slug returned the Anand
+# Vihar, Delhi station byte-for-byte -- so every station whose named slug was
+# wrong or missing is pinned by uid instead, which cannot drift onto another
+# station. Each entry below was fetched and its data.city.name checked against
+# the locality it is mapped to.
+#
+# No slug here is trusted on its own: get_aqi re-checks the returned station
+# name against the locality on every fetch (see _corroborates), so a feed that
+# starts answering for somewhere else degrades to a labelled sample rather than
+# being shown as this locality's air.
 FEED_MAP = {
     # --- Delhi stations ---
     "Anand Vihar": "delhi/anand-vihar",
     "ITO": "delhi/ito",
-    "Rohini": "delhi/rohini",
+    "Rohini": "@10117",             # Shaheed Sukhdev College, Rohini
     "RK Puram": "delhi/r.k.-puram",
     "Punjabi Bagh": "delhi/punjabi-bagh",
     "Mandir Marg": "delhi/mandir-marg",
-    "Dwarka": "delhi/dwarka-sector-8",
-    "Najafgarh": "delhi/najafgarh",
-    "Wazirpur": "delhi/wazirpur",
-    "Jahangirpuri": "delhi/jahangirpuri",
-    "Okhla": "delhi/okhla-phase-2",
-    "Ashok Vihar": "delhi/ashok-vihar",
-    "Nehru Nagar": "delhi/nehru-nagar",
-    "Patparganj": "delhi/patparganj",
+    "Dwarka": "@10119",             # NIMR, Sector 8, Dwarka
+    "Najafgarh": "@10120",          # Bramprakash Ayurvedic Hospital, Najafgarh
+    "Wazirpur": "@10114",           # Delhi Institute of Tool Engineering
+    "Jahangirpuri": "@10113",       # ITI Jahangirpuri
+    "Okhla": "@10116",              # DITE Okhla
+    # WAQI carries no station for these two. Mapping them to anything else
+    # would be showing another neighbourhood's air under their name, so they
+    # get no feed and always render as the labelled cached sample.
+    "Ashok Vihar": None,
+    "Nehru Nagar": None,
+    "Patparganj": "@10704",         # Mother Dairy Plant, Parparganj
     "DTU": "delhi/dtu",
     "Delhi (city)": "delhi",
     # --- NCR cities ---
-    "Noida": "noida",
+    "Noida": "@11865",              # Sector - 62, Noida
     "Greater Noida": "greater-noida",
-    "Gurugram": "gurugram",
+    "Gurugram": "@12816",           # Sector-51, Gurugram
     "Ghaziabad": "ghaziabad",
-    "Faridabad": "faridabad",
+    "Faridabad": "@12813",          # Sector 11, Faridabad
 }
 CITY_FEED = "delhi"
+
+# How old a feed's own observation time may be before the reading stops being
+# treated as live. The stations report hourly, but WAQI's mirror of them lags:
+# on 2026-07-20 the laggiest healthy Delhi station was five hours behind the
+# clock, so the 3-hour window main.py uses for stored readings would have
+# discarded stations that were working. No window at all let the ``delhi/ito``
+# feed serve a four-week-old reading with status "ok". Twelve hours accepts the
+# lag actually observed while still refusing that. It does not guarantee a
+# reading from the current calendar day, and is not meant to.
+MAX_OBS_AGE = timedelta(hours=12)
+
+# Locality label -> the spelling that actually appears in the feed's station
+# name, for the few where they differ. Kept deliberately tiny: a locality
+# missing from here just has to match on its own name, and the failure mode of
+# a missing alias is a false mismatch, which shows a labelled sample. The
+# opposite error -- accepting the wrong station -- is the one that would put a
+# false claim on screen, and no entry here can cause it.
+FEED_NAME_ALIASES = {
+    "Patparganj": "Parparganj",   # the feed spells it with an r
+    "Delhi (city)": "Delhi",      # the city feed answers from a Delhi station
+}
 
 # Region grouping for the UI (picker + City Pulse grid subheaders). The last
 # entry of each list is kept in the same order as FEED_MAP.
@@ -139,6 +172,45 @@ def _fallback(locality: str = None):
         feed_dominant=base.get("dom"))
 
 
+def _normalise(name: str) -> str:
+    """Lowercase a place name down to its letters and digits.
+
+    Station names carry punctuation the UI labels do not ("R.K. Puram" vs
+    "RK Puram"), so both sides are reduced before comparison.
+    """
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def _corroborates(locality: str, city_name: str) -> bool:
+    """True when the feed's own station name backs up the locality label.
+
+    This is the check that catches a slug quietly resolving to a different
+    station: the feed says who it is, so nothing has to be taken on trust from
+    the mapping table above.
+    """
+    expected = _normalise(FEED_NAME_ALIASES.get(locality, locality))
+    return bool(expected) and expected in _normalise(city_name)
+
+
+def _obs_too_old(obs_time) -> bool:
+    """True only when the feed states an observation time and it is too old.
+
+    A feed that omits the timestamp, or states one that cannot be parsed, is
+    NOT called stale -- there is no evidence either way, and dropping those
+    would silently delete every reading from a feed that simply does not
+    publish a time.
+    """
+    if not obs_time:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(obs_time).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt) > MAX_OBS_AGE
+
+
 def _fetch_feed(feed: str, token: str):
     """GET one feed. Returns parsed reading dict or None (not usable)."""
     resp = requests.get(_API.format(feed=feed, token=token), timeout=TIMEOUT)
@@ -175,6 +247,11 @@ def _fetch_feed(feed: str, token: str):
     if not isinstance(forecast, dict):
         forecast = None
     obs_time = (data.get("time") or {}).get("iso")
+    # An observation from weeks ago is not a live reading, whatever the feed's
+    # status field says. Treated as unusable here so it can never reach the UI
+    # with status "ok"; the locality degrades to its labelled sample instead.
+    if _obs_too_old(obs_time):
+        return None
 
     # The feed's iaqi values are AQI sub-indices on the US EPA scale, not
     # concentrations -- see services/aqi_scale.py for the proof. Invert them
@@ -202,18 +279,24 @@ def get_aqi(locality: str, es_client=None):
         return _fallback(locality), "fallback"
 
     feed = FEED_MAP.get(locality, CITY_FEED)
+    if not feed:
+        return _fallback(locality), "fallback"
+
     reading = None
     try:
         reading = _fetch_feed(feed, token)
-        # Retry the Delhi city feed only for Delhi stations. NCR feeds must NOT
-        # fall back to Delhi — that would mislabel a different city's air as a
-        # live NCR reading; they degrade to the labelled stale sample instead.
-        if reading is None and feed != CITY_FEED and feed.startswith("delhi"):
-            reading = _fetch_feed(CITY_FEED, token)
     except Exception:
         reading = None
 
     if reading is None:
+        return _fallback(locality), "fallback"
+
+    # A feed that answers for somewhere else is not this locality's air. The
+    # previous version had no such check and presented the Anand Vihar, Delhi
+    # station as Noida's reading. There is also no city-feed retry any more:
+    # borrowing another station whenever one 404s is the same mislabelling by
+    # a slower route, and this check would reject its result anyway.
+    if not _corroborates(locality, reading["city"]):
         return _fallback(locality), "fallback"
 
     try:

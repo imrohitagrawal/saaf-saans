@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}SaafSaans{% endblock %}</title>
+{#- Forwarding is how this site travels, so a pasted link has to be readable
+    before it is opened. `share` is built in main.py from the same values the
+    page renders, so the card can never contradict the page. Text only: there
+    is no og:image because there is no image to point at. -#}
+<meta name="description" content="{{ share.description }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SaafSaans">
+<meta property="og:title" content="{{ share.title }}">
+<meta property="og:description" content="{{ share.description }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ share.title }}">
+<meta name="twitter:description" content="{{ share.description }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
