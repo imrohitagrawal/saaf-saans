@@ -120,10 +120,24 @@
             </div>
             {% for v in g.variants %}
             <div class="variant">
-              {# The excerpt is a verbatim fragment of what somebody typed. It is
+              {# The excerpt is a fragment of what somebody typed. It is
                  evidence, so it is reproduced in the language it arrived in and
-                 never translated. #}
-              <span class="excerpt">"{{ v.excerpt }}"</span>
+                 never translated.
+
+                 Which language that is, nobody here knows -- an attacker may
+                 have typed Hindi. lang="" is the HTML spec's *explicitly
+                 unknown*, and it is the only honest value: inheriting lang="hi"
+                 from <html> asserts a language for text the app did not write,
+                 and lang="en" would be a guess stated as a fact on the one page
+                 whose purpose is showing what is actually in the index.
+                 <bdi> is dir="auto" and bidi-isolating, so an Arabic or Urdu
+                 injection cannot reorder the quote marks around it, and
+                 translate="no" stops an in-browser translator rewriting
+                 evidence. The quote marks stay outside; lang="" never goes on
+                 .excerpt itself, which would break :lang(hi) .excerpt.
+                 The .pat chip above is different and stays lang="en": the
+                 pattern id is the app's own string. #}
+              <span class="excerpt">"<bdi lang="" translate="no">{{ v.excerpt }}</bdi>"</span>
               <span class="when">{% if v.count > 1 %}&times;{{ v.count }} · {% endif %}{{ v.when }}</span>
             </div>
             {% endfor %}

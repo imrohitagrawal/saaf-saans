@@ -91,7 +91,15 @@ def _visible_text(html_body: str) -> str:
     # NOT <html> or <body>: a page that declares the whole document English
     # would strip itself and pass this scan vacuously, which is exactly what
     # /system did. Only inner elements may opt out.
-    body = re.sub(r"<(?!html|body)(\w+)[^>]*\blang=\"en\"[^>]*>.*?</\1>", " ",
+    #
+    # lang="" is stripped too. It is the spec's *explicitly unknown*, and the
+    # one place that carries it is the blocked-prompt excerpt on /system --
+    # verbatim visitor text the app did not author, in a language nobody here
+    # knows. Content the app did not write is not content this scan can judge:
+    # failing it for Latin would demand the app translate an attacker, and
+    # passing it for Devanagari would prove nothing. The escape is bounded by
+    # tests/test_system_evidence.py, which asserts only <bdi> may ever carry it.
+    body = re.sub(r"<(?!html|body)(\w+)[^>]*\blang=\"(?:en)?\"[^>]*>.*?</\1>", " ",
                   body, flags=re.S)
     # Attributes carry URLs and class names, which are Latin by nature.
     body = re.sub(r"<[^>]+>", "\n", body)
