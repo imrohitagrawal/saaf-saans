@@ -201,12 +201,20 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
 
 ## 9. Open items, in order of value
 
-1. **Put v1 in front of two or three real people and write down what confuses them.**
-   This is the cheapest available improvement by a wide margin: thirty minutes converts
-   the weakest part of this record (§6 — no observed usage) into the strongest.
+1. **Put v1 in front of five or six real people and write down what confuses them.**
+   Still the cheapest available improvement by a wide margin: it converts the weakest part
+   of this record (§6 — no observed usage) into the strongest. A facilitator script and a
+   per-participant recording sheet are ready in [`USER-TEST.md`](USER-TEST.md) and
+   [`user-test-sheet.md`](user-test-sheet.md), including the wording to use, the wording
+   that leads and must be avoided, and a check on whether the facilitator contaminated the
+   session. **Do this before the Hindi sign-off** — the test will change the English copy,
+   and a translation signed off against copy that then moves has to be reviewed twice.
 2. **Deploy publicly.** A reader currently has to clone and run it. A URL is worth more
    than another feature.
-3. **Hindi for the advice, not just the numbers** — the one evidence-backed improvement.
+3. **Hindi sign-off.** The translation is drafted, committed and gated behind a banner; one
+   fluent Delhi Hindi speaker needs to read `services/i18n.py` end to end, checking the
+   health instructions hardest — anything about an inhaler, a mask or seeking care must
+   carry identical force, neither softened nor strengthened. The banner comes out only then.
 4. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
    retrieved during research and is the most decision-relevant unread document; it governs
    whether personalised health advice can legally ship in India.
