@@ -525,3 +525,115 @@ def test_no_inline_style_undercuts_the_touch_target_floor():
                 offenders.append(f"{path.name}: {style}")
     assert not offenders, (
         "inline padding/font-size on a link overrides the touch floor: %s" % offenders)
+
+
+# --- 5. The caveat palette --------------------------------------------------
+# Demoting a sentence means making it quieter, and the floor under "quieter" is
+# a measured contrast ratio, not an opinion about how grey is too grey. Every
+# figure below is computed from the tokens in this stylesheet.
+
+def _lum(hex_or_rgb):
+    channels = hex_or_rgb
+    if isinstance(channels, str):
+        h = channels.lstrip("#")
+        channels = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    f = lambda c: (c / 255) / 12.92 if (c / 255) <= 0.03928 else (((c / 255) + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(channels[0]) + 0.7152 * f(channels[1]) + 0.0722 * f(channels[2])
+
+
+def _ratio(a, b):
+    la, lb = _lum(a), _lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def _over(fg, alpha, bg):
+    """Source-over compositing, which is what `opacity` and an `rgba` fill do."""
+    if isinstance(fg, str):
+        h = fg.lstrip("#")
+        fg = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return [fg[i] * alpha + bg[i] * (1 - alpha) for i in range(3)]
+
+
+def _token(css, block, name):
+    chunk = css.split(block, 1)[1]
+    return re.search(rf"{name}:\s*(#[0-9A-Fa-f]{{6}})", chunk).group(1)
+
+
+THEMES = (("light", ":root {"), ("dark", '[data-theme="dark"] {'))
+AA_TEXT = 4.5
+
+
+def test_the_caveat_palette_clears_the_text_floor_in_both_themes(sheet):
+    """`.caveat` is the quietest text on the site, so it is the one most likely
+    to fall under the floor. Its colour token, its link colour and the promoted
+    `.meaning` are all resolved from the stylesheet and measured against the two
+    surfaces a caveat is ever painted on."""
+    css = _strip_comments(sheet["raw"])
+    caveat = _decls(sheet["top"], ".caveat")
+    assert caveat, ".caveat has no rule -- this test would prove nothing"
+    measured = {}
+    for theme, block in THEMES:
+        surface, bg = _token(css, block, "--surface"), _token(css, block, "--bg")
+        for label, decls, backdrop in (
+                ("caveat on --surface", caveat, surface),
+                ("caveat on --bg", caveat, bg),
+                ("caveat link", _decls(sheet["top"], ".caveat a"), surface),
+                ("caveat on a tint", _decls(sheet["top"], ".caveat.on-tint"),
+                 _token(css, block, "--surface-2")),
+                ("meaning", _decls(sheet["top"], ".meaning"), surface)):
+            token = re.fullmatch(r"var\((--[\w-]+)\)", decls["color"]).group(1)
+            ratio = _ratio(_token(css, block, token), backdrop)
+            measured[f"{theme} {label}"] = ratio
+            assert ratio >= AA_TEXT, f"{theme} {label}: {ratio:.2f}:1"
+
+    # The reason .on-tint exists at all, asserted rather than remembered: the
+    # caveat's own colour does NOT clear the floor on a tinted panel in dark.
+    dark = dict(THEMES)["dark"]
+    on_tint_would_be = _ratio(_token(css, dark, "--text-3"), _token(css, dark, "--surface-2"))
+    assert on_tint_would_be < AA_TEXT, (
+        f"--text-3 now measures {on_tint_would_be:.2f}:1 on --surface-2 in dark. If that is "
+        "genuinely above the floor, .on-tint is no longer needed -- but check the token "
+        "change that did it before deleting anything")
+    assert "background" not in caveat, (
+        ".caveat has gained a background; --text-3 does not clear the floor on every "
+        "panel colour this site uses, which is why it had none")
+
+
+def test_the_hero_caveat_is_readable_over_every_sky_in_both_themes(sheet):
+    """The hero caveat is white-ish text at 65% opacity, on an 85%-opaque panel,
+    over a gradient that changes with the reading. Its worst case is therefore a
+    composite of three layers and cannot be read off a token pair."""
+    css = _strip_comments(sheet["raw"])
+    hero = _decls(sheet["top"], ".hero-window .caveat")
+    window = _decls(sheet["top"], ".hero-window")
+    ink = hero["color"]
+    alpha = float(hero["opacity"])
+    panel = re.search(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", window["background"])
+    panel_rgb = [int(panel.group(i)) for i in (1, 2, 3)]
+    panel_alpha = float(panel.group(4))
+
+    skies = re.findall(r"--sky1:\s*(#[0-9A-Fa-f]{6});\s*--sky2:\s*(#[0-9A-Fa-f]{6})", css)
+    assert len(skies) >= 14, f"only {len(skies)} skies found -- both themes must be covered"
+    worst = min(_ratio(_over(ink, alpha, backdrop), backdrop)
+                for pair in skies for sky in pair
+                for backdrop in [_over(panel_rgb, panel_alpha, [int(sky.lstrip('#')[i:i + 2], 16)
+                                                                for i in (0, 2, 4)])])
+    assert worst >= AA_TEXT, f"hero caveat bottoms out at {worst:.2f}:1 over some sky"
+
+
+def test_hindi_never_renders_a_caveat_below_the_devanagari_floor(sheet):
+    """12.5px was chosen against Latin. Devanagari carries its distinguishing
+    detail above and below the line, so below about 12px the matras stop
+    resolving -- the floor the rest of the Hindi block already applies."""
+    floors = {}
+    for selector, decls in sheet["top"]:
+        for part in [s.strip() for s in selector.split(",")]:
+            if "caveat" in part and "font-size" in decls:
+                floors[part] = _px(decls["font-size"])
+    assert ":lang(hi) .caveat" in floors, "the Devanagari prose floor no longer names .caveat"
+    for part, size in floors.items():
+        if part.startswith(":lang(hi)"):
+            assert size >= 12.5, f"{part} sets {size}px, below where Devanagari resolves"
+    # The hero caveat is the one set below that floor in Latin, so it is the one
+    # that needs its own Hindi rule; the old `.note` never had one.
+    assert floors.get(":lang(hi) .hero-window .caveat", 0) > floors[".hero-window .caveat"]
