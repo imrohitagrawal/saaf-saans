@@ -478,6 +478,13 @@ HI: dict = {
                               "पहले रोक दी गईं, नीचे दर्ज हैं।",
         # Follows the count of blocked prompts in one pattern group.
         "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
+        # Sits under the list of blocked attempts and explains why the text
+        # above it is not in Hindi. It must not say the attempt is shown
+        # "जैसा आया था" -- normalize.excerpt cuts at 120 characters, and the
+        # simulation button on this page fires a ~1,250-character attack.
+        "sys_excerpt_caption": "जिस भी भाषा में यह लिखा गया था, उसी में दिखाया गया है, "
+                               "और इसका अनुवाद कभी नहीं किया जाता। लंबी कोशिशें काटकर "
+                               "दिखाई जाती हैं।",
         "sys_empty_attempts": "अभी तक कुछ रोका नहीं गया है। ऊपर सिमुलेशन चलाइए, या ‘आज’ से "
                               "कोई इंजेक्शन कोशिश भेजिए — दोनों ही सूरत में वह यहाँ दर्ज होगी।",
     },

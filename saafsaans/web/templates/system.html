@@ -144,6 +144,11 @@
           </div>
           {% endfor %}
         </div>
+        {# Says why the text above is not in the page's language. "cut short",
+           not "exactly as it arrived": normalize.excerpt caps at 120
+           characters and the simulation button fires a ~1,250-character
+           attack, so most of what is listed here is truncated. #}
+        <p class="caption">{{ T('ui', 'sys_excerpt_caption', 'Shown in whatever language it was typed, and never translated. Long attempts are cut short.') }}</p>
       {% else %}
         <p class="empty">{{ T('ui', 'sys_empty_attempts', 'Nothing blocked yet. Run the simulation above, or send an injection attempt from Today — either way it is audited here.') }}</p>
       {% endif %}

@@ -123,6 +123,34 @@ def test_a_long_attempt_is_shown_cut_short_not_whole(showing_attempts):
     assert LONG_ATTACK not in _html.unescape(body)
 
 
+def test_the_caption_explains_the_language_without_overclaiming(showing_attempts):
+    """A draft of this caption said the excerpt is "shown exactly as it
+    arrived". It is not: normalize.excerpt cuts at 120 characters. The caption
+    has to survive being checked against LONG_ATTACK, which lands truncated on
+    the very page the caption sits on."""
+    body = showing_attempts([_event(LONG_ATTACK)], lang="en")
+    flat = " ".join(_html.unescape(body).split())
+    assert ("Shown in whatever language it was typed, and never translated. "
+            "Long attempts are cut short.") in flat
+    assert "exactly as it arrived" not in flat
+
+
+def test_the_caption_is_in_hindi_on_the_hindi_page(showing_attempts):
+    """The excerpt is untranslatable; the sentence explaining that is not, and
+    a Hindi reader is exactly the reader who needs it."""
+    body = showing_attempts([_event(LONG_ATTACK)], lang="hi")
+    from saafsaans.services import i18n
+    assert i18n.HI["ui"]["sys_excerpt_caption"] in _html.unescape(body)
+    assert "never translated" not in body
+
+
+def test_the_caption_only_appears_when_there_is_something_to_caption():
+    """It explains the list above it; with no list it explains nothing."""
+    with TestClient(app) as client:
+        body = client.get("/system", params={"view": "security"}).text
+    assert "never translated" not in body
+
+
 def test_the_hindi_scan_skips_the_excerpt_because_it_is_marked_unknown(
         showing_attempts):
     """Named for what it proves: that the WRAPPER is there, not that the
