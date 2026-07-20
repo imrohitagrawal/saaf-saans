@@ -24,6 +24,46 @@ def test_build_message_contains_context_and_data_fence():
     assert "STALE DATA" not in msg
 
 
+PERSONA_ROW = {"advice": "With asthma, keep your inhaler with you.",
+               "source": "GINA-guidance", "relevance": "persona"}
+GENERAL_ROW = {"advice": "Everyone should cut outdoor time.",
+               "source": "CPCB-AQI-scale", "relevance": "general"}
+
+
+def test_build_message_labels_which_advisories_are_persona_specific():
+    """The retrieval now excludes advisories written for someone else, so the
+    model can be told which of what remains was matched to this reader. Handing
+    it one flat list threw that distinction away."""
+    msg = llm.build_user_message(READING, PERSONA, [PERSONA_ROW, GENERAL_ROW],
+                                 "Should I jog?", "ITO", "t")
+    assert "Advisories written for this persona:" in msg
+    assert "General advisories for this air quality (not persona-specific):" in msg
+    assert msg.index("With asthma") < msg.index(
+        "General advisories for this air quality (not persona-specific):")
+    assert "Everyone should cut outdoor time." in msg
+
+
+def test_build_message_omits_a_group_with_nothing_in_it():
+    msg = llm.build_user_message(READING, PERSONA, [GENERAL_ROW], "Safe?", "ITO", "t")
+    assert "Advisories written for this persona:" not in msg
+    assert "General advisories for this air quality (not persona-specific):" in msg
+
+
+def test_build_message_treats_an_untagged_advisory_as_general():
+    """Turns retrieved before this change, and any hit shaped by whatever last
+    seeded the index, carry no relevance key. They must not be presented to the
+    model as written for the reader."""
+    msg = llm.build_user_message(READING, PERSONA, [{"advice": "Untagged."}],
+                                 "Safe?", "ITO", "t")
+    assert "Advisories written for this persona:" not in msg
+    assert "Untagged." in msg
+
+
+def test_build_message_says_so_when_there_are_no_advisories_at_all():
+    msg = llm.build_user_message(READING, PERSONA, [], "Safe?", "ITO", "t")
+    assert "(none found)" in msg
+
+
 def test_build_message_includes_best_window():
     window = {"window": "Late morning (about 9 AM-12 PM)",
               "rationale": "Fine particles are the main driver."}
