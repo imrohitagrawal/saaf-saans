@@ -34,7 +34,7 @@ checkable rather than quietly overwritten.
 | Application Python | 2,750 lines | 4,305 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
 | CSS + templates | 925 lines | 1,089 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
 | Test code | 1,712 lines | 3,668 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | 45 | `git log --oneline \| wc -l` |
+| Commits | 19 | 46 at `a021623` | `git log --oneline a021623 \| wc -l` |
 | v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
 | v1.0.0 → v1-closure | — | 44 files, +4,523 / −383 | `git diff --shortstat master..v1-closure` |
 
