@@ -168,7 +168,7 @@ HI: dict = {
         "Dominant pollutant": "वह प्रदूषक जो आज के AQI को सबसे ज़्यादा बढ़ा रहा है (जैसे "
                               "pm25 = बारीक कण, pm10 = धूल, o3 = ओज़ोन, no2 = गाड़ियों की गैस)।",
         "Risk score": "आज आपके लिए ख़तरे का 0-100 का अंदाज़ा, जो हवा की गुणवत्ता को आपकी "
-                      "उम्र, बीमारी और आपकी योजना के साथ मिलाकर निकाला जाता है।",
+                      "उम्र, बीमारी और आप जो करने वाले हैं, उसे मिलाकर निकाला जाता है।",
     },
     # normalize.CONDITION_HELP -- what each health condition in the picker is.
     "condition_help": {
@@ -216,7 +216,7 @@ HI: dict = {
         "theme_night": "रात",
         "lang_group": "भाषा",
         "banner_label": "अनुवाद की स्थिति",
-        "footer": "आपकी उम्र, बीमारी और आपकी योजना इसी सेशन में रहती है — कहीं दर्ज नहीं "
+        "footer": "आपकी उम्र, बीमारी और आपके काम इसी सेशन में रहते हैं — कहीं दर्ज नहीं "
                   "की जाती। टेलीमेट्री में सिर्फ़ हैश किया हुआ सेशन आईडी और आपका चुना हुआ "
                   "इलाक़ा रहता है, ताकि सिस्टम व्यू इलाक़े के हिसाब से रिक्वेस्ट दिखा सके।",
         "footer_sources": "डेटा: WAQI/CPCB · सलाह के स्रोत: CPCB, WHO, GINA, GOLD, AHA, "
@@ -269,7 +269,7 @@ HI: dict = {
         "risk_band_High": "ज़्यादा",
         "risk_band_Very High": "बहुत ज़्यादा",
         "risk_band_Extreme": "अत्यधिक",
-        "baseline_chip": "सेहतमंद बड़ा व्यक्ति, वही योजना",
+        "baseline_chip": "सेहतमंद बड़ा व्यक्ति, वही काम",
         "window_label": "अगर बाहर जाना ही पड़े",
         "window_note": "यह एक सामान्य पैटर्न है, हर घंटे का पूर्वानुमान नहीं",
         # The clock time is printed between the two. ``stale_after`` follows the
@@ -448,7 +448,7 @@ HI: dict = {
                      "पूछिए — पूरा पेज, जवाब समेत, आपके चुने हुए व्यक्ति के लिए फिर से लिखा "
                      "जाता है।",
         "q_privacy": "मैं जो टाइप करता हूँ उसका क्या होता है?",
-        "a_privacy": "आपकी उम्र, बीमारी और आपकी योजना पेज के पते और आपके सेशन में रहती है — ये "
+        "a_privacy": "आपकी उम्र, बीमारी और आपके काम पेज के पते और आपके सेशन में रहते हैं — ये "
                      "कभी किसी डेटाबेस में नहीं लिखी जातीं। आपका चुना हुआ इलाक़ा इसका एक अपवाद "
                      "है और उसे जानबूझकर रखा जाता है, ताकि सिस्टम व्यू दिखा सके कि किन इलाक़ों "
                      "से रिक्वेस्ट आती हैं; उसे कभी आपकी बीमारी के साथ नहीं रखा जाता। सवालों की "
@@ -530,7 +530,7 @@ HI: dict = {
         "level_light": "हल्का",
         "level_moderate": "मध्यम",
         "level_high": "ज़्यादा",
-        "mapping_ours": "आपकी किस योजना को कितनी मेहनत माना जाए, यह हमारा अपना आकलन है, स्रोत "
+        "mapping_ours": "आपके किस काम को कितनी मेहनत माना जाए, यह हमारा अपना आकलन है, स्रोत "
                         "का नहीं:",
 
         "h_judgement": "वह हिस्सा जो हमारा अपना आकलन है",
@@ -559,10 +559,12 @@ HI: dict = {
     # presenters.persona_sentence -- the reader described back to themselves.
     #
     # The pieces compose as "{who}, {condition}, {place} में {activity}", so the
-    # condition is a relative clause ("जिसे अस्थमा है") and the activity a noun
-    # phrase ("स्कूल छोड़ने-लाने की योजना"). English puts the place last; Hindi
-    # puts it before the plan, which is why the frames below are whole strings
-    # with reordered fields rather than fragments joined in code.
+    # condition is a relative clause ("जिसे अस्थमा है") and the activity a
+    # predicate that closes the sentence ("बाहर कसरत करने वाले हैं"). It was a
+    # noun phrase built on "योजना", which left the sentence without a verb and
+    # used a word that reads as a scheme rather than an intention. English puts
+    # the place last; Hindi puts it before the activity, which is why the frames
+    # below are whole strings with reordered fields, not fragments joined in code.
     "persona": {
         "age_child": "एक बच्चा",
         "age_adult": "एक बड़ा व्यक्ति",
@@ -572,10 +574,10 @@ HI: dict = {
         "condition_heart": "जिसे दिल की बीमारी है",
         "condition_pregnancy": "जो गर्भवती है",
         "condition_copd": "जिसे COPD है",
-        "activity_exercise": "बाहर कसरत की योजना",
-        "activity_commute": "आने-जाने की योजना",
-        "activity_school_run": "स्कूल छोड़ने-लाने की योजना",
-        "activity_stay_home": "घर पर रहने की योजना",
+        "activity_exercise": "बाहर कसरत करने वाले हैं",
+        "activity_commute": "बाहर आने-जाने वाले हैं",
+        "activity_school_run": "बच्चे को स्कूल छोड़ने-लाने वाले हैं",
+        "activity_stay_home": "घर पर ही रहने वाले हैं",
         "with_activity_and_place": "{who}, {condition}, {place} में {activity}",
         "with_activity": "{who}, {condition}, {activity}",
         "with_place": "{who}, {condition}, {place} में",
@@ -600,12 +602,12 @@ HI: dict = {
         # Joins the reasons, which the sentence then follows with "की वजह से",
         # so the last item must not carry its own postposition.
         "reason_join": " और ",
-        "gap_with_reasons": "आपकी ही योजना वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। "
+        "gap_with_reasons": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। "
                             "आपका {score} {reasons} की वजह से है — यह फ़र्क़ आपके शरीर का है, "
                             "हवा का नहीं।",
-        "gap_plain": "आपकी ही योजना वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। आपका "
+        "gap_plain": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। आपका "
                      "{score} उससे ज़्यादा है।",
-        "same": "आपकी ही योजना वाला एक सेहतमंद बड़ा व्यक्ति भी {baseline} पर ही होता — आज आप "
+        "same": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति भी {baseline} पर ही होता — आज आप "
                 "वही हैं।",
     },
     # risk.compute_risk -- the driver chips under the score.
