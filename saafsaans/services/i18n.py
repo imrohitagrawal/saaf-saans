@@ -326,6 +326,9 @@ HI: dict = {
         "scale_low": "0 अच्छी",
         "scale_high": "गंभीर 500",
         "link_numbers": "इन नंबरों का मतलब क्या है? ›",
+        # Under the WHO comparison, which is a caveat on the band meaning:
+        # the route from a demoted line to the section that explains it.
+        "link_who": "यह तुलना कैसे की जाती है ›",
         "dominant_tag": "मुख्य",
         # Printed after "<day> " in the page-loaded clock line.
         "month_1": "जन",

@@ -80,7 +80,7 @@
     <p class="hint">{{ T('guide', 'scale_2', 'The two scales are far apart. 60 µg/m³ of PM2.5 is 100 "Satisfactory" on India\'s scale and about 154 "Unhealthy" on the US one. So this site converts: it turns the feed\'s US index values back into concentrations, then works out the Indian figure from those. That way the number you see here is the kind of number you see everywhere else in Delhi.') }}</p>
     <p class="hint">{{ T('guide', 'scale_3', "What that number is not. It is worked out from PM2.5 and PM10 only. India's official method uses up to eight pollutants and needs at least three, so on a day when a gas like ozone is the worst thing in the air, the official figure would be higher than ours. The provenance panel under any answer shows both our number and WAQI's original, so you can see the difference for yourself.") }}</p>
 
-    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_who', 'The World Health Organization comparison') }}</h3>
+    <h3 class="kicker" id="who" style="margin-top:20px">{{ T('guide', 'h_who', 'The World Health Organization comparison') }}</h3>
     {#- The figure keeps its own place in the sentence, so neither half of the
         translation can be edited into disagreeing with the number. -#}
     <p class="hint">{{ T('guide', 'who_1_before', "The Organization's guideline for PM2.5 is") }}

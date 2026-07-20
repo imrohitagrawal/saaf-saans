@@ -88,6 +88,31 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .page-h1 { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
 .page-sub { margin: 0; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
 
+/* The one quiet style. Every honesty fix this site made added a sentence, and
+   none of them were ranked against each other -- the WHO comparison was set in
+   the same weight as the band meaning it sits under, and seven more
+   qualifications each had a one-off class. Full weight now belongs to the
+   verdict, the advice and what to do about it; every qualification of those is
+   this class, and nothing else.
+
+   No background colour, deliberately: --text-3 on --surface-2 measures 4.12:1
+   in dark, which is below the 4.5 floor. A caveat that needs to sit on a tint
+   takes .on-tint, which swaps in --text-2 (6.27 light / 6.14 dark).
+
+   NOTE for anyone adding a caveat inside a card: this is a single class, so a
+   descendant rule like `.answer p` outranks it and would render it at body
+   weight. That is not hypothetical -- it is what .disclaimer did for its whole
+   life. Such rules are written `p:not(.caveat)` below, so the competing rule
+   stops applying rather than two rules fighting over the element. */
+.caveat { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; font-weight: 400;
+          color: var(--text-3); text-wrap: pretty; }
+.caveat a { color: var(--accent); text-decoration: none; }
+.caveat.on-tint { color: var(--text-2); }
+/* The window is a baseline-aligned flex row, and a flex item is blockified, so
+   .caveat's top margin would push this one out of the alignment it shares with
+   the label and the value. */
+.hero-window .caveat { margin: 0; font-size: 12px; color: #F5F4F0; opacity: .65; }
+
 /* --------------------------------------------------------------- header -- */
 .hdr { position: sticky; top: 0; z-index: 10; background: var(--bg);
        border-bottom: 1px solid var(--border); }
@@ -152,7 +177,6 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
                padding: 12px 22px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .hero-window .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; opacity: .7; }
 .hero-window .val { font-family: var(--disp); font-weight: 600; font-size: 17px; }
-.hero-window .note { font-size: 12px; opacity: .65; }
 .stale-note { margin: 0; font-size: 13px; color: var(--text-2); background: var(--surface);
               border: 1px dashed var(--border-s); border-radius: 10px; padding: 10px 14px; }
 
@@ -197,7 +221,11 @@ select, input[type="text"] {
 .pollutants .unit { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
 .def-slot { margin: 12px 0 0; padding: 8px 12px; background: var(--surface-2);
             border-radius: 8px; font-size: 13px; color: var(--text-2); }
-.meaning { margin: 12px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+/* Promoted, and left with exactly one job: the advice on the reading card.
+   The WHO comparison used to share this class, which made a qualification look
+   like a second finding. */
+.meaning { margin: 14px 0 0; font-size: 14.5px; font-weight: 500;
+           color: var(--text); text-wrap: pretty; }
 
 /* --------------------------------------------------------------- outlook -- */
 .bars { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -221,11 +249,10 @@ select, input[type="text"] {
 .answer-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
 .answer h3 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
              letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.answer p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.answer p:not(.caveat) { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .answer .lead { font-weight: 600; font-size: 14.5px; color: var(--text); }
 .answer ul { margin: 5px 0 0; padding-left: 18px; display: flex; flex-direction: column;
              gap: 3px; font-size: 13.5px; color: var(--text-2); }
-.disclaimer { margin: 0; font-size: 11.5px; color: var(--text-3); }
 .prov-bar { border-top: 1px solid var(--border); }
 .prov-btn { display: flex; align-items: center; gap: 8px; width: 100%; border: none;
             background: none; cursor: pointer; padding: 10px 16px; font-family: var(--mono);
@@ -239,8 +266,7 @@ select, input[type="text"] {
 .src-row span + span { font-size: 12px; color: var(--text-3); flex: 1 1 220px; }
 .refusal { margin-top: 10px; border-radius: 12px; background: var(--surface-2); padding: 12px 16px; }
 .refusal b { display: block; font-size: 13.5px; }
-.refusal p { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
-.refusal .audit { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.refusal p:not(.caveat) { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .ask-h2 { font-size: 20px; font-weight: 600; }
 .ask-form { margin-top: 16px; display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; font-size: 14px; }
@@ -327,7 +353,6 @@ select, input[type="text"] {
 .thread { list-style: none; margin: 22px 0 0; padding: 0;
           display: flex; flex-direction: column; gap: 20px; }
 .thread .turn { border-top: 1px solid var(--border); padding-top: 18px; }
-.answered-for { margin: 6px 0 0; font-size: 12.5px; color: var(--text-3); }
 .prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
 .prov-body > div + div { margin-top: 4px; }
 
@@ -513,7 +538,6 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .pollutants .lbl,
 :lang(hi) .answer h3,
 :lang(hi) .station .tag,
-:lang(hi) .refusal .audit,
 :lang(hi) .q .mark { font-size: 12.5px; line-height: 1.6; }
 :lang(hi) .driver,
 :lang(hi) .caption,
@@ -528,9 +552,15 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 /* The provenance line is the densest text on the site and was entirely mono. */
 :lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
 :lang(hi) .hint,
-:lang(hi) .disclaimer,
+:lang(hi) .caveat,
 :lang(hi) .foot,
 :lang(hi) .excerpt { font-size: 13.5px; line-height: 1.65; }
+/* The caveat in the hero window is set two steps down from the prose caveat and
+   would land at 12px, below where matras resolve. It takes the same floor as
+   the rest of the hero's small text rather than the prose floor, because it
+   shares a baseline with the label and the value beside it. The old .note had
+   no floor of any kind here. */
+:lang(hi) .hero-window .caveat { font-size: 13px; line-height: 1.6; }
 
 
 /* Optical centring for Devanagari in pill-shaped controls.

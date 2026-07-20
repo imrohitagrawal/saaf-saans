@@ -32,7 +32,7 @@
     <div class="hero-window">
       <span class="lbl">{{ T('ui', 'window_label', 'IF YOU MUST GO OUT') }}</span>
       <span class="val">{{ window.window }}</span>
-      <span class="note">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
+      <span class="caveat">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
     </div>
   </section>
 
@@ -57,7 +57,7 @@
     </div>
 
     {% if not persona_open and condition_help %}
-      <p class="hint">{{ option_label[persona.condition] }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
+      <p class="caveat">{{ option_label[persona.condition] }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
     {% endif %}
 
     {% if persona_open %}
@@ -107,7 +107,7 @@
         <div><dt>{{ option_label[name] }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
         {% endfor %}
       </dl>
-      <p class="hint">{{ T('ui', 'hint_session', 'Stays in this session only — never logged.') }}</p>
+      <p class="caveat">{{ T('ui', 'hint_session', 'Stays in this session only — never logged.') }}</p>
     </form>
     {% endif %}
 
@@ -117,7 +117,7 @@
     </div>
     {# Half this number is a published figure and half is our judgement. The
        reader is told which, here, not only in the repository's documentation. #}
-    <p class="hint">{{ risk_notice }}
+    <p class="caveat">{{ risk_notice }}
       <a href="/guide?{{ q }}#risk">{{ T('ui', 'link_score', 'See how the score is worked out ›') }}</a></p>
   </section>
 
@@ -168,8 +168,12 @@
     <p class="meaning">{{ meaning }}</p>
     {# Rendered only when there is a PM2.5 reading to compare. A wrong multiple
        would be worse than no line at all. #}
-    {% if who_line %}<p class="meaning">{{ who_line }}</p>{% endif %}
-    <p class="hint"><a href="/guide?{{ q }}">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
+    {#- A caveat, not a second finding: it qualifies the band meaning above it
+       rather than adding to it. Demoted text still needs a route to its
+       explanation, so it carries one to the Guide section that gives it. -#}
+    {% if who_line %}<p class="caveat">{{ who_line }}
+      <a href="/guide?{{ q }}#who">{{ T('ui', 'link_who', 'How this compares ›') }}</a></p>{% endif %}
+    <p class="caveat"><a href="/guide?{{ q }}">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
   </section>
 
   {# --- Five-day outlook --------------------------------------------------- #}
@@ -185,7 +189,7 @@
       </div>
       {% endfor %}
     </div>
-    <p class="caption">{{ T('ui', 'outlook_caption', 'Daily averages, µg/m³, converted from the WAQI forecast — a coarse outlook, not an hourly promise.') }}</p>
+    <p class="caveat">{{ T('ui', 'outlook_caption', 'Daily averages, µg/m³, converted from the WAQI forecast — a coarse outlook, not an hourly promise.') }}</p>
   </section>
   {% endif %}
 
@@ -211,21 +215,21 @@
              aria-label="{{ T('ui', 'ask_label', 'Your question') }}">
       <button class="btn" type="submit">{{ T('ui', 'btn_ask', 'Ask') }}</button>
     </form>
-    <p class="hint">{{ T('ui', 'ask_hint', 'Press Enter to ask. The published guidance behind each answer is chosen for the persona above — change it to get the guidance for someone else.') }}</p>
+    <p class="caveat">{{ T('ui', 'ask_hint', 'Press Enter to ask. The published guidance behind each answer is chosen for the persona above — change it to get the guidance for someone else.') }}</p>
 
     {% if transcript %}
     <ol class="thread">
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
         <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
-        <p class="answered-for">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
+        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
 
         {% if t.kind == 'refusal' %}
           {# Flat, no red, no icon: a blocked prompt is routine, not an accusation. #}
           <div class="refusal">
             <b>{{ T('ui', 'refusal_title', 'Not processed.') }}</b>
             <p>{{ T('ui', 'refusal_body', 'That looked like an attempt to change how the assistant works, so it was stopped before reaching the model. Air, precautions, masks, timing — all fair game.') }}</p>
-            <p class="audit mono">{{ T('ui', 'refusal_audit', 'blocked pre-model · audited in security-events') }}</p>
+            <p class="caveat on-tint mono">{{ T('ui', 'refusal_audit', 'blocked pre-model · audited in security-events') }}</p>
           </div>
         {% else %}
           <div class="answer">
@@ -237,7 +241,7 @@
                 {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
               </div>
               {% endfor %}
-              <p class="disclaimer">{{ t.disclaimer or T('ui', 'disclaimer', 'General guidance, not medical advice.') }}</p>
+              <p class="caveat">{{ t.disclaimer or T('ui', 'disclaimer', 'General guidance, not medical advice.') }}</p>
             </div>
 
             {# The collapsed label carries the count, so there is a reason to open it. #}
