@@ -353,12 +353,16 @@ HI: dict = {
         # wordmark is written in Devanagari here, not as "SaafSaans": this is a
         # sentence a Hindi reader reads, not the logo.
         "ask_title": "साफ़ साँस से पूछिए",
-        "ask_sub": "ऊपर दी गई रीडिंग पर आधारित · आपकी अपनी स्थिति के लिए लिखा गया",
+        # Both of these said the answer itself was written for the reader. What
+        # is actually chosen for them is the published guidance behind it, so
+        # the Hindi says that too -- neither more nor less than the English.
+        "ask_sub": "ऊपर दी गई रीडिंग पर आधारित · आपकी स्थिति के हिसाब से चुनी गई गाइडेंस",
         "ask_placeholder": "बाहर जाने, मास्क, समय या लक्षणों के बारे में पूछिए…",
         "ask_label": "आपका सवाल",
         "btn_ask": "पूछें",
-        "ask_hint": "पूछने के लिए एंटर दबाइए। हर जवाब ऊपर दी गई जानकारी के हिसाब से लिखा "
-                    "जाता है — किसी और के लिए सलाह चाहिए तो जानकारी बदल दीजिए।",
+        "ask_hint": "पूछने के लिए एंटर दबाइए। हर जवाब के पीछे की प्रकाशित गाइडेंस ऊपर दी गई "
+                    "जानकारी के हिसाब से चुनी जाती है — किसी और के लिए गाइडेंस चाहिए तो "
+                    "जानकारी बदल दीजिए।",
         "answered_for": "जवाब इनके लिए:",
         # Marks the reader's own question in the transcript. "प्र" is the
         # standard Hindi abbreviation for प्रश्न, matching the English "Q".
@@ -400,6 +404,10 @@ HI: dict = {
         "prov_count_after": "गाइडेंस स्रोत",
         "prov_measured": "उस समय मापा गया",
         "prov_published": "इस्तेमाल की गई प्रकाशित गाइडेंस",
+        # The two groups inside that list: chosen for the reader's own
+        # condition, activity or age, and chosen for the air alone.
+        "prov_group_persona": "आपकी स्थिति के लिए लिखी गई",
+        "prov_group_general": "इस हवा के लिए आम गाइडेंस",
         # The reading's own provenance line, printed as fragments around the
         # numbers: "AQI 250 (CPCB पैमाना ...) · मुख्य प्रदूषक PM25 · ...".
         # US EPA keeps its Latin initials: it is the agency that publishes the

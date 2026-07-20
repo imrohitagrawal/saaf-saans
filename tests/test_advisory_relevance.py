@@ -6,6 +6,7 @@ served a senior's advisory with score 0 rather than not served it at all. Scorin
 cannot exclude; only filtering can.
 """
 import itertools
+from pathlib import Path
 
 import pytest
 
@@ -117,6 +118,70 @@ def test_rank_advisories_falls_back_to_the_nearest_band():
     ranked = es.rank_advisories(ADVISORIES, 10000, "any", "any", "any", k=4)
     assert ranked
     assert all(d["aqi_max"] == 999 for d in ranked)
+
+
+# --- Where relevance becomes visible to the reader -------------------------
+PERSONA_ASTHMA = {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
+                  "activity": "Outdoor exercise", "theme": "light"}
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+    from saafsaans.web.main import app
+    with TestClient(app) as c:
+        yield c
+
+
+def test_the_provenance_panel_separates_the_two_kinds_of_guidance(client):
+    """The panel listed every source under one heading, so guidance chosen for
+    the air alone looked as though it had been chosen for the reader."""
+    client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})
+    opened = client.get("/", params={**PERSONA_ASTHMA, "prov": "0"}).text
+    assert "Written for your persona" in opened
+    assert "General guidance for this air quality" in opened
+    # The heading test_web.py pins must survive alongside them.
+    assert "Published guidance used" in opened
+
+
+def _stored_sources():
+    """Every advisory dict held in the in-RAM transcript store."""
+    from saafsaans.web import main as web_main
+    return [s for store in web_main._TRANSCRIPTS.values()
+            for turn in store["turns"] for s in turn.get("sources", [])]
+
+
+def test_a_group_with_nothing_in_it_gets_no_heading(client):
+    """An empty group must not print a heading over nothing."""
+    client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})
+    sources = _stored_sources()
+    assert sources
+    for source in sources:
+        source["relevance"] = es.RELEVANCE_PERSONA
+    opened = client.get("/", params={**PERSONA_ASTHMA, "prov": "0"}).text
+    assert "Written for your persona" in opened
+    assert "General guidance for this air quality" not in opened
+
+
+def test_a_turn_stored_before_relevance_existed_still_renders(client):
+    """The in-RAM transcript store survives this code change within one process
+    lifetime, and its turns carry no relevance key at all."""
+    client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})
+    for source in _stored_sources():
+        source.pop("relevance", None)
+    opened = client.get("/", params={**PERSONA_ASTHMA, "prov": "0"})
+    assert opened.status_code == 200
+    assert "src-tag" in opened.text
+    assert "Written for your persona" not in opened.text
+    assert "General guidance for this air quality" in opened.text
+
+
+def test_the_template_and_the_ranker_agree_on_the_tag_value():
+    """The template compares against a literal. If the constant were renamed
+    without it, every row would silently fall into the general group."""
+    template = (Path(__file__).resolve().parents[1]
+                / "saafsaans/web/templates/today.html").read_text()
+    assert f"'{es.RELEVANCE_PERSONA}'" in template
 
 
 def test_every_row_has_a_translated_key_shape():

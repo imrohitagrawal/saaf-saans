@@ -199,7 +199,10 @@
           The class replaces an inline style so the Hindi weight bump in
           app.css can reach it. -#}
       <h2 class="ask-h2">{{ T('ui', 'ask_title', 'Ask SaafSaans') }}</h2>
-      <span style="font-size:12.5px;color:var(--text-3)">{{ T('ui', 'ask_sub', 'grounded in the reading above · written for your persona') }}</span>
+      {#- The claim is about the sources, not the sentence. The model writes the
+          answer; what this app controls is which published guidance reaches it,
+          and that is now filtered to the reader's persona. -#}
+      <span style="font-size:12.5px;color:var(--text-3)">{{ T('ui', 'ask_sub', 'grounded in the reading above · guidance matched to your persona') }}</span>
     </div>
 
     <form class="ask-form" method="post" action="/ask?{{ q }}">
@@ -208,7 +211,7 @@
              aria-label="{{ T('ui', 'ask_label', 'Your question') }}">
       <button class="btn" type="submit">{{ T('ui', 'btn_ask', 'Ask') }}</button>
     </form>
-    <p class="hint">{{ T('ui', 'ask_hint', 'Press Enter to ask. Every answer is written for the persona above — change it to get advice for someone else.') }}</p>
+    <p class="hint">{{ T('ui', 'ask_hint', 'Press Enter to ask. The published guidance behind each answer is chosen for the persona above — change it to get the guidance for someone else.') }}</p>
 
     {% if transcript %}
     <ol class="thread">
@@ -262,13 +265,27 @@
                   </div>
                 </div>
                 {% if t.sources %}
+                {#- Two groups, not one list. Retrieval matches some rows to the
+                    reader's own condition, activity or age and some to the air
+                    alone, and one heading over both claimed the second kind was
+                    chosen for them. Turns stored before relevance existed carry
+                    no such key, so rejectattr keeps them in the general group
+                    rather than raising on the missing one. -#}
+                {% set persona_sources = t.sources | selectattr('relevance', 'equalto', 'persona') | list %}
+                {% set general_sources = t.sources | rejectattr('relevance', 'equalto', 'persona') | list %}
                 <div>
                   <div class="kicker">{{ T('ui', 'prov_published', 'Published guidance used') }}</div>
-                  {% for s in t.sources %}
-                  <div class="src-row">
-                    <span class="src-tag">{{ s.source }}</span>
-                    <span>{{ advisory_text(s) }}</span>
-                  </div>
+                  {% for group, kicker in [(persona_sources, T('ui', 'prov_group_persona', 'Written for your persona')),
+                                           (general_sources, T('ui', 'prov_group_general', 'General guidance for this air quality'))] %}
+                    {% if group %}
+                    <div class="kicker">{{ kicker }}</div>
+                    {% for s in group %}
+                    <div class="src-row">
+                      <span class="src-tag">{{ s.source }}</span>
+                      <span>{{ advisory_text(s) }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
                   {% endfor %}
                 </div>
                 {% endif %}
