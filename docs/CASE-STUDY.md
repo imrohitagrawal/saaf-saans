@@ -265,7 +265,7 @@ clinical heuristic in the UI, not only in the README.
 able to name why.** Both faults are recorded in section 11.
 
 **The Hindi is drafted and gated.** The verdict, band advice, AQI meanings, glossary, Guide
-and all 34 advisories are translated and committed — never machine-translated at request
+and all 43 advisories are translated and committed — never machine-translated at request
 time. Every Hindi page carries a banner stating no Hindi speaker has checked it. The persona
 sentence, comparison line and driver chips remain English and the module says so.
 

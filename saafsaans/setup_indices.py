@@ -4,6 +4,14 @@ Run: ``python setup_indices.py`` (or ``python saafsaans/setup_indices.py``).
 Idempotent — existing indices are left in place. Requires Elastic credentials;
 without them it prints guidance and exits cleanly (the app itself still runs
 in mock mode).
+
+Idempotent is not the same as authoritative. Advisory ids are derived from the
+advisory itself, so re-running overwrites a changed row and adds a new one, but
+nothing here deletes a row that has LEFT the corpus. A connected deployment
+therefore keeps serving advisories this repository no longer contains until the
+``health-advisories`` index is dropped and re-seeded. Every guarantee the tests
+make about which advisories a persona can be served holds in-process; it holds
+against Elasticsearch only after that re-seed.
 """
 import os
 import hashlib

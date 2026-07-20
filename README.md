@@ -26,7 +26,7 @@ Hindi is drafted and gated behind a banner saying no Hindi speaker has checked i
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                      # optional: blank = mock mode
-python saafsaans/setup_indices.py         # create 4 indices + seed 34 advisories
+python saafsaans/setup_indices.py         # create 4 indices + seed 43 advisories
 python -m saafsaans.seed_demo_history     # optional: backfill so System has data
 uvicorn saafsaans.web.main:app --reload --port 8010
 ```
@@ -103,7 +103,7 @@ keyword fields, with the score coming from how many persona terms hit, not from 
 over prose.
 
 **The app runs without it.** `search_advisories` falls back to an in-process filter over the
-same 34 seeded advisories, every metrics call is guarded, and the System views render their
+same 43 seeded advisories, every metrics call is guarded, and the System views render their
 designed empty states. Verified rather than asserted: the container in
 [`docs/DEPLOY.md`](docs/DEPLOY.md) runs with no Elasticsearch at all and `/health` returns
 `{"ok":true,"es":"none",...}` while every view serves 200.
@@ -138,7 +138,7 @@ saafsaans/
     static/app.css      design tokens, per-band sky, severity ramp
   services/
     config · normalize · guard · waqi · forecast · risk · es · metrics · llm
-  data/advisories.py    34 seed advisories
+  data/advisories.py    43 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
 tests/                  363 tests
 docs/                   design brief, screenshots, specs
@@ -147,7 +147,7 @@ docs/                   design brief, screenshots, specs
 ## Known limitations
 
 - **The Hindi is drafted, not reviewed.** `?lang=hi` serves a committed Hindi translation of
-  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 34
+  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 43
   advisories. **No Hindi speaker has checked it**, so every Hindi page carries a banner saying
   so, and that banner is a condition of the feature shipping rather than a nicety — a
   mistranslated instruction about an inhaler is worse than English. The persona sentence, the
