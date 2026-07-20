@@ -7,8 +7,12 @@ Dual-mode + mock-first:
                 and every index/log call is a silent no-op.
 
 Every write helper swallows exceptions: logging and indexing must never crash
-a chat turn. Search always returns at least one advisory when any seed matches
-the AQI band, and degrades to in-process filtering on any ES error.
+a chat turn. Search never returns empty while the corpus is non-empty, and
+degrades to in-process ranking on any ES error.
+
+Retrieval is ranked, not merely filtered by AQI band: an advisory written for a
+different persona is excluded rather than returned with a score of zero. See
+``rank_advisories``.
 """
 from datetime import datetime, timezone
 
