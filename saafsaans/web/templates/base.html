@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en" data-theme="{{ theme }}">
+{#- doc_lang, not lang: the System views stay English by design, and declaring
+    a document Hindi while its prose is English tells a screen reader to read
+    English with Hindi phonetics. The chrome links still carry lang. -#}
+<html lang="{{ doc_lang or lang }}" data-theme="{{ theme }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -19,37 +22,60 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+{#- The Devanagari display face is a real download and an English reader would
+    never see a glyph from it, so it is requested only when Hindi is active.
+    The stylesheet switches --disp on html[lang="hi"] to match. -#}
+{% if lang == 'hi' %}
+<link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@500;600;700;800&display=swap" rel="stylesheet">
+{% endif %}
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-{#- Persona and theme ride in the query string, so every link must carry them
-    and every view is shareable. `q` is built once in main.py. -#}
-<a class="skip" href="#main">Skip to main content</a>
+{#- Persona, theme and language ride in the query string, so every link must
+    carry all three and every view is shareable in the language it was read in.
+    `q` is built once in main.py. -#}
+<a class="skip" href="#main">{{ T('ui', 'skip', 'Skip to main content') }}</a>
 <header class="hdr">
   <div class="hdr-in">
     <a class="wordmark" href="/?{{ q }}">
       <b>SaafSaans</b><span lang="hi">साफ़ साँस</span>
     </a>
-    <nav class="nav" aria-label="Main">
-      <a href="/?{{ q }}"        {% if active == 'today'  %}aria-current="page"{% endif %}>Today</a>
-      <a href="/city?{{ q }}"    {% if active == 'city'   %}aria-current="page"{% endif %}>City Pulse</a>
-      <a href="/system?{{ q }}"  {% if active == 'system' %}aria-current="page"{% endif %}>System</a>
-      <a href="/guide?{{ q }}"   {% if active == 'guide'  %}aria-current="page"{% endif %}>Guide</a>
+    <nav class="nav" aria-label="{{ T('ui', 'nav_label', 'Main') }}">
+      <a href="/?{{ q }}"        {% if active == 'today'  %}aria-current="page"{% endif %}>{{ T('ui', 'nav_today', 'Today') }}</a>
+      <a href="/city?{{ q }}"    {% if active == 'city'   %}aria-current="page"{% endif %}>{{ T('ui', 'nav_city', 'City Pulse') }}</a>
+      <a href="/system?{{ q }}"  {% if active == 'system' %}aria-current="page"{% endif %}>{{ T('ui', 'nav_system', 'System') }}</a>
+      <a href="/guide?{{ q }}"   {% if active == 'guide'  %}aria-current="page"{% endif %}>{{ T('ui', 'nav_guide', 'Guide') }}</a>
     </nav>
     {#- Plain links, so the toggle works with JavaScript disabled. -#}
-    <div class="seg" role="group" aria-label="Theme">
-      <a href="{{ path }}?{{ q_light }}" aria-current="{{ 'true' if theme == 'light' else 'false' }}">Day</a>
-      <a href="{{ path }}?{{ q_dark }}"  aria-current="{{ 'true' if theme == 'dark'  else 'false' }}">Night</a>
+    <div class="seg" role="group" aria-label="{{ T('ui', 'theme_group', 'Theme') }}">
+      <a href="{{ path }}?{{ q_light }}" aria-current="{{ 'true' if theme == 'light' else 'false' }}">{{ T('ui', 'theme_day', 'Day') }}</a>
+      <a href="{{ path }}?{{ q_dark }}"  aria-current="{{ 'true' if theme == 'dark'  else 'false' }}">{{ T('ui', 'theme_night', 'Night') }}</a>
+    </div>
+    {#- Each language names itself in its own script, which is how a reader who
+        cannot read the other one finds it. Both links keep the persona, the
+        theme and the current path, so switching language changes nothing else. -#}
+    <div class="seg" role="group" aria-label="{{ T('ui', 'lang_group', 'Language') }}">
+      <a href="{{ path }}?{{ q_en }}" lang="en" aria-current="{{ 'true' if lang == 'en' else 'false' }}">English</a>
+      <a href="{{ path }}?{{ q_hi }}" lang="hi" aria-current="{{ 'true' if lang == 'hi' else 'false' }}">हिंदी</a>
     </div>
   </div>
 </header>
 
 <main class="shell" id="main">
+  {#- A condition of shipping the translation, not a nicety: the Hindi is not
+      yet reviewed, and a reader must be told that before they act on a health
+      instruction. First child of <main>, so the skip link lands on it and
+      nothing can scroll past it; there is no way to dismiss it. -#}
+  {% if lang == 'hi' %}
+  <aside class="notice" role="note" aria-label="{{ T('ui', 'banner_label', 'Translation status') }}">
+    <p>{{ review_banner }}</p>
+    <p class="notice-en" lang="en">{{ review_banner_en }}</p>
+  </aside>
+  {% endif %}
   {% block content %}{% endblock %}
   <footer class="foot">
-    Your age, condition and plans stay in this session — never logged. Telemetry keeps a
-    hashed session id and the area you picked, so the System view can show requests by area.
-    Data: WAQI/CPCB · advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.
+    {{ T('ui', 'footer', 'Your age, condition and plans stay in this session — never logged. Telemetry keeps a hashed session id and the area you picked, so the System view can show requests by area.') }}
+    {{ T('ui', 'footer_sources', 'Data: WAQI/CPCB · advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.') }}
   </footer>
 </main>
 </body>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}SaafSaans — City Pulse{% endblock %}
+{% block title %}SaafSaans — {{ T('ui', 'nav_city', 'City Pulse') }}{% endblock %}
 
 {% macro station_list(title, rows) %}
 <div>
@@ -10,7 +10,10 @@
        aria-current="{{ 'true' if s.selected else 'false' }}">
       <span class="dot" aria-hidden="true"></span>
       <span class="nm">{{ s.name }}</span>
-      {% if s.source == 'cached' %}<span class="tag">CACHED{% if s.age %} · {{ s.age }} OLD{% endif %}</span>
+      {#- The tags stay in Latin script: they are the same two words used in the
+          caption and in the Guide, and a reader matching one to the other is
+          better served by one spelling than by two. -#}
+      {% if s.source == 'cached' %}<span class="tag">CACHED{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
       {% elif s.source == 'sample' %}<span class="tag">SAMPLE</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       <span class="bd">{{ s.band }}</span>
@@ -21,27 +24,26 @@
 {% endmacro %}
 
 {% block content %}
-<h1 class="page-h1">City Pulse</h1>
-<p class="page-sub">{{ count }} stations · page loaded {{ now }} · median AQI {{ median }} · worst first</p>
-<p class="caption">CACHED means we hold a reading for that place but it is older than three hours,
-  and the tag says how old. SAMPLE means we hold no reading at all, so a typical figure for that
-  place is shown instead — treat it as a stand-in, not as the air right now.</p>
+<h1 class="page-h1">{{ T('ui', 'nav_city', 'City Pulse') }}</h1>
+<p class="page-sub">{{ count }} {{ T('ui', 'stations', 'stations') }} · {{ T('ui', 'page_loaded', 'page loaded') }} {{ now }} · {{ T('ui', 'median_aqi', 'median AQI') }} {{ median }} · {{ T('ui', 'worst_first', 'worst first') }}</p>
+<p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we hold a reading for that place but it is older than three hours, and the tag says how old. SAMPLE means we hold no reading at all, so a typical figure for that place is shown instead — treat it as a stand-in, not as the air right now.') }}</p>
 
 <div class="grid" style="margin-top:14px">
-  <section class="card" aria-label="24 hour trend">
+  <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
     <div class="row" style="align-items:baseline;gap:8px">
       <span style="font-weight:600;font-size:15px">{{ selected }}</span>
-      <span class="mono" style="font-size:11px;color:var(--text-3)">LAST 24 H · AQI</span>
+      <span class="mono" style="font-size:11px;color:var(--text-3)">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
       <span class="mono" style="margin-left:auto;font-size:13px;font-weight:600">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
     </div>
     {% if spark %}
       <div class="spark">{{ spark }}</div>
-      <div class="spark-x"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>NOW</span></div>
-      <p class="caption">Delhi pattern: overnight build-up, mid-day relief. Pick a station to see its curve.</p>
+      <div class="spark-x"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>{{ T('ui', 'now', 'NOW') }}</span></div>
+      <p class="caption">{{ T('ui', 'spark_caption', 'Delhi pattern: overnight build-up, mid-day relief. Pick a station to see its curve.') }}</p>
     {% else %}
-      <p class="empty">No readings stored for {{ selected }} yet. Run
-        <code>python -m saafsaans.seed_demo_history</code> to backfill, or keep using
-        the app — every live reading is indexed as it arrives.</p>
+      <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ selected }}
+        {{ T('ui', 'no_trend_after', 'yet. Run') }}
+        <code>python -m saafsaans.seed_demo_history</code>
+        {{ T('ui', 'no_trend_tail', 'to backfill, or keep using the app — every live reading is indexed as it arrives.') }}</p>
     {% endif %}
   </section>
 

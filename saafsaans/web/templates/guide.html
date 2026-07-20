@@ -1,36 +1,35 @@
 {% extends "base.html" %}
-{% block title %}SaafSaans — Guide{% endblock %}
+{% block title %}SaafSaans — {{ T('ui', 'nav_guide', 'Guide') }}{% endblock %}
 
 {% block content %}
-<h1 class="page-h1">Guide</h1>
-<p class="page-sub">Every number and term on this site, in plain language.</p>
+<h1 class="page-h1">{{ T('ui', 'nav_guide', 'Guide') }}</h1>
+<p class="page-sub">{{ T('guide', 'sub', 'Every number and term on this site, in plain language.') }}</p>
 
 <div class="grid" style="margin-top:14px">
 
   <section class="card">
-    <h2 class="kicker">The numbers</h2>
+    <h2 class="kicker">{{ T('guide', 'h_numbers', 'The numbers') }}</h2>
     <dl class="faq">
       {% for term, text in glossary.items() %}
-      <div><dt>{{ term }}</dt><dd>{{ text }}</dd></div>
+      <div><dt>{{ term }}</dt><dd>{{ T('glossary', term, text) }}</dd></div>
       {% endfor %}
     </dl>
   </section>
 
   <section class="card">
-    <h2 class="kicker">Health conditions in the picker</h2>
+    <h2 class="kicker">{{ T('guide', 'h_conditions', 'Health conditions in the picker') }}</h2>
     <dl class="faq">
       {% for name, text in conditions_help.items() %}
-      <div><dt>{{ name }}</dt><dd>{{ text }}</dd></div>
+      <div><dt>{{ name }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
       {% endfor %}
     </dl>
   </section>
 
   <section class="card wide">
-    <h2 class="kicker">The CPCB air-quality bands</h2>
-    <p class="hint">India's national scale runs 0–500. The band decides the colour of the
-      sky above and what the advice says.</p>
+    <h2 class="kicker">{{ T('guide', 'h_bands', 'The CPCB air-quality bands') }}</h2>
+    <p class="hint">{{ T('guide', 'bands_intro', "India's national scale runs 0–500. The band decides the colour of the sky above and what the advice says.") }}</p>
     <table style="margin-top:12px">
-      <tr><th>Band</th><th>AQI</th><th>What it means for you</th></tr>
+      <tr><th>{{ T('guide', 'th_band', 'Band') }}</th><th>AQI</th><th>{{ T('guide', 'th_means', 'What it means for you') }}</th></tr>
       {% for row in bands %}
       <tr class="band-{{ row.slug }}">
         <td><span class="dot" style="background:var(--ink)" aria-hidden="true"></span>{{ row.label }}</td>
@@ -42,88 +41,50 @@
   </section>
 
   <section class="card wide">
-    <h2 class="kicker">Common questions</h2>
+    <h2 class="kicker">{{ T('guide', 'h_faq', 'Common questions') }}</h2>
     <dl class="faq">
       <div>
-        <dt>Why is my risk score different from the AQI?</dt>
-        <dd>The AQI describes the air. The risk score describes <em>you</em> in that air —
-          it adds your age, health condition, and what you are planning to do. The same
-          air can be routine for a healthy adult indoors and serious for a senior with
-          COPD about to exercise outside. The gap between the two numbers is the whole
-          reason this site exists.</dd>
+        <dt>{{ T('guide', 'q_score_vs_aqi', 'Why is my risk score different from the AQI?') }}</dt>
+        <dd>{{ T('guide', 'a_score_vs_aqi', 'The AQI describes the air. The risk score describes you in that air — it adds your age, health condition, and what you are planning to do. The same air can be routine for a healthy adult indoors and serious for a senior with COPD about to exercise outside. The gap between the two numbers is the whole reason this site exists.') }}</dd>
       </div>
       <div>
-        <dt>How is the risk score calculated?</dt>
-        <dd>It has its own section below, including every number that goes into it and
-          where that number came from. The short answer: it starts from the air, adds
-          how hard you will be breathing, and adds how much harder this air is on your
-          body. It is a decision aid — <strong>not a validated clinical
-          instrument</strong>, and not a diagnosis.</dd>
+        <dt>{{ T('guide', 'q_how_score', 'How is the risk score calculated?') }}</dt>
+        <dd>{{ T('guide', 'a_how_score', 'It has its own section below, including every number that goes into it and where that number came from. The short answer: it starts from the air, adds how hard you will be breathing, and adds how much harder this air is on your body. It is a decision aid — not a validated clinical instrument, and not a diagnosis.') }}</dd>
       </div>
       <div>
-        <dt>Where does the air data come from?</dt>
-        <dd>Ground monitoring stations run under India's CPCB network, read through the
-          WAQI feed. When that feed fails, the site shows the last good reading clearly
-          marked <span class="mono">◌ CACHED</span> and says so above the advice. On City
-          Pulse a <span class="mono">CACHED</span> tag also carries the reading's age, and
-          a place we hold no reading for at all is tagged <span class="mono">SAMPLE</span>
-          instead — a stand-in figure, not a measurement. Nothing old or stood-in is ever
-          presented as live.</dd>
+        <dt>{{ T('guide', 'q_data_source', 'Where does the air data come from?') }}</dt>
+        <dd>{{ T('guide', 'a_data_source', "Ground monitoring stations run under India's CPCB network, read through the WAQI feed. When that feed fails, the site shows the last good reading clearly marked CACHED and says so above the advice. On City Pulse a CACHED tag also carries the reading's age, and a place we hold no reading for at all is tagged SAMPLE instead — a stand-in figure, not a measurement. Nothing old or stood-in is ever presented as live.") }}</dd>
       </div>
       <div>
-        <dt>Why does the answer sometimes ignore my question?</dt>
-        <dd>Answers are written for the persona shown on the Today page, not for a
-          hypothetical one. Asking "what if I were fit?" will still return advice for the
-          persona you have set. Change the persona and ask again — the whole page,
-          including the answer, is rewritten for whoever you select.</dd>
+        <dt>{{ T('guide', 'q_ignores', 'Why does the answer sometimes ignore my question?') }}</dt>
+        <dd>{{ T('guide', 'a_ignores', 'Answers are written for the persona shown on the Today page, not for a hypothetical one. Asking "what if I were fit?" will still return advice for the persona you have set. Change the persona and ask again — the whole page, including the answer, is rewritten for whoever you select.') }}</dd>
       </div>
       <div>
-        <dt>What happens to what I type?</dt>
-        <dd>Your age, health condition and plans stay in the page address and your session
-          — those are never written to a database. The <em>area</em> you pick is the one
-          exception and is stored deliberately, so the System view can show which areas get
-          requests; it is never stored alongside your health condition. Questions are checked
-          for prompt-injection before reaching the model. Logs keep a one-way hashed session
-          id and status fields; the security log keeps at most a 120-character snippet of a
-          blocked prompt.</dd>
+        <dt>{{ T('guide', 'q_privacy', 'What happens to what I type?') }}</dt>
+        <dd>{{ T('guide', 'a_privacy', 'Your age, health condition and plans stay in the page address and your session — those are never written to a database. The area you pick is the one exception and is stored deliberately, so the System view can show which areas get requests; it is never stored alongside your health condition. Questions are checked for prompt-injection before reaching the model. Logs keep a one-way hashed session id and status fields; the security log keeps at most a 120-character snippet of a blocked prompt.') }}</dd>
       </div>
       <div>
-        <dt>Is this medical advice?</dt>
-        <dd>No. It is general guidance built from public health sources (CPCB, WHO, GINA,
-          GOLD, AHA, ACOG, EPA). If you are unwell, or your usual medication is not
-          working as it should, contact a doctor.</dd>
+        <dt>{{ T('guide', 'q_medical', 'Is this medical advice?') }}</dt>
+        <dd>{{ T('guide', 'a_medical', 'No. It is general guidance built from public health sources (CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA). If you are unwell, or your usual medication is not working as it should, contact a doctor.') }}</dd>
       </div>
     </dl>
   </section>
 
   {# --- Where the number comes from ------------------------------------- #}
   <section class="card wide" id="numbers">
-    <h2 class="kicker">Where the air number comes from, and what it is not</h2>
-    <p class="hint">The readings come from India's CPCB monitoring stations, delivered through
-      the WAQI feed. WAQI publishes its numbers on the <strong>United States</strong> EPA index,
-      not India's — it moved every Indian station onto the US scale in January 2016, and says
-      itself that its figures will therefore differ from India's own National AQI portal.</p>
-    <p class="hint">The two scales are far apart. 60 µg/m³ of PM2.5 is 100 "Satisfactory" on
-      India's scale and about 154 "Unhealthy" on the US one. So this site converts: it turns
-      the feed's US index values back into concentrations, then works out the Indian figure
-      from those. That way the number you see here is the kind of number you see everywhere
-      else in Delhi.</p>
-    <p class="hint"><strong>What that number is not.</strong> It is worked out from PM2.5 and
-      PM10 only. India's official method uses up to eight pollutants and needs at least three,
-      so on a day when a gas like ozone is the worst thing in the air, the official figure would
-      be higher than ours. The provenance panel under any answer shows both our number and
-      WAQI's original, so you can see the difference for yourself.</p>
+    <h2 class="kicker">{{ T('guide', 'h_scale', 'Where the air number comes from, and what it is not') }}</h2>
+    <p class="hint">{{ T('guide', 'scale_1', "The readings come from India's CPCB monitoring stations, delivered through the WAQI feed. WAQI publishes its numbers on the United States EPA index, not India's — it moved every Indian station onto the US scale in January 2016, and says itself that its figures will therefore differ from India's own National AQI portal.") }}</p>
+    <p class="hint">{{ T('guide', 'scale_2', 'The two scales are far apart. 60 µg/m³ of PM2.5 is 100 "Satisfactory" on India\'s scale and about 154 "Unhealthy" on the US one. So this site converts: it turns the feed\'s US index values back into concentrations, then works out the Indian figure from those. That way the number you see here is the kind of number you see everywhere else in Delhi.') }}</p>
+    <p class="hint">{{ T('guide', 'scale_3', "What that number is not. It is worked out from PM2.5 and PM10 only. India's official method uses up to eight pollutants and needs at least three, so on a day when a gas like ozone is the worst thing in the air, the official figure would be higher than ours. The provenance panel under any answer shows both our number and WAQI's original, so you can see the difference for yourself.") }}</p>
 
-    <h3 class="kicker" style="margin-top:20px">The World Health Organization comparison</h3>
-    <p class="hint">The Organization's guideline for PM2.5 is <strong>{{ who_guideline }} µg/m³
-      averaged over 24 hours</strong>, and 5 µg/m³ averaged over a year. The line on the Today
-      page compares the air <em>right now</em> against the 24-hour figure, and says so in those
-      words, because the two are not the same thing: a single reading is not a daily average.</p>
-    <p class="hint">The guideline is also stricter than it sounds in one direction and looser in
-      another. WHO defines the 24-hour level as the 99th percentile of a year's daily averages —
-      that is, three or four days above it a year is still within the guideline. It is not a
-      limit for any one day. We round the comparison to a single figure and always say "about",
-      because the underlying reading is not precise enough to deserve more.</p>
+    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_who', 'The World Health Organization comparison') }}</h3>
+    {#- The figure keeps its own place in the sentence, so neither half of the
+        translation can be edited into disagreeing with the number. -#}
+    <p class="hint">{{ T('guide', 'who_1_before', "The Organization's guideline for PM2.5 is") }}
+      <strong>{{ who_guideline }} {{ T('guide', 'who_1_unit', 'µg/m³ averaged over 24 hours') }}</strong>{{ T('guide', 'who_1_after', ', and 5 µg/m³ averaged over a year. The line on the Today page compares the air right now against the 24-hour figure, and says so in those words, because the two are not the same thing: a single reading is not a daily average.') }}</p>
+    <p class="hint">{{ T('guide', 'who_2', 'The guideline is also stricter than it sounds in one direction and looser in another. WHO defines the 24-hour level as the 99th percentile of a year\'s daily averages — that is, three or four days above it a year is still within the guideline. It is not a limit for any one day. We round the comparison to a single figure and always say "about", because the underlying reading is not precise enough to deserve more.') }}</p>
+    {#- A citation is not copy: it is the identifier of a published document, and
+        translating it would make it harder to look up, not easier. -#}
     <p class="caption">WHO global air quality guidelines. Particulate matter (PM2.5 and PM10),
       ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide. Geneva: World Health
       Organization; 2021.</p>
@@ -134,32 +95,26 @@
      assertion with a decimal point. Everything that goes into it is listed
      here, including the parts that are not evidence. ---------------------- #}
   <section class="card wide" id="risk">
-    <h2 class="kicker">How your risk score is worked out</h2>
+    <h2 class="kicker">{{ T('guide', 'h_risk', 'How your risk score is worked out') }}</h2>
     <p class="hint">{{ risk_notice }}</p>
 
-    <p class="hint">The score adds three things together and stops at 100:
-      a starting figure for how bad the air is, how much air you will breathe
-      in while doing what you have planned, and how much harder this air is on
-      your body than on an average adult's.</p>
+    <p class="hint">{{ T('guide', 'risk_intro', "The score adds three things together and stops at 100: a starting figure for how bad the air is, how much air you will breathe in while doing what you have planned, and how much harder this air is on your body than on an average adult's.") }}</p>
 
-    <h3 class="kicker" style="margin-top:18px">What the words on the score mean</h3>
+    <h3 class="kicker" style="margin-top:18px">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
     <table style="margin-top:8px">
-      <tr><th>Score</th><th>What it is called</th></tr>
+      <tr><th>{{ T('guide', 'th_score', 'Score') }}</th><th>{{ T('guide', 'th_called', 'What it is called') }}</th></tr>
       {% for b in risk_bands %}
       <tr>
-        <td class="mono">{% if loop.first %}under {{ b.upper }}{% elif loop.last %}80 and above{% else %}{{ loop.previtem.upper }}–{{ b.upper - 1 }}{% endif %}</td>
-        <td>{{ b.label }}</td>
+        <td class="mono">{% if loop.first %}0{% else %}{{ loop.previtem.upper }}{% endif %}–{{ b.upper - 1 }}</td>
+        <td>{{ T('ui', 'risk_band_' ~ b.label, b.label) }}</td>
       </tr>
       {% endfor %}
     </table>
 
-    <h3 class="kicker" style="margin-top:20px">The part that comes from published research</h3>
-    <p class="hint">Breathing harder means breathing in more of the same air. How much
-      more is measured, and we use those measurements rather than guessing. The figures
-      below are litres of air per minute (shown as cubic metres per minute, the unit the
-      source uses), for the three age groups this site offers.</p>
+    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_researched', 'The part that comes from published research') }}</h3>
+    <p class="hint">{{ T('guide', 'researched_intro', 'Breathing harder means breathing in more of the same air. How much more is measured, and we use those measurements rather than guessing. The figures below are litres of air per minute (shown as cubic metres per minute, the unit the source uses), for the three age groups this site offers.') }}</p>
     <table style="margin-top:8px">
-      <tr><th>Age group</th><th>At rest</th><th>Light</th><th>Moderate</th><th>Hard</th></tr>
+      <tr><th>{{ T('guide', 'th_age', 'Age group') }}</th><th>{{ T('guide', 'th_rest', 'At rest') }}</th><th>{{ T('guide', 'th_light', 'Light') }}</th><th>{{ T('guide', 'th_moderate', 'Moderate') }}</th><th>{{ T('guide', 'th_hard', 'Hard') }}</th></tr>
       {% for age, band in epa_age_bands.items() %}
       <tr>
         <td>{{ age | capitalize }} <span class="mono" style="color:var(--text-3)">{{ band }}</span></td>
@@ -170,30 +125,21 @@
       {% endfor %}
     </table>
     <p class="caption">{{ source_epa }}</p>
-    <p class="hint">Which of your plans counts as which effort level is our reading, not
-      the source's:
+    <p class="hint">{{ T('guide', 'mapping_ours', "Which of your plans counts as which effort level is our reading, not the source's:") }}
       {% for activity, level in activity_intensity.items() if activity != 'any' %}<span
         class="mono">{{ activity.replace('_', ' ') }} = {{ level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
 
-    <h3 class="kicker" style="margin-top:20px">The part that is our own judgement</h3>
-    <p class="hint">There is no single published number for how much worse polluted air
-      is for a person with asthma, or COPD, or a heart condition. Rather than invent one
-      that would look authoritative, we say plainly that the figures below are our
-      ordering of who is most affected — the order is well supported, the exact sizes
-      are not. The same applies to the extra weight given to children and older people,
-      which is there for reasons that are real but do not reduce to a number: developing
-      lungs, more air breathed per kilogram of body weight, less reserve to draw on.</p>
+    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
+    <p class="hint">{{ T('guide', 'judgement_body', 'There is no single published number for how much worse polluted air is for a person with asthma, or COPD, or a heart condition. Rather than invent one that would look authoritative, we say plainly that the figures below are our ordering of who is most affected — the order is well supported, the exact sizes are not. The same applies to the extra weight given to children and older people, which is there for reasons that are real but do not reduce to a number: developing lungs, more air breathed per kilogram of body weight, less reserve to draw on.') }}</p>
     <table style="margin-top:8px">
-      <tr><th>Factor</th><th>Points added</th></tr>
+      <tr><th>{{ T('guide', 'th_factor', 'Factor') }}</th><th>{{ T('guide', 'th_points', 'Points added') }}</th></tr>
       {% for w in risk_weights if w.table in ("condition_pts", "age_susceptibility_pts") and w.value %}
       <tr><td>{{ w.key | capitalize }}</td><td class="mono">+{{ w.value }}</td></tr>
       {% endfor %}
     </table>
     <p class="caption">{{ source_unvalidated }}</p>
 
-    <p class="hint" style="margin-top:16px">If you think the balance here is wrong, you
-      can see every figure and change it — the whole calculation is a hundred lines of
-      readable code, and nothing about it is hidden from you.</p>
+    <p class="hint" style="margin-top:16px">{{ T('guide', 'open_code', 'If you think the balance here is wrong, you can see every figure and change it — the whole calculation is a hundred lines of readable code, and nothing about it is hidden from you.') }}</p>
   </section>
 
 </div>
