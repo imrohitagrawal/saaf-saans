@@ -16,6 +16,10 @@ so severity is felt before it is read. The gradient and haze density track the C
 |---|---|---|
 | ![Dark](docs/screenshots/today-dark.jpg) | ![City](docs/screenshots/city-pulse.jpg) | ![System](docs/screenshots/system-security.jpg) |
 
+Hindi is drafted and gated behind a banner saying no Hindi speaker has checked it:
+
+![Hindi](docs/screenshots/today-hindi.jpg)
+
 ## Run it
 
 ```bash
