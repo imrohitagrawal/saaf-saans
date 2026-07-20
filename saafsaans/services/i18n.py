@@ -357,6 +357,15 @@ HI: dict = {
         "stale_note": "इस इलाक़े के लिए लाइव फ़ीड जवाब नहीं दे रही, इसलिए यह आसमान और यह "
                       "सलाह इस जगह के एक आम अनुमान पर आधारित है — यह अभी की हवा की माप "
                       "नहीं है। फ़ीड लौटते ही यह अपने आप बदल जाएगा।",
+        # The forwarded-link preview. Placeholders are substituted with
+        # str.replace, not .format, so a stray brace cannot raise on a path
+        # that runs on every page render.
+        "share_site_title": "साफ़ साँस — दिल्ली की हवा, आपके शरीर के हिसाब से",
+        "share_site_desc": "देखिए कि आज आपके इलाक़े की हवा आपके लिए क्या मायने रखती है, "
+                           "आसान भाषा में।",
+        "share_title": "{place} की हवा अभी: {band}",
+        "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
+        "share_for": "यह सलाह {who} के लिए है।",
         "heading_verdict": "फ़ैसला",
         "heading_what_to_do": "क्या करें",
         "heading_seek_help": "डॉक्टर को कब दिखाएँ",

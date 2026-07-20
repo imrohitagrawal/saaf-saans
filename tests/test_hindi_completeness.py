@@ -134,6 +134,23 @@ def test_the_refusal_is_in_hindi():
     assert not _stray_latin(_visible_text(refusal))
 
 
+@pytest.mark.parametrize("path", PAGES)
+def test_the_forwarded_link_preview_is_in_hindi(path):
+    """The share card lives in <head>, which _visible_text strips -- so the
+    scan above cannot see it, and it shipped with a Hindi verdict followed by
+    an English persona sentence. It is the first thing anyone receiving a
+    forwarded link sees, and forwarding is how this app is meant to spread."""
+    import html as _html
+    with TestClient(app) as client:
+        body = client.get(path, params={**PERSONAS[0], "lang": "hi"}).text
+    tags = re.findall(
+        r'<meta (?:name|property)="(?:description|og:title|og:description|twitter:title|twitter:description)" content="([^"]*)"',
+        body)
+    assert tags, "no share card rendered"
+    stray = _stray_latin(" ".join(_html.unescape(t) for t in tags))
+    assert not stray, f"the share card for {path} is still English: {sorted(stray)}"
+
+
 def test_the_hindi_page_is_actually_in_hindi():
     """Guards the guard: if the language switch silently stopped working, the
     scan above would pass on a page with no Hindi in it at all."""

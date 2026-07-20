@@ -242,7 +242,7 @@ def session_id(request: Request) -> str:
     return raw
 
 
-def _share_card() -> dict:
+def _share_card(lang: str = "en") -> dict:
     """Default Open Graph / Twitter card text, for views with no reading.
 
     City Pulse, System and the Guide show no single reading, so their card
@@ -250,14 +250,16 @@ def _share_card() -> dict:
     with text built from the reading it is rendering.
     """
     return {
-        "title": "SaafSaans — Delhi air, explained for your body",
-        "description": "See what the air in your area of Delhi means for you "
-                       "today, in plain language.",
+        "title": i18n.t(lang, "ui", "share_site_title",
+                        "SaafSaans — Delhi air, explained for your body"),
+        "description": i18n.t(lang, "ui", "share_site_desc",
+                              "See what the air in your area of Delhi means for "
+                              "you today, in plain language."),
     }
 
 
 def today_share_card(persona: dict, data: dict, verdict: str,
-                     label: str = None) -> dict:
+                     label: str = None, lang: str = "en") -> dict:
     """Card text for Today, built from the very values the page renders.
 
     ``data`` and ``verdict`` are the same objects passed to the template, so
@@ -269,23 +271,28 @@ def today_share_card(persona: dict, data: dict, verdict: str,
     missing and repeats the page's own advice for that case, rather than
     naming a band it does not have.
 
-    ``label`` and the verdict are passed in already in the reader's language,
-    and ``data["meaning"]`` is translated by the caller, so a Hindi page's card
-    cannot show a band name or a verdict the page itself does not display. The
-    surrounding scaffolding is English in both cases: it is a link preview, and
-    the persona sentence it quotes has no Hindi source.
+    Fully translated, scaffolding included. It was not: the verdict arrived in
+    Hindi and the sentence around it stayed English, so a forwarded Hindi link
+    previewed as half a sentence in each language. That mattered more than its
+    size -- the research in this repository found distribution in Indian
+    households runs through forwards, so this card is the first thing most
+    readers would ever see, and it lives in <head> where the completeness scan
+    was not looking.
     """
     label_en = data["category"][0]
     label = label or label_en
     place = persona["locality"]
     if data["reading"].get("aqi") is None or label_en == "Unknown":
-        return {"title": f"{place}: no air reading right now",
+        return {"title": i18n.t(lang, "ui", "share_no_reading",
+                                "{place}: no air reading right now").replace("{place}", place),
                 "description": data["meaning"]}
+    who = pr.persona_sentence(persona, with_place=False, lang=lang)
     return {
-        "title": f"{place} air right now: {label}",
+        "title": i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
+                     .replace("{place}", place).replace("{band}", label),
         # The place is already in the title, so the persona phrase drops it.
-        "description": f"{verdict} This is for "
-                       f"{pr.persona_sentence(persona, with_place=False)}.",
+        "description": verdict + " " + i18n.t(lang, "ui", "share_for",
+                                              "This is for {who}.").replace("{who}", who),
     }
 
 
@@ -315,7 +322,7 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         # they are what the form submits and what read_persona validates.
         "option_label": _option_labels(lang),
         "regions": waqi.REGIONS,
-        "share": _share_card(),
+        "share": _share_card(lang),
         "q": _qs(persona, theme, lang),
         "q_light": _qs(persona, "light", lang),
         "q_dark": _qs(persona, "dark", lang),
@@ -416,7 +423,7 @@ def today(request: Request):
         "band_label": band_label,
         # Built from `data` and `verdict` themselves, so a forwarded link's
         # preview cannot say something the page does not.
-        "share": today_share_card(persona, data, verdict, band_label),
+        "share": today_share_card(persona, data, verdict, band_label, lang=lang),
         "kicker": pr.persona_kicker(persona, lang=lang),
         "persona_line": pr.persona_line(persona, lang=lang),
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"],

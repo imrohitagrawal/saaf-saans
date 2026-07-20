@@ -442,12 +442,31 @@ def _english_defaults():
 _ENGLISH_DEFAULTS = _english_defaults()
 
 
+SHARE_KEYS = {"share_title", "share_no_reading", "share_for"}
+
+
 def test_the_chrome_uses_no_format_placeholders():
     """Every number, time and place name in the chrome is printed by the
     template between two fragments, so nothing there is passed through
-    ``str.format``. A ``{field}`` would reach the reader as literal braces."""
+    ``str.format``. A ``{field}`` would reach the reader as literal braces.
+
+    The share-card keys are the documented exception: they live in <head> where
+    there is no template to interleave fragments with, so the value has to be
+    substituted into the string. They use ``str.replace`` rather than
+    ``str.format`` precisely so a stray or mistranslated brace cannot raise on
+    a path that runs on every single page render."""
     stray = [f"{group}/{key}"
              for group in ("ui", "guide")
              for key, value in i18n.HI[group].items()
-             if _PLACEHOLDER.search(value)]
+             if key not in SHARE_KEYS and _PLACEHOLDER.search(value)]
     assert not stray, f"unsubstituted placeholder in: {stray}"
+
+
+def test_the_share_card_placeholders_survive_translation():
+    """If a translation drops {place} the card silently loses the locality; if
+    it renames one, the brace reaches the reader."""
+    for key, fields in (("share_title", {"{place}", "{band}"}),
+                        ("share_no_reading", {"{place}"}),
+                        ("share_for", {"{who}"})):
+        value = i18n.HI["ui"][key]
+        assert set(_PLACEHOLDER.findall(value)) == fields, (key, value)
