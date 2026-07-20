@@ -17,6 +17,7 @@ persisted, because the persona is sensitive and must not reach an index.
 """
 import time
 import uuid
+from collections import OrderedDict, deque
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
@@ -43,8 +44,61 @@ ACTIVITIES = ["Outdoor exercise", "Commute", "School run", "Stay home"]
 TERMS = ["AQI", "PM2.5", "PM10"]
 IST = timezone(timedelta(hours=5, minutes=30))
 
-_TRANSCRIPTS: dict[str, list] = {}
+# The transcript store holds raw user questions, so leaving it unbounded is a
+# privacy exposure as much as a memory leak: every question ever asked of this
+# process stays in RAM until the process dies. Both dimensions are capped --
+# how many sessions are held, and how many turns each session keeps.
+MAX_SESSIONS = 500
+MAX_TURNS_PER_SESSION = 20
+
+# sid -> {"turns": deque, "next_id": int}, used as an LRU: reading or writing a
+# session moves it to the end, so eviction always drops the session that has
+# been idle longest.
+_TRANSCRIPTS: "OrderedDict[str, dict]" = OrderedDict()
 _client = None
+
+
+def _session_store(sid: str) -> dict:
+    """The transcript record for a session, created on first use.
+
+    ``next_id`` is a monotonic per-session counter rather than ``len(turns)``,
+    because the turn deque now drops its oldest entries: with a length-derived
+    id, turn 0 would be evicted and the next turn would be numbered 0 again,
+    and the provenance links -- which key off the id -- would open the wrong
+    turn, or two turns at once.
+    """
+    store = _TRANSCRIPTS.get(sid)
+    if store is None:
+        store = {"turns": deque(maxlen=MAX_TURNS_PER_SESSION), "next_id": 0}
+        _TRANSCRIPTS[sid] = store
+        while len(_TRANSCRIPTS) > MAX_SESSIONS:
+            _TRANSCRIPTS.popitem(last=False)
+        return store
+    _TRANSCRIPTS.move_to_end(sid)
+    return store
+
+
+def read_turns(sid: str) -> list:
+    """Turns held for a session, oldest first; empty for an unknown session.
+
+    Reading does not create a session -- otherwise every hit on Today from a
+    forged or expired cookie would allocate a store entry, which is the growth
+    this cap exists to stop.
+    """
+    store = _TRANSCRIPTS.get(sid)
+    if store is None:
+        return []
+    _TRANSCRIPTS.move_to_end(sid)
+    return list(store["turns"])
+
+
+def add_turn(sid: str, turn: dict) -> dict:
+    """Append a turn, stamping it with an id unique for the life of the session."""
+    store = _session_store(sid)
+    turn["id"] = str(store["next_id"])
+    store["next_id"] += 1
+    store["turns"].append(turn)
+    return turn
 
 
 def get_client():
@@ -77,7 +131,76 @@ def read_theme(request: Request) -> str:
 
 
 def session_id(request: Request) -> str:
-    return request.cookies.get("sid") or str(uuid.uuid4())
+    """The chat-transcript key: the client's ``sid`` cookie when it is in the
+    exact form this server issues, otherwise a fresh id.
+
+    The cookie is deliberately NOT signed. Signing would mean owning a secret
+    (generated, stored, rotated, and shared across processes) to protect a key
+    that unlocks nothing but an in-memory chat transcript which is never
+    persisted and is evicted within MAX_SESSIONS sessions. The cheaper check
+    below removes the concrete defect -- an attacker choosing the key -- at no
+    operational cost.
+
+    What this DOES prevent: an arbitrary client-chosen key. The value must
+    parse as a UUID, be version 4, and render back byte-for-byte in canonical
+    lowercase form, so 'admin', a 10 MB string, and the brace/URN spellings of
+    the same uuid are all rejected in favour of a new id. That bounds the key
+    space to values the server could have issued and stops one client inflating
+    the store with keys of its choosing.
+
+    What this does NOT prevent: anyone who guesses or steals a real issued
+    uuid4 still reads that session's transcript. Guessing is not a practical
+    attack (122 random bits), but theft -- a shared device, a copied cookie --
+    is not defended against here at all. Signing would not defend against theft
+    either; only server-side authentication would.
+    """
+    raw = request.cookies.get("sid") or ""
+    try:
+        parsed = uuid.UUID(raw)
+    except (ValueError, AttributeError, TypeError):
+        return str(uuid.uuid4())
+    if parsed.version != 4 or str(parsed) != raw:
+        return str(uuid.uuid4())
+    return raw
+
+
+def _share_card() -> dict:
+    """Default Open Graph / Twitter card text, for views with no reading.
+
+    City Pulse, System and the Guide show no single reading, so their card
+    describes the site and claims nothing about the air. Today overrides this
+    with text built from the reading it is rendering.
+    """
+    return {
+        "title": "SaafSaans — Delhi air, explained for your body",
+        "description": "See what the air in your area of Delhi means for you "
+                       "today, in plain language.",
+    }
+
+
+def today_share_card(persona: dict, data: dict, verdict: str) -> dict:
+    """Card text for Today, built from the very values the page renders.
+
+    ``data`` and ``verdict`` are the same objects passed to the template, so
+    the forwarded card and the opened page cannot disagree -- which is the
+    whole reason this is not composed from a second lookup.
+
+    Plain language only: no index number, no micrograms. When the feed carries
+    no particulate the reading is None; the card then says the reading is
+    missing and repeats the page's own advice for that case, rather than
+    naming a band it does not have.
+    """
+    label = data["category"][0]
+    place = persona["locality"]
+    if data["reading"].get("aqi") is None or label == "Unknown":
+        return {"title": f"{place}: no air reading right now",
+                "description": data["meaning"]}
+    return {
+        "title": f"{place} air right now: {label}",
+        # The place is already in the title, so the persona phrase drops it.
+        "description": f"{verdict} This is for "
+                       f"{pr.persona_sentence(persona, with_place=False)}.",
+    }
 
 
 def _qs(persona: dict, theme: str, **extra) -> str:
@@ -97,6 +220,7 @@ def base_context(request: Request, persona: dict, theme: str, active: str) -> di
         "path": request.url.path,
         "ages": AGES, "conditions": CONDITIONS, "activities": ACTIVITIES,
         "regions": waqi.REGIONS,
+        "share": _share_card(),
         "q": _qs(persona, theme),
         "q_light": _qs(persona, "light"),
         "q_dark": _qs(persona, "dark"),
@@ -161,11 +285,15 @@ def today(request: Request):
 
     # Newest first, and the whole history: a user tracking a decision needs to
     # re-read what they already asked, not have it replaced by the next answer.
-    turns = list(reversed(_TRANSCRIPTS.get(sid, [])))
+    turns = list(reversed(read_turns(sid)))
     open_prov = q.get("prov")
+    verdict = pr.verdict_for(data["risk"]["band"])
 
     ctx.update({
-        "verdict": pr.verdict_for(data["risk"]["band"]),
+        "verdict": verdict,
+        # Built from `data` and `verdict` themselves, so a forwarded link's
+        # preview cannot say something the page does not.
+        "share": today_share_card(persona, data, verdict),
         "kicker": pr.persona_kicker(persona),
         "persona_line": pr.persona_line(persona),
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"], persona),
@@ -201,7 +329,6 @@ def ask(request: Request, question: str = Form(...)):
     theme = read_theme(request)
     sid = session_id(request)
     client = get_client()
-    turns = _TRANSCRIPTS.setdefault(sid, [])
 
     hashed = normalize.session_hash(sid)
     data = advisor_data(persona)
@@ -219,8 +346,8 @@ def ask(request: Request, question: str = Form(...)):
             "latency_ms": int((time.time() - start) * 1000),
             "waqi_status": waqi_status, "llm_status": "skipped", "llm_tokens": 0,
             "aqi_value": reading.get("aqi"), "locality": persona["locality"], "error": ""})
-        turns.append({"kind": "refusal", "id": str(len(turns)), "question": question,
-                      "pattern": pattern, "persona_line": pr.persona_line(persona)})
+        add_turn(sid, {"kind": "refusal", "question": question,
+                       "pattern": pattern, "persona_line": pr.persona_line(persona)})
         return _back(request, sid, theme)
 
     try:
@@ -236,8 +363,8 @@ def ask(request: Request, question: str = Form(...)):
             advisories, question, locality=persona["locality"],
             timestamp=es.now_iso(), best_window=data["window"])
         parsed = llm.parse_advice(text)
-        turns.append({
-            "kind": "answer", "id": str(len(turns)), "question": question,
+        add_turn(sid, {
+            "kind": "answer", "question": question,
             "persona_line": pr.persona_line(persona),
             "blocks": pr.answer_sections(parsed),
             "disclaimer": parsed.get("disclaimer"),
@@ -252,8 +379,8 @@ def ask(request: Request, question: str = Form(...)):
             "aqi_value": reading.get("aqi"), "locality": persona["locality"],
             "error": "; ".join(degraded)})
     except Exception as exc:  # pragma: no cover - top-level safety net
-        turns.append({
-            "kind": "answer", "id": str(len(turns)), "question": question,
+        add_turn(sid, {
+            "kind": "answer", "question": question,
             "persona_line": pr.persona_line(persona),
             "blocks": [{"heading": "Verdict", "lead": True,
                         "text": "Something went wrong preparing your advice. When in "
@@ -465,11 +592,32 @@ def _day_label(date_str: str) -> str:
         return str(date_str)[:3]
 
 
-def _render(request, template, ctx, sid, theme):
-    response = templates.TemplateResponse(request, template, ctx)
-    response.set_cookie("sid", sid, httponly=True, samesite="lax")
-    response.set_cookie("theme", theme, samesite="lax")
+def _set_cookies(response, request: Request, sid: str, theme: str = None):
+    """Attach the session and theme cookies.
+
+    ``secure`` follows the scheme actually in use rather than being hardcoded
+    True: over https the browser must never send these back in clear, and over
+    the plain-http development server a Secure cookie would simply be dropped,
+    silently breaking the transcript and the theme toggle.
+
+    That is only as good as the scheme this process can see. Behind a proxy
+    that terminates TLS -- which is every deployment target in docs/DEPLOY.md
+    -- ``request.url.scheme`` reads "http" unless uvicorn is told to trust the
+    forwarded header, because ``--forwarded-allow-ips`` defaults to 127.0.0.1
+    and the proxy is not on the loopback. The Dockerfile passes that flag for
+    exactly this reason. Run this app behind a proxy without it and the cookies
+    will NOT be marked Secure, which is worth knowing rather than assuming.
+    """
+    secure = request.url.scheme == "https"
+    response.set_cookie("sid", sid, httponly=True, samesite="lax", secure=secure)
+    if theme is not None:
+        response.set_cookie("theme", theme, samesite="lax", secure=secure)
     return response
+
+
+def _render(request, template, ctx, sid, theme):
+    return _set_cookies(templates.TemplateResponse(request, template, ctx),
+                        request, sid, theme)
 
 
 def _fmt_stamp() -> str:
@@ -510,5 +658,4 @@ def _age_label(ts) -> str:
 def _back(request: Request, sid: str, theme: str):
     persona = read_persona(request)
     response = RedirectResponse("/?" + _qs(persona, theme) + "#ask", status_code=303)
-    response.set_cookie("sid", sid, httponly=True, samesite="lax")
-    return response
+    return _set_cookies(response, request, sid)

@@ -33,4 +33,9 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','7860')+'/health', timeout=4).status == 200 else 1)"
 
-CMD ["sh", "-c", "exec uvicorn saafsaans.web.main:app --host 0.0.0.0 --port ${PORT}"]
+# --forwarded-allow-ips is not decoration. Every host in docs/DEPLOY.md
+# terminates TLS at an edge proxy, and uvicorn ignores X-Forwarded-Proto from
+# anything but 127.0.0.1 by default -- so without this the app believes it is
+# serving plain http and stops marking the session cookie Secure. The container
+# is only reachable through that proxy, so trusting it is the correct scope.
+CMD ["sh", "-c", "exec uvicorn saafsaans.web.main:app --host 0.0.0.0 --port ${PORT} --forwarded-allow-ips='*'"]

@@ -342,18 +342,40 @@ select, input[type="text"] {
 .answer :focus-visible { outline-offset: -3px; }
 
 /* Touch-target floors. Padding is raised rather than overlaying pseudo-elements,
-   which would intercept pointer events on neighbouring controls. */
+   which would intercept pointer events on neighbouring controls.
+
+   Heights here are measured, not eyeballed: a box is font-size x 1.55 plus
+   padding plus border, and tests/test_a11y.py recomputes every one of them
+   from this file against the 44px floor. `.term` is held at the 24px floor
+   instead: the AQI link genuinely is an inline target in running text, which
+   cannot be enlarged without prising the lines apart, and the two pollutant
+   labels are given the same treatment so the three read as one control type.
+   Only the first of those three is covered by the WCAG 2.5.8 exemption.
+
+   `.pill-btn.strong` and `.fields .btn` are listed separately because they
+   outrank the plain class and would otherwise keep their designed padding —
+   that is how the persona editor's own toggle stayed a 31px target. */
+.wordmark { padding: 6px 0; }
 .nav a { padding: 13px 12px 11px; }
-.seg a, .seg button { padding: 12px 16px; }
-.pill-btn { padding: 11px 16px; }
+.seg a, .seg button { padding: 14px 16px; }
+.pill-btn { padding: 14px 16px; }
+.pill-btn.strong { padding: 14px 18px; }
 .prov-btn { padding: 14px 16px; }
+.btn { padding: 12px 20px; }
+.fields .btn { padding: 12px 18px; }
+select { padding: 12px 10px; }
 .term { display: inline-block; padding: 6px 0; }
 @media (pointer: fine) {
   /* Pointer devices do not need the same floor; keep the designed density. */
+  .wordmark { padding: 0; }
   .nav a { padding: 8px 12px 6px; }
   .seg a, .seg button { padding: 5px 11px; }
   .pill-btn { padding: 6px 14px; }
+  .pill-btn.strong { padding: 6px 14px; }
   .prov-btn { padding: 10px 16px; }
+  .btn { padding: 11px 20px; }
+  .fields .btn { padding: 9px 18px; }
+  select { padding: 8px 10px; }
   .term { padding: 0; }
 }
 

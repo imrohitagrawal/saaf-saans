@@ -21,6 +21,23 @@ def client():
         yield c
 
 
+@pytest.fixture
+def empty_store():
+    """A transcript store with nothing in it, for tests about its bounds."""
+    from saafsaans.web import main as web_main
+    web_main._TRANSCRIPTS.clear()
+    yield web_main._TRANSCRIPTS
+    web_main._TRANSCRIPTS.clear()
+
+
+def _meta(body: str, key: str) -> str:
+    """The content of one <meta> tag, unescaped, or "" when it is absent."""
+    import html
+    import re
+    m = re.search(r'<meta (?:property|name)="%s" content="([^"]*)"' % re.escape(key), body)
+    return html.unescape(m.group(1)) if m else ""
+
+
 # --- Shell -----------------------------------------------------------------
 def test_every_view_renders():
     with TestClient(app) as c:
@@ -409,6 +426,126 @@ def test_guide_states_the_who_averaging_time_and_percentile(client):
 def test_who_line_appears_on_today_when_there_is_a_reading(client):
     flat = " ".join(client.get("/").text.replace("&#39;", "'").split())
     assert "World Health Organization's safe level for a whole day" in flat
+
+
+# --- Forwardable share preview ----------------------------------------------
+def test_every_view_carries_the_share_tags():
+    """A forwarded link has to render a readable card before it is opened."""
+    with TestClient(app) as c:
+        for path in ("/", "/city", "/system", "/guide"):
+            body = c.get(path, params=PERSONA).text
+            assert '<meta property="og:type" content="website">' in body, path
+            assert '<meta name="twitter:card" content="summary">' in body, path
+            for key in ("og:title", "og:description",
+                        "twitter:title", "twitter:description"):
+                assert _meta(body, key), (path, key)
+
+
+def _pinned_today(monkeypatch, aqi, pm25=180.0):
+    from saafsaans.services import waqi
+
+    def reading(locality, es_client=None):
+        return ({"aqi": aqi, "aqi_beyond_scale": False, "pm25": pm25, "pm10": 200.0,
+                 "dominant_pollutant": "pm25", "feed_aqi": aqi, "feed_dominant": "pm25",
+                 "station": locality, "city": "Delhi", "stale": False,
+                 "forecast": None, "obs_time": None}, "ok")
+
+    monkeypatch.setattr(waqi, "get_aqi", reading)
+    with TestClient(app) as c:
+        return c.get("/", params=PERSONA).text
+
+
+def test_share_card_states_the_locality_band_and_verdict_the_page_shows(monkeypatch):
+    """The card is built from the page's own values, so it must agree with the
+    page word for word -- both strings are asserted against the body."""
+    import html
+    body = _pinned_today(monkeypatch, 420)
+    flat = html.unescape(body)
+    title = _meta(body, "og:title")
+    assert title == "Anand Vihar air right now: Severe"
+    assert "Severe" in flat                       # the band the page displays
+    description = _meta(body, "og:description")
+    assert "an adult with asthma, planning outdoor exercise" in description
+    # The verdict sentence itself, not a paraphrase of it, is on the page.
+    verdict = description.split(" This is for ")[0]
+    assert verdict in flat
+    assert _meta(body, "twitter:title") == title
+    assert _meta(body, "twitter:description") == description
+
+
+def test_share_card_moves_with_the_reading(monkeypatch):
+    assert "Moderate" in _meta(_pinned_today(monkeypatch, 150), "og:title")
+    monkeypatch.undo()
+    assert "Very Poor" in _meta(_pinned_today(monkeypatch, 350), "og:title")
+
+
+def test_share_card_names_no_band_when_there_is_no_reading(client, monkeypatch):
+    """aqi None is the honest result for a gases-only feed. The card must say
+    the reading is missing rather than advertise a band it does not have."""
+    from saafsaans.services import waqi
+
+    def gasses_only(locality, es_client=None):
+        return ({"aqi": None, "aqi_beyond_scale": False, "pm25": None, "pm10": None,
+                 "dominant_pollutant": None, "feed_aqi": 150, "feed_dominant": "o3",
+                 "station": locality, "city": "Delhi", "stale": False,
+                 "forecast": None, "obs_time": None}, "ok")
+
+    monkeypatch.setattr(waqi, "get_aqi", gasses_only)
+    body = client.get("/", params=PERSONA).text
+    assert _meta(body, "og:title") == "Anand Vihar: no air reading right now"
+    assert "unavailable right now" in _meta(body, "og:description")
+    for band in ("Good", "Satisfactory", "Moderate", "Poor", "Severe"):
+        assert band not in _meta(body, "og:title")
+
+
+def test_views_without_a_reading_advertise_the_site_not_the_air():
+    """City Pulse, System and the Guide show no single reading, so their card
+    describes the site. Claiming a band there would be inventing one."""
+    with TestClient(app) as c:
+        for path in ("/city", "/system", "/guide"):
+            body = c.get(path, params=PERSONA).text
+            card = _meta(body, "og:title") + " " + _meta(body, "og:description")
+            assert "SaafSaans" in card, path
+            for band in ("Good", "Satisfactory", "Moderate", "Very Poor", "Severe"):
+                assert band not in card, (path, band)
+            assert "Anand Vihar" not in card, path
+
+
+# --- Transcript bounds ------------------------------------------------------
+def test_turn_ids_stay_unique_when_old_turns_are_evicted(client, monkeypatch, empty_store):
+    """The id used to be str(len(turns)). Once the oldest turns are dropped
+    that repeats an id, and the provenance link opens the wrong turn."""
+    import re
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "MAX_TURNS_PER_SESSION", 2)
+    # Four, not three. With a maxlen-2 deque the length-derived id first
+    # repeats on the FOURTH turn (ids 0, 1, 2, 2) -- at three turns the old
+    # buggy code still produces unique ids and this test would pass against it.
+    for q in ("First question?", "Second question?", "Third question?",
+              "Fourth question?"):
+        client.post("/ask", params=PERSONA, data={"question": q})
+    body = client.get("/", params=PERSONA).text
+    ids = re.findall(r'id="turn-(\d+)"', body)
+    assert len(ids) == 2                       # capped
+    assert len(set(ids)) == 2                  # and not reusing an id
+    assert "First question?" not in body       # the oldest turn is gone
+    assert "Second question?" not in body
+    opened = client.get("/", params={**PERSONA, "prov": ids[0]}).text
+    assert opened.count('class="prov-body"') == 1
+
+
+# --- Cookies ----------------------------------------------------------------
+def test_session_cookie_is_marked_secure_only_over_https():
+    """Hardcoding secure=True would drop the cookie on the plain-http dev
+    server; omitting it would send the session id in clear over https."""
+    with TestClient(app, base_url="https://testserver") as c:
+        secure = c.get("/", params=PERSONA).headers.get_list("set-cookie")
+    assert any("sid=" in h and "Secure" in h for h in secure)
+    assert any("theme=" in h and "Secure" in h for h in secure)
+    with TestClient(app) as c:
+        plain = c.get("/", params=PERSONA).headers.get_list("set-cookie")
+    assert any("sid=" in h for h in plain)
+    assert not any("Secure" in h for h in plain)
 
 
 def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
