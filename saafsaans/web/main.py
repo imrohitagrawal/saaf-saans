@@ -430,7 +430,12 @@ def ask(request: Request, question: str = Form(...)):
             "latency_ms": int((time.time() - start) * 1000),
             "waqi_status": waqi_status, "llm_status": "skipped", "llm_tokens": 0,
             "aqi_value": reading.get("aqi"), "locality": persona["locality"], "error": ""})
-        add_turn(sid, {"kind": "refusal", "question": question,
+        # The excerpt, not the raw string: guard.check rejects oversized input,
+        # and storing what it rejected would let a client pin an arbitrarily
+        # large question in server memory -- through the one path that exists
+        # precisely to refuse it. It is also raw user text, which the transcript
+        # cap is meant to bound rather than accumulate.
+        add_turn(sid, {"kind": "refusal", "question": normalize.excerpt(question),
                        "pattern": pattern, "persona_line": pr.persona_line(persona)})
         return _back(request, sid, theme, lang)
 
@@ -597,9 +602,15 @@ def system(request: Request):
             ],
             "days": [{"n": d["count"], "d": _day_label(d["date"]),
                       "h": pr.pct(d["count"], day_max)} for d in daily],
+            # Whose blocked prompt may be shown. /system is public and
+            # unauthenticated, and the excerpt is a verbatim fragment of what
+            # somebody typed -- publishing a stranger's is not made acceptable
+            # by the fact that the guard stopped it. The red-team demo's own
+            # attempts are ours to display, and a visitor may see their own.
             "attempts": pr.group_attempts(
                 [{**a, "when": _fmt_time(a["ts"])}
-                 for a in metrics.recent_security_events(client, limit=40)])[:6],
+                 for a in metrics.recent_security_events(client, limit=40)
+                 if a.get("session_hash") in _displayable_sessions(request)])[:6],
         })
     return _render(request, "system.html", ctx, session_id(request), theme, lang)
 
@@ -681,6 +692,12 @@ def _is_fresh(ts, hours: int = 3) -> bool:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - dt) <= timedelta(hours=hours)
+
+
+def _displayable_sessions(request: Request) -> set:
+    """Session hashes whose blocked-prompt text this page may print."""
+    return {normalize.session_hash("red-team-demo"),
+            normalize.session_hash(session_id(request))}
 
 
 def _day_label(date_str: str) -> str:

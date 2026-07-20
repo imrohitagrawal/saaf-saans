@@ -507,3 +507,21 @@ def test_flex_items_sized_past_their_container_are_allowed_to_shrink(sheet, page
             problems.append(f"{selector}: basis {basis.group(3)}px exceeds the "
                             f"{budget:.0f}px available and cannot shrink to fit")
     assert not problems, "flex items that cannot shrink at 375px:\n  " + "\n  ".join(problems)
+
+
+def test_no_inline_style_undercuts_the_touch_target_floor():
+    """The stylesheet's 44px floor is only a floor if nothing outranks it. An
+    inline style attribute does, at a specificity no media query can reach --
+    which is how the System toggle stayed a 31px target while every measured
+    test passed. This reads the templates rather than the stylesheet, because
+    that is where the override lived."""
+    import pathlib
+    import re
+    offenders = []
+    for path in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")):
+        for match in re.finditer(r'<a\b[^>]*style="([^"]*)"', path.read_text()):
+            style = match.group(1)
+            if re.search(r"\b(padding|font-size)\s*:", style):
+                offenders.append(f"{path.name}: {style}")
+    assert not offenders, (
+        "inline padding/font-size on a link overrides the touch floor: %s" % offenders)

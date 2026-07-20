@@ -119,16 +119,23 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-sun { position: absolute; top: 34px; right: 5%; width: 68px; height: 68px;
             border-radius: 50%; background: var(--sun); filter: blur(10px); opacity: .55; }
 .hero-haze { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 18%, var(--haze)); }
+/* The scrim used to start at 24% of the hero height, which left the metadata
+   row, the AQI pill and the kicker sitting on bare sky. On the clean-air bands
+   that sky is light, and 11px text at #F7F3EC measured about 2.4:1 against it
+   -- failing worst on exactly the days somebody glances rather than reads. It
+   now has a floor at the top. Haze still carries the severity, because haze
+   rides above this and climbs with the band. */
 .hero-scrim { position: absolute; inset: 0;
-              background: linear-gradient(180deg, rgba(10,12,16,0) 24%, rgba(10,12,16,.7) 84%); }
+              background: linear-gradient(180deg, rgba(10,12,16,.5) 0%,
+                                          rgba(10,12,16,.6) 45%, rgba(10,12,16,.82) 100%); }
 .hero-body { position: relative; padding: 22px; color: #F7F3EC;
              display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
 .hero-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
              font-family: var(--mono); font-size: 11px; letter-spacing: .08em; }
-.hero-meta .prov { opacity: .75; }
+.hero-meta .prov { opacity: 1; }
 .hero-pill { padding: 3px 10px; border-radius: 999px;
              background: rgba(247,243,236,.16); border: 1px solid rgba(247,243,236,.35); }
-.hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; opacity: .85; }
+.hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; }
 .verdict { margin: -4px 0 0; font-weight: 800; font-size: clamp(28px, 5vw, 42px);
            line-height: 1.08; letter-spacing: -.015em; text-wrap: pretty; }
 .hero-advice { margin: 0; font-size: 15px; opacity: .92; text-wrap: pretty; }

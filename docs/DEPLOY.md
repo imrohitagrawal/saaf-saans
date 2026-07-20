@@ -144,4 +144,4 @@ itself needs almost nothing.
 | `WAQI_TOKEN` | for live data | every reading is a labelled cached sample; the UI says so |
 | `PORT` | no | defaults to 7860 |
 | `OPENROUTER_API_KEY` | no | answers come from the rule-based path, logged as fallbacks |
-| `ES_URL` / `ES_API_KEY` | no | System views show their designed empty states |
+| `ELASTIC_URL` (or `ELASTIC_CLOUD_ID`) + `ELASTIC_API_KEY` | no | System views show their designed empty states |

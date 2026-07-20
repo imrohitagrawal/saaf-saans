@@ -23,20 +23,24 @@ The hackathon placement is self-reported and not independently verifiable.
 
 ## 2. The artifact, measured
 
-Reproduce any of these from a clone:
+Reproduce any of these from a clone. Two columns because the `v1-closure` branch changed
+most of them; the `v1.0.0` figures are kept so the earlier version of this document stays
+checkable rather than quietly overwritten.
 
-| Metric | Value | How to check |
-|---|---|---|
-| Tests | **186 passing** | `pytest -q` |
-| Test files | 13 | `ls tests/test_*.py` |
-| Application Python | 2,750 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
-| CSS + templates | 925 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
-| Test code | 1,712 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | `git log --oneline \| wc -l` |
-| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| Metric | at `v1.0.0` | at `v1-closure` | How to check |
+|---|---|---|---|
+| Tests | 186 passing | **360 passing** | `pytest -q` |
+| Test files | 13 | 16 | `ls tests/test_*.py` |
+| Application Python | 2,750 lines | 4,270 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
+| CSS + templates | 925 lines | 1,082 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
+| Test code | 1,712 lines | 3,593 lines | `find tests -name '*.py' \| xargs wc -l` |
+| Commits | 19 | 39 | `git log --oneline \| wc -l` |
+| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| v1.0.0 → v1-closure | — | 30 files, +4,221 / −344 | `git diff --shortstat master..v1-closure` |
 
-Test code is 62% the size of application code. The rebuild **removed** 715 more lines
-than it added.
+Test code is **84%** the size of application code, up from 62%. The v1.0.0 rebuild **removed**
+715 more lines than it added; the closure branch adds, because most of it is either a
+correction with a test pinning it or the Hindi corpus.
 
 Three tests are unusual and worth naming, because they encode claims the documentation
 makes rather than behaviour the code exhibits:
@@ -46,6 +50,11 @@ makes rather than behaviour the code exhibits:
 - `test_band_chip_word_and_control_borders_meet_contrast` — computes contrast ratios for
   every band chip and control border from the stylesheet.
 - `test_pages_carry_no_javascript` — asserts the app ships zero `<script>` tags.
+
+The closure branch adds a fourth kind: tests whose subject is an *absence*.
+`test_no_page_repeats_the_false_never_logged_claim` walks every page and fails on the
+wording of a privacy claim that was once true-sounding and false. A defect that has been
+fixed twice in two places is worth a test that watches for it in all of them.
 
 ## 3. What the adversarial code review found
 
@@ -220,6 +229,82 @@ heavy AI assistance whether or not it is stated; stating it first is the differe
 between candour and being caught. The same applies to "no real users" — it is the obvious
 first question, and answering it before it is asked is worth more than hiding it.
 
+## 10a. The closure run, 20 July 2026
+
+An unattended run worked a closure brief across six phases on the `v1-closure` branch. Each
+phase was adversarially reviewed before merge, with the kill rate recorded.
+
+| Phase | What it did | Kill rate |
+|---|---|---|
+| A | Six persona walkthroughs of the running site | **60%** (10 of 25 survived) |
+| B | Grounded the risk score; corrected the data claims | 3 defects raised on the diff, all fixed |
+| C | Hindi for the advice, behind an unreviewed banner | 8 defects, 2 of them high |
+| D | Feed integrity, bounded transcripts, share preview, measured a11y | 6 defects |
+| E | Deployment prepared and the container actually run | — |
+| F | This record, and a final review of the whole branch | **38%** (50 examined) |
+
+Two supporting studies ran alongside: a verification of the WAQI data question (**51
+conclusions, 31% killed**) and a repo-wide review (**47 findings, 64% killed**).
+
+**The risk score is now half-grounded and says so.** Activity and age were re-derived from
+the US EPA Exposure Factors Handbook 2011 Table 6-2, transcribed from the EPA chapter PDF
+rather than from a summary of it, and pinned by a test. EPA rates its own confidence in that
+table Medium, which the app repeats where the score is explained. The condition weights
+stayed uncited because no citable multiplier exists — they are labelled an unvalidated
+clinical heuristic in the UI, not only in the README.
+
+**The app was misreporting its own data, and four of the six personas noticed without being
+able to name why.** Both faults are recorded in section 11.
+
+**The Hindi is drafted and gated.** The verdict, band advice, AQI meanings, glossary, Guide
+and all 34 advisories are translated and committed — never machine-translated at request
+time. Every Hindi page carries a banner stating no Hindi speaker has checked it. The persona
+sentence, comparison line and driver chips remain English and the module says so.
+
+**Roughly half the station feeds were broken.** Auditing all 21 found 11 returning 404 —
+and because the code retried the Delhi city feed on a 404, those 11 localities had been
+serving one central Delhi station's reading under 11 different neighbourhood names. The
+`noida` slug returned Anand Vihar, Delhi byte-for-byte. Seven feeds served month-old
+readings with `status: "ok"`, which the UI stamped LIVE. The fix checks the feed's own
+station name against the locality on every fetch, so the table is no longer the only
+defence.
+
+### What the Phase A walkthrough was, and was not
+
+Six agents walked the running site as six personas. They are **heuristic reviewers, not
+users** — they cannot be genuinely ignorant, they have no stakes, and they do not see a
+rendered page. Where a finding depended on visual rendering they were required to say so.
+Each finding was then attacked by an independent refuter defaulting to rejection.
+
+**This is not the user test.** Open item 1 in section 9 stands untouched. Nothing here
+should be read as having put this in front of a person.
+
+### The correction that created a new defect
+
+The scale correction made a latent bug reachable. Before it, the app always had
+an AQI, because it used WAQI's — the number on the wrong scale. Afterwards a feed with no
+usable particulate correctly yields no index at all, and `compute_risk` coerced that `None`
+to zero. Zero is the cleanest possible air, so the hero offered *"A good day to breathe —
+enjoy it outside"* on a page that simultaneously said UNKNOWN and *"treat conditions as
+unhealthy until you can confirm"*.
+
+Nobody wrote that bug. It was created by fixing a different one, and the only thing that
+caught it was reviewing the whole branch again at the end rather than trusting the
+per-phase reviews that had each passed. **Fixing something correctly is not the same as
+leaving the system correct.**
+
+### The most useful finding was about a process, not a defect
+
+The 45-agent review in section 3 found the false privacy claim in the README and it was
+fixed there. This run found the same claim still live in the site footer on all four pages
+and in the Guide, while `locality` went on being written to telemetry.
+
+The original fix corrected the sentence the finding pointed at. It did not ask where else
+that belief had been written down. **A finding is about a sentence; the defect is about a
+belief, and beliefs are usually recorded more than once.** The repair now has a test that
+walks every page and fails on the old wording, which is the only version of this fix that
+stays fixed.
+
 ## 11. Decisions taken autonomously
 
 An unattended run on 20 July 2026 worked through a closure brief on the `v1-closure`
@@ -322,9 +407,18 @@ usually written down more than once.**
   labelling it Noida is mislabelling Delhi data.
 - The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`, which the
   freshness check would have presented as live.
-- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path.
-- `_TRANSCRIPTS` is unbounded in both sessions and turns per session, and the session cookie
-  is unsigned and client-controlled.
+- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path. Still
+  open: a per-locality TTL memo is the obvious fix and was not made, because it is a
+  behaviour change to the freshness story rather than a correction, and this run was closing
+  v1 rather than tuning it.
+- `_TRANSCRIPTS` was unbounded and the session cookie unsigned. **Both were fixed** — the
+  store is capped at 500 LRU sessions of 20 turns, and the cookie is validated as a
+  canonical v4 uuid rather than signed, with the docstring stating what that does not
+  protect against.
+- The test suite was calling the live WAQI and OpenRouter APIs on every run, so its results
+  depended on Delhi's weather and on model output. **Fixed**; the suite went from three
+  minutes to half a second, and that runtime had been visible the whole time without anyone
+  asking why.
 
 ### Phase A was a heuristic evaluation, not user testing
 

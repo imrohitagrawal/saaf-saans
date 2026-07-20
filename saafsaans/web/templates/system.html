@@ -10,9 +10,9 @@
 
 <div class="seg" role="group" aria-label="System view" style="margin-top:14px;max-width:420px">
   <a href="/system?{{ q_obs }}" aria-current="{{ 'true' if view == 'observability' else 'false' }}"
-     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Observability</a>
+     style="flex:1;text-align:center">Observability</a>
   <a href="/system?{{ q_sec }}" aria-current="{{ 'true' if view == 'security' else 'false' }}"
-     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Security</a>
+     style="flex:1;text-align:center">Security</a>
 </div>
 
 {% if view == 'observability' %}

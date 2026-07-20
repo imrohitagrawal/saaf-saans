@@ -16,6 +16,10 @@ so severity is felt before it is read. The gradient and haze density track the C
 |---|---|---|
 | ![Dark](docs/screenshots/today-dark.jpg) | ![City](docs/screenshots/city-pulse.jpg) | ![System](docs/screenshots/system-security.jpg) |
 
+Hindi is drafted and gated behind a banner saying no Hindi speaker has checked it:
+
+![Hindi](docs/screenshots/today-hindi.jpg)
+
 ## Run it
 
 ```bash
@@ -31,10 +35,15 @@ Runs with **zero keys**: every external call is timeout-bounded with a determini
 Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
 and the dashboards.
 
+To put it on the internet, see [`docs/DEPLOY.md`](docs/DEPLOY.md) — a `Dockerfile` that has been
+built and run, and the current free-tier terms of five hosts with the URL each claim was read
+from. Nothing has been deployed; that needs an account this repository does not have.
+
 ## Four views
 
 - **Today** — sky hero, personal risk against a healthy-adult baseline, best-time window, the
-  reading with its position on the CPCB scale, a five-day PM2.5 outlook, and grounded Q&A.
+  reading with its position on the CPCB scale, how today compares with the World Health
+  Organization's guideline in plain words, a five-day PM2.5 outlook, and grounded Q&A.
 - **City Pulse** — 21 Delhi/NCR stations sorted worst-first, plus a 24-hour trend.
 - **System** — Observability (latency, fallback rates, token spend) and Security (blocked
   prompt-injection attempts, with a live red-team simulation). The app auditing itself.
@@ -45,7 +54,8 @@ and the dashboards.
 ## Architecture
 
 1. **WAQI** (`services/waqi.py`) fetches live AQI; readings are indexed into `aqi-readings`.
-2. **Elasticsearch** (`services/es.py`) retrieves health advisories by AQI band and persona.
+2. **Elasticsearch** (`services/es.py`) retrieves health advisories by AQI band and persona,
+   and aggregates the time series behind the System views.
 3. **Guard** (`services/guard.py`) blocks prompt injection *before* the model, auditing to
    `security-events`.
 4. **LLM** (`services/llm.py`) answers from verified context, falling back to rule-based advice.
@@ -72,6 +82,31 @@ alternate ("ColorVision Assist") for the same reason.
 **Degradation is visible, never disguised.** A cached reading says `◌ CACHED`, a dead feed shows
 a notice, and a rule-based answer is logged as one. The Observability view exists to make that
 checkable rather than claimed.
+
+## What Elasticsearch is, and is not, used for
+
+Worth settling, because "Elasticsearch" invites the assumption that something is being
+searched.
+
+**It is not a search engine here.** There is not one full-text query in the application:
+
+```bash
+grep -rnE "multi_match|query_string|fuzzy|match_phrase|\"match\"" saafsaans --include='*.py'
+# no matches
+```
+
+**What it actually does** is two things. It aggregates time series for the System views —
+`terms`, `percentiles`, `date_histogram` and `top_hits` over the telemetry and security
+indices (`services/metrics.py`). And it retrieves advisories with `range` filters on the AQI
+band plus `term` clauses on the persona keywords (`services/es.py`) — exact matching on
+keyword fields, with the score coming from how many persona terms hit, not from relevance
+over prose.
+
+**The app runs without it.** `search_advisories` falls back to an in-process filter over the
+same 34 seeded advisories, every metrics call is guarded, and the System views render their
+designed empty states. Verified rather than asserted: the container in
+[`docs/DEPLOY.md`](docs/DEPLOY.md) runs with no Elasticsearch at all and `/health` returns
+`{"ok":true,"es":"none",...}` while every view serves 200.
 
 ## Threat model
 
@@ -105,20 +140,37 @@ saafsaans/
     config · normalize · guard · waqi · forecast · risk · es · metrics · llm
   data/advisories.py    34 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  186 tests
+tests/                  360 tests
 docs/                   design brief, screenshots, specs
 ```
 
 ## Known limitations
 
-- **English only.** For a Delhi public-health tool that is a real gap. The wordmark is bilingual
-  and the display face (Anek Latin) has a Devanagari sibling, so the door is open — but the 34
-  advisories and the model prompting are not translated.
+- **The Hindi is drafted, not reviewed.** `?lang=hi` serves a committed Hindi translation of
+  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 34
+  advisories. **No Hindi speaker has checked it**, so every Hindi page carries a banner saying
+  so, and that banner is a condition of the feature shipping rather than a nicety — a
+  mistranslated instruction about an inhaler is worse than English. The persona sentence, the
+  comparison line and the driver chips are still English: they are composed in Python rather
+  than looked up, and translating them needs `presenters.py` restructured.
+- **Roughly half the station feeds do not work.** An audit of all 21 on 20 July 2026 found 11
+  slugs returning 404 and several serving month-old readings as current. The app now checks
+  the feed's own station name against the locality on every fetch and refuses readings older
+  than twelve hours, so a locality with no working feed shows a labelled sample instead of a
+  stranger's air. On that day, 12 localities were live and 9 were on samples.
 - **WAQI data is non-commercial.** Their terms forbid resale, use in paid applications, and
   redistributing cached or archived data. Fine for this; a commercial deployment would need
   OpenAQ or a direct CPCB agreement.
-- **The risk score is a heuristic**, not a validated clinical instrument. Weights in
-  `services/risk.py` are documented but not derived from a published model.
+- **The risk score is half evidence and half judgement**, and the app says which is which. The
+  exertion term comes from the US EPA Exposure Factors Handbook 2011 Table 6-2, whose own
+  confidence rating EPA gives as Medium. The health-condition and age terms are an unvalidated
+  clinical heuristic: there is no citable multiplier for how much worse polluted air is with
+  COPD, so none was invented. The Guide publishes every weight and its source.
+- **The air index is computed, not received.** The WAQI feed publishes on the US EPA scale and
+  its `iaqi` values are AQI sub-indices, not concentrations. The app inverts them to
+  micrograms and recomputes India's CPCB index — **from PM2.5 and PM10 only**, where CPCB uses
+  up to eight pollutants and requires at least three. On a gas-dominated day the official CPCB
+  figure would be higher than this one. See `services/aqi_scale.py`.
 
 ## Licence
 
