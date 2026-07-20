@@ -79,10 +79,13 @@
       </div>
       <div>
         <dt>What happens to what I type?</dt>
-        <dd>Your persona stays in the page address and your session — it is never written
-          to a database. Questions are checked for prompt-injection before reaching the
-          model. Logs keep a one-way hashed session id, the place, and status fields; the
-          security log keeps at most a 120-character snippet of a blocked prompt.</dd>
+        <dd>Your age, health condition and plans stay in the page address and your session
+          — those are never written to a database. The <em>area</em> you pick is the one
+          exception and is stored deliberately, so the System view can show which areas get
+          requests; it is never stored alongside your health condition. Questions are checked
+          for prompt-injection before reaching the model. Logs keep a one-way hashed session
+          id and status fields; the security log keeps at most a 120-character snippet of a
+          blocked prompt.</dd>
       </div>
       <div>
         <dt>Is this medical advice?</dt>

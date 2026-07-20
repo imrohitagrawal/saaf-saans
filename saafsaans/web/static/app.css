@@ -103,7 +103,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .seg { display: flex; border: 1px solid var(--border-s); border-radius: 999px; overflow: hidden; }
 .seg a, .seg button { border: none; cursor: pointer; font-family: var(--mono); font-size: 11px;
         padding: 5px 11px; background: none; color: var(--text-2); text-decoration: none; }
-.seg [aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg [aria-current="true"] { background: var(--accent); color: var(--on-accent); }
 
 /* ----------------------------------------------------------------- grid -- */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
@@ -335,6 +335,11 @@ select, input[type="text"] {
    and on the active pill the ring colour equalled its own background. Draw it
    inside, in the segment's own foreground colour. */
 .seg :focus-visible { outline-offset: -3px; outline-color: currentColor; }
+
+/* Same clipping, same remedy: both of these set overflow:hidden to keep their
+   rounded corners, which crops a ring drawn outside the child. */
+.station-list :focus-visible,
+.answer :focus-visible { outline-offset: -3px; }
 
 /* Touch-target floors. Padding is raised rather than overlaying pseudo-elements,
    which would intercept pointer events on neighbouring controls. */
