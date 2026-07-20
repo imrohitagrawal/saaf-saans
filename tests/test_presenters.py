@@ -181,7 +181,7 @@ def test_sparkline_survives_a_flat_series():
 # --- Provenance ------------------------------------------------------------
 def test_provenance_never_disguises_a_fallback_as_live():
     assert p.provenance_chip("ok", "2:00 PM") == "● LIVE · 2:00 PM"
-    assert "CACHED" in p.provenance_chip("fallback", "2:00 PM")
+    assert "SAMPLE" in p.provenance_chip("fallback", "2:00 PM")
 
 
 def test_pct_guards_zero_and_junk():
@@ -454,9 +454,9 @@ def test_who_line_translates_all_four_branches(hindi):
 
 def test_provenance_chip_translates_and_keeps_its_glyph(hindi):
     """The glyph is the only thing separating the two chips at a glance."""
-    hindi("prov", {"live": "● लाइव · {when}", "cached": "◌ पुरानी · {when}"})
+    hindi("prov", {"live": "● लाइव · {when}", "sample": "◌ नमूना — यह माप नहीं है"})
     assert p.provenance_chip("ok", "2:00 PM", lang="hi") == "● लाइव · 2:00 PM"
-    assert p.provenance_chip("fallback", "2:00 PM", lang="hi") == "◌ पुरानी · 2:00 PM"
+    assert p.provenance_chip("fallback", "2:00 PM", lang="hi") == "◌ नमूना — यह माप नहीं है"
 
 
 def test_outlook_day_labels_are_translated_not_strftimed(hindi):

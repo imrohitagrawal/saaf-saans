@@ -907,3 +907,22 @@ def test_the_answer_headings_follow_the_language(client):
     assert [b["heading"] for b in english] == ["Verdict", "What to do", "When to seek help"]
     for block in hindi:
         assert any("ऀ" <= ch <= "ॿ" for ch in block["heading"]), block["heading"]
+
+
+def test_a_stand_in_figure_is_never_called_a_reading(client, monkeypatch):
+    """waqi.get_aqi returns a hardcoded per-locality figure on every failure --
+    no stored prior reading is consulted on this path. The page used to call
+    that "the last good reading, from 2:00 PM", where 2:00 PM was the current
+    clock, because the fallback carries no observation time. Both halves false,
+    and City Pulse's own legend defined the two words apart, so the two pages
+    contradicted each other about the same data."""
+    from saafsaans.services import waqi
+    from saafsaans.web import main as web_main
+
+    monkeypatch.setattr(web_main.waqi, "get_aqi",
+                        lambda locality, es_client=None: (waqi._fallback(locality), "fallback"))
+    body = client.get("/", params=PERSONA).text
+    assert "SAMPLE" in body
+    assert "CACHED" not in body
+    assert "last good reading" not in body
+    assert "stand-in, not a measurement" in body

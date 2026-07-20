@@ -384,15 +384,26 @@ def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
 
 # --- Provenance ------------------------------------------------------------
 def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
-    """'● LIVE · 2:00 PM' or '◌ CACHED · 2:00 PM'. Never disguise a fallback.
+    """'● LIVE · 2:00 PM' or '◌ SAMPLE — not a reading'. Never disguise a fallback.
 
     The glyph is part of the string rather than prepended in code: it is the
     only thing distinguishing the two chips at a glance, and a translation that
-    lost it would make a cached reading look live.
+    lost it would make a stand-in look live.
+
+    The fallback chip says SAMPLE, not CACHED, because that is what it is.
+    ``waqi.get_aqi`` returns ``_fallback()`` on every failure, and that is a
+    hardcoded per-locality figure from ``waqi.SAMPLES`` -- no stored prior
+    reading is ever consulted on this path. Calling it CACHED claimed a
+    measurement that was never taken, and City Pulse's own legend defines the
+    two words apart, so the two pages contradicted each other.
+
+    It carries no time either. ``_fallback`` sets ``obs_time`` to None, so the
+    timestamp shown beside it was the current clock -- a fabricated observation
+    time for an observation that does not exist.
     """
     if waqi_status == "ok":
         return _fmt(lang, "prov", "live", "● LIVE · {when}", when=when)
-    return _fmt(lang, "prov", "cached", "◌ CACHED · {when}", when=when)
+    return i18n.t(lang, "prov", "sample", "◌ SAMPLE — not a reading")
 
 
 

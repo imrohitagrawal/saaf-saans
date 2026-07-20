@@ -51,32 +51,27 @@ have tried to use them.**
 The honest first choice once cost is equalised. It has a region in India, which no free
 option does, and scale-to-zero means an idle demo costs approximately nothing.
 
-1. `flyctl launch --no-deploy --name saafsaans --region bom` — writes `fly.toml`.
-2. Put this at the very top of the Space's `README.md`, before anything else:
+These are the commands that were actually run on 2026-07-20, not a procedure written
+from the documentation:
 
-   ```yaml
-   ---
-   title: SaafSaans
-   emoji: "\U0001FAE7"
-   colorFrom: blue
-   colorTo: gray
-   sdk: docker
-   app_port: 7860
-   ---
-   ```
+```bash
+flyctl apps create saafsaans --org personal
+# fly.toml is committed at the repo root: primary_region = "bom", internal_port 7860,
+# auto_stop_machines = "suspend", min_machines_running = 0, health check on /health
+flyctl deploy --now
+flyctl scale count 1 --yes        # Fly provisions two machines for HA by default
+flyctl secrets set WAQI_TOKEN=...  # triggers a redeploy; the app runs without it,
+                                   # showing labelled stand-in samples and saying so
+```
 
-3. Settings → **Variables and secrets** → New secret:
-   `WAQI_TOKEN` = your token. Add `OPENROUTER_API_KEY` only if you want model answers.
-   Secrets arrive as environment variables; nothing is baked into the image.
-4. Push:
+Result: <https://saafsaans.fly.dev/> — one shared-cpu-1x/256MB machine in Mumbai, 56 MB
+image, health check passing, `/health` returning `{"ok":true,"es":"none","waqi":true,
+"llm":false}`. `"es":"none"` is expected: it is the deployed app confirming, from
+production, that it runs with no Elasticsearch.
 
-   ```bash
-   git remote add space https://huggingface.co/spaces/<user>/saafsaans
-   git push space HEAD:main
-   ```
-
-5. Check it: `curl https://<user>-saafsaans.hf.space/health` should return
-   `{"ok":true,"es":"none","waqi":true,"llm":false}`. `es":"none"` is expected and correct.
+`OPENROUTER_API_KEY` is deliberately left unset. A public URL with an open text box and a
+paid API key is an uncapped bill, and the deterministic rule-based path is what a visitor
+should exercise anyway. Set a hard spend cap on the key before that ever changes.
 
 ### Verified locally
 

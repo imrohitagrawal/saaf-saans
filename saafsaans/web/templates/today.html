@@ -39,10 +39,9 @@
   {# Never disguise a cached reading as live. #}
   {% if waqi_status != 'ok' %}
   <p class="stale-note wide">
-    {#- Split in two so the clock time keeps its place in a Hindi sentence
-        without any string formatting at request time. -#}
-    {{ T('ui', 'stale_before', 'Live feed is down — this sky and advice use the last good reading, from') }}
-    {{ obs_time }}{{ T('ui', 'stale_after', ', and will refresh when the feed returns.') }}
+    {#- One string, no timestamp: the fallback has no observation time, and the
+        clock that used to be printed here was simply "now" dressed as one. -#}
+    {{ T('ui', 'stale_note', 'The live feed is not answering for this area, so this sky and this advice use a typical figure for the place — a stand-in, not a measurement of the air right now. It will refresh when the feed returns.') }}
   </p>
   {% endif %}
 
