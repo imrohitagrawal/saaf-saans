@@ -24,6 +24,16 @@ LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z0-9'’.\-]{2,}")
 
 # Latin that is CORRECT on a Hindi page. Every entry needs a reason; a term that
 # is merely untranslated does not belong here.
+#
+# An entry must also be a string LATIN_RUN can emit. Its character class has no
+# underscore, so it splits "chat_completed" into "chat" and "completed" and can
+# never yield the whole token: an allowlist entry containing an underscore reads
+# as protection and gives none. Machine values with underscores -- stored event
+# names, guard pattern ids -- are marked lang="en" in system.html instead, which
+# is the honest escape and is also correct for a screen reader that would
+# otherwise read chat_completed with Hindi phonetics. Eleven entries covering
+# index values were removed once already: rendering every page and persona plus
+# a fired simulation showed the scan had never emitted one of them.
 ALLOWED = {
     # The wordmark is bilingual by design and carries साफ़ साँस beside it.
     "SaafSaans",
@@ -60,18 +70,6 @@ ALLOWED |= set(LATIN_RUN.findall(i18n.REVIEW_BANNER_EN))
 
 PAGES = ("/", "/city", "/guide", "/system", "/system?view=security")
 
-# Machine values, not language: these are the literal strings stored in the
-# telemetry and security indices, and the System view's whole purpose is to
-# show what is actually in them. Translating an index value would make the
-# page a description of the data rather than a view of it.
-# Only the single-word ones are listed. An entry containing an underscore
-# would be unreachable: LATIN_RUN's character class has no underscore, so it
-# emits "chat" and "completed", never "chat_completed" -- such entries read as
-# protection and give none. The multi-word index values are marked lang="en"
-# in system.html instead, which is both the honest escape and correct for a
-# screen reader that would otherwise read chat_completed with Hindi phonetics.
-ALLOWED |= {"blocked", "error", "skipped", "ok", "fallback", "jailbreak",
-            "pretend", "roleplay", "disregard", "password", "unknown"}
 PERSONAS = (
     {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
      "activity": "Outdoor exercise"},
