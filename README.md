@@ -35,7 +35,8 @@ Runs with **zero keys**: every external call is timeout-bounded with a determini
 Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
 and the dashboards.
 
-It is deployed at **https://saafsaans.fly.dev** — one 256 MB Fly.io machine in Mumbai, scaled to
+It is deployed at **https://saafsaans.stackclimb.com** (also reachable on its Fly hostname,
+`saafsaans.fly.dev`) — one 256 MB Fly.io machine in Mumbai, scaled to
 zero when idle, so the first request after a quiet spell is slow. `WAQI_TOKEN` is set;
 `OPENROUTER_API_KEY` deliberately is not, so the public instance answers from the rule-based
 fallback rather than a model. `/health` reports which of each is live. See

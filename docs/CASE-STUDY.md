@@ -178,7 +178,7 @@ defects, and shipping something honest and complete rather than something larger
 
 - **No real users.** Zero people outside the author have used this. Every usability claim
   is reasoning, not observation.
-- **Deployed, but unexercised.** It is live at https://saafsaans.fly.dev on one 256 MB
+- **Deployed, but unexercised.** It is live at https://saafsaans.stackclimb.com on one 256 MB
   Fly.io machine scaled to zero. No traffic beyond the author's own, and the public
   instance runs without `OPENROUTER_API_KEY`, so it answers from the rule-based
   fallback rather than a model. A URL is not evidence that anything was used.
@@ -236,10 +236,9 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
 3. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
    retrieved during research and is the most decision-relevant unread document; it governs
    whether personalised health advice can legally ship in India.
-4. **Point the custom domain at it.** The app is deployed and verified — see below — but
-   still answers only on `saafsaans.fly.dev`. The certificate and the two DNS records are
-   the remaining step; [`DEPLOY.md`](DEPLOY.md) has both, including the Cloudflare
-   grey-cloud caveat.
+4. **Put it in front of people.** Everything technical is done: the app is live at
+   https://saafsaans.stackclimb.com with a Let's Encrypt certificate, and was verified from
+   outside. What has never happened is a person other than the author using it.
 5. **Assume the guard still has holes.** Five adversarial rounds each found something, three
    of them found a regression introduced by the previous round's fix, and the module's own
    docstring says a keyword table is a first filter rather than a boundary. The next round
