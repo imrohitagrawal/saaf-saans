@@ -270,13 +270,14 @@ HI: dict = {
         "now": "अभी",
         "spark_caption": "दिल्ली का पैटर्न: रात भर प्रदूषण जमा होता है, दोपहर में कुछ राहत "
                          "मिलती है। किसी स्टेशन को चुनिए और उसका ग्राफ़ देखिए।",
-        # The station name is printed between the first two fragments and the
-        # command between the second and third, so the Hindi names the place
-        # after the clause instead of before it.
+        # The station name is printed between the two fragments, so the Hindi
+        # names the place after the clause instead of before it. There used to
+        # be a third fragment with a backfill command between the second and
+        # third; the command is gone, because running it wrote invented AQI
+        # into the index this very curve is drawn from.
         "no_trend_before": "अभी तक कोई रीडिंग सहेजी नहीं गई है —",
-        "no_trend_after": "के लिए। पुराना डेटा भरने के लिए चलाइए",
-        "no_trend_tail": "— या ऐप इस्तेमाल करते रहिए, हर लाइव रीडिंग आते ही अपने आप दर्ज हो "
-                         "जाती है।",
+        "no_trend_tail": "के लिए। हर लाइव रीडिंग आते ही अपने आप दर्ज हो जाती है, इसलिए "
+                         "फ़ीड जवाब देते ही यह भरता जाएगा।",
 
         # --- today.html: hero ---
         "sec_now": "अभी की हवा",

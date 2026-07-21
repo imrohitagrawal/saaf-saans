@@ -1,61 +1,68 @@
-"""The seeded demo history must describe Delhi's day, not the server's.
+"""The demo seeder must not fabricate air readings.
 
-The generator shapes a diurnal curve so the seeded "worst air" lands in the
-early morning, which is what Delhi actually looks like. It read the hour off a
-UTC timestamp, so the whole curve sat five and a half hours out of phase and
-the peak landed at 11:30 IST -- late morning, heading down towards the
-afternoon trough the module's own docstring describes. Nothing crashed and no
-test noticed; the demo simply told a plausible lie about the city.
+This file used to test the shape of a synthetic diurnal AQI curve: that the
+seeded "worst air" landed in the early morning, which is what Delhi actually
+looks like. Those tests were correct about the curve and beside the point about
+the product. The curve wrote invented AQI figures into the aqi-readings index --
+the index City Pulse prints numbers from and `main._last_real_reading` prints
+"We last recorded AQI n here on <date>" from -- with nothing marking them as
+fabricated. A well-shaped lie is still a lie, and the app was publishing it as
+its own observation.
+
+So the property under test changed with the code. What is guarded now is the
+boundary: the seeder may write records of how the APP behaved (telemetry,
+security events) and may not write records of what the AIR was.
 """
 from datetime import datetime, timezone
 
+import pytest
+
 from saafsaans import seed_demo_history as seed
-from saafsaans.services import clock
+from saafsaans.services import es, waqi
+
+NOW = datetime(2026, 1, 15, 6, 0, tzinfo=timezone.utc)
 
 
-def _factor_at_ist(hour):
-    """The curve's value at a given IST hour, reached through a UTC instant."""
-    ist = datetime(2026, 1, 15, hour, 0, tzinfo=clock.IST)
-    return seed._diurnal_factor(clock.to_ist(ist.astimezone(timezone.utc)).hour)
+def _all_docs():
+    return list(seed._telemetry_docs(NOW)) + list(seed._security_docs(NOW))
 
 
-def test_the_dirty_peak_is_early_morning_in_delhi():
-    """06:00 IST is the maximum, and it beats every other hour of the day."""
-    peak = _factor_at_ist(6)
-    for hour in range(24):
-        if hour != 6:
-            assert _factor_at_ist(hour) <= peak, f"{hour}:00 IST beat 06:00 IST"
+def test_the_seeder_writes_no_air_readings():
+    """The one that matters. Asserted over the index every generator targets,
+    not over the names of the generators, so a new writer is covered the day it
+    is added rather than the day someone remembers this file."""
+    docs = _all_docs()
+    assert docs, "the seeder produced no documents; this would prove nothing"
+    for doc in docs:
+        assert doc["_index"] != es.INDEX_READINGS, doc
 
 
-def test_the_clean_trough_is_the_opposite_phase_in_delhi():
-    """18:00 IST is the minimum -- the far side of the same cosine."""
-    trough = _factor_at_ist(18)
-    for hour in range(24):
-        if hour != 18:
-            assert _factor_at_ist(hour) >= trough, f"{hour}:00 IST undercut 18:00 IST"
+def test_the_seeder_has_no_air_reading_writer_left():
+    """The generator, the station base table and the curve are gone -- not
+    merely disconnected. A disconnected fabricated-number writer pointed at an
+    honesty surface is a loaded gun left on the table, which is the reasoning
+    that deleted `waqi.SAMPLES`."""
+    for name in ("_reading_docs", "STATIONS", "_diurnal_factor"):
+        assert not hasattr(seed, name), name
 
 
-def test_reading_docs_convert_to_ist_before_shaping_the_curve(monkeypatch):
-    """The bug was at the call site, so the guard belongs there.
+def test_no_seeded_document_carries_an_aqi_field_into_the_readings_index():
+    """Belt and braces on the field, not just the index. `aqi_value` on a
+    telemetry row is a record of what the app was serving when it answered, and
+    it lives in app-telemetry where nothing reads it as the air; `aqi` is the
+    readings-index field the reader-facing surfaces print."""
+    for doc in _all_docs():
+        assert "aqi" not in doc, doc
 
-    _reading_docs walks backwards in fixed steps from ``now``, so the hours it
-    asks the curve about are fully determined; only the noise added afterwards
-    is random. Recording what the curve is ASKED lets this assert the fix
-    without touching that randomness.
 
-    A UTC timestamp of 06:00 is 11:30 in Delhi, and must not be shaped as the
-    dawn peak. Reading the hour straight off ``ts`` did exactly that.
-    """
-    asked = []
-    monkeypatch.setattr(seed, "_diurnal_factor",
-                        lambda hour: asked.append(hour) or 1.0)
+@pytest.mark.parametrize("doc", _all_docs())
+def test_every_seeded_document_names_a_real_index(doc):
+    assert doc["_index"] in (es.INDEX_TELEMETRY, es.INDEX_SECURITY), doc
 
-    now = datetime(2026, 1, 15, 6, 0, tzinfo=timezone.utc)
-    assert clock.to_ist(now).hour == 11
-    list(seed._reading_docs(now))
 
-    assert asked, "_reading_docs asked the curve nothing"
-    assert asked[0] == 11, (
-        f"the curve was asked about hour {asked[0]}; 06:00 UTC is 11:30 in "
-        f"Delhi, so it must be asked about 11")
-    assert set(asked) <= set(range(24))
+def test_seeded_telemetry_names_only_real_localities():
+    """The locality list used to be the keys of the deleted station table, which
+    included "Delhi (city)" -- not one of the app's 21 localities. A System view
+    filtered by locality would have shown a place the app does not serve."""
+    for doc in seed._telemetry_docs(NOW):
+        assert doc["locality"] in waqi.LOCALITIES, doc

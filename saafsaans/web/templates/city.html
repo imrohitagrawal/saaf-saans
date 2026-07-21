@@ -52,10 +52,15 @@
       <div class="spark-x"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>{{ T('ui', 'now', 'NOW') }}</span></div>
       <p class="caption">{{ T('ui', 'spark_caption', 'Delhi pattern: overnight build-up, mid-day relief. Pick a station to see its curve.') }}</p>
     {% else %}
+      {#- No backfill command here any more. This empty state used to tell the
+          reader to run `python -m saafsaans.seed_demo_history`, which wrote
+          invented AQI into the very index this curve is drawn from -- and that
+          the tiles below and the "we last recorded" line on Today are drawn
+          from too. The seeder no longer writes readings at all; the honest
+          remedy is the one that was always true, that the index fills itself
+          from real observations. -#}
       <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ place(selected) }}
-        {{ T('ui', 'no_trend_after', 'yet. Run') }}
-        <code>python -m saafsaans.seed_demo_history</code>
-        {{ T('ui', 'no_trend_tail', 'to backfill, or keep using the app — every live reading is indexed as it arrives.') }}</p>
+        {{ T('ui', 'no_trend_tail', 'yet — every live reading is indexed as it arrives, so this fills in as the feed answers.') }}</p>
     {% endif %}
   </section>
 

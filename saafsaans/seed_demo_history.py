@@ -1,43 +1,49 @@
-"""Backfill DEMO history so the Command Center dashboards look alive.
+"""Backfill DEMO OPERATIONAL history so the System view has something to draw.
 
-Writes ~24-48h of aqi-readings across the 5 Delhi stations following a
-realistic diurnal curve (worse at night / early morning, cleaner mid-afternoon),
-~40 app-telemetry docs spread over time, and ~6 security-events. Everything
-respects the fixed index mappings and the field allowlists in
-:mod:`saafsaans.services.es` — no persona or PII is ever written.
+Writes ~40 app-telemetry docs spread over time and ~6 security-events, both of
+which are records of how the APP behaved. Everything respects the fixed index
+mappings and the field allowlists in :mod:`saafsaans.services.es` — no persona
+or PII is ever written.
+
+It does NOT write air readings, and must not. It used to seed ~42h of invented
+AQI across five stations from a hardcoded base table — Anand Vihar 380, ITO 300,
+RK Puram 260 — plus a random walk, straight into the aqi-readings index with
+`@timestamp` running up to now and no field marking them as fabricated.
+
+That index is now the app's honesty surface. `metrics.station_grid` reads it for
+City Pulse, which prints the number with its age, and `main._last_real_reading`
+reads it to print "We last recorded AQI n here on <date>" — a dated claim about
+a measurement this app says it took. Nothing distinguished a seeded row from an
+observed one, so running the documented backfill made the app publish invented
+figures as its own observations. The run deleted `waqi.SAMPLES` for being exactly
+that, and its stated reason applies here verbatim: a disconnected table is a
+loaded gun left on the table.
+
+The reason readings needed seeding is also gone. `main._live_grid` fetches and
+indexes all 21 localities on every /city render, so the index fills from real
+observations as soon as anyone loads the page.
 
 Runnable:  python -m saafsaans.seed_demo_history
 If ES is not configured (get_client returns None), it prints a notice and
 exits 0 so it is safe to run in mock mode.
 """
-import math
 import random
 import sys
 from datetime import datetime, timedelta, timezone
 
 from elasticsearch.helpers import bulk
 
-from .services import clock, es
-
-# Per-station baseline AQI and its rough amplitude for the diurnal swing.
-STATIONS = {
-    "Anand Vihar": 380,
-    "ITO": 300,
-    "Rohini": 190,
-    "RK Puram": 260,
-    "Delhi (city)": 285,
-}
-POLLUTANTS = ["pm25", "pm10"]
+from .services import es, waqi
 
 EVENTS = ["chat_completed", "blocked"]
 WAQI_STATUSES = ["ok", "fallback"]
 LLM_STATUSES = ["ok", "llm_fallback"]
-LOCALITIES = list(STATIONS.keys())
+LOCALITIES = list(waqi.LOCALITIES)
 PATTERNS = ["ignore_instructions", "system_prompt_leak", "roleplay_jailbreak",
             "reveal_secrets", "prompt_injection"]
 
-READING_HOURS = 42          # span of backfilled readings
-READING_INTERVAL_MIN = 30   # one reading per station every 30 minutes
+# How far back the seeded operational events are spread.
+SPAN_HOURS = 42
 N_TELEMETRY = 40
 N_SECURITY = 6
 
@@ -46,42 +52,9 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
 
 
-def _diurnal_factor(hour: int) -> float:
-    """Multiplier in ~[0.7, 1.3]: peaks around 06:00 IST, dips mid-afternoon.
-
-    ``hour`` must be an IST hour. It used to be read straight off a UTC
-    timestamp, which shifted the whole curve by five and a half hours and put
-    the seeded "worst air" peak at 11:30 IST -- late morning, on the way down
-    towards the afternoon trough this same docstring describes.
-    """
-    # Shift so the cosine peak lands near early morning (hour 6).
-    return 1.0 + 0.3 * math.cos((hour - 6) / 24.0 * 2 * math.pi)
-
-
-def _reading_docs(now: datetime):
-    steps = int(READING_HOURS * 60 / READING_INTERVAL_MIN)
-    for station, base in STATIONS.items():
-        for i in range(steps):
-            ts = now - timedelta(minutes=i * READING_INTERVAL_MIN)
-            factor = _diurnal_factor(clock.to_ist(ts).hour)
-            aqi = int(max(20, base * factor + random.uniform(-25, 25)))
-            pm25 = round(aqi * random.uniform(0.7, 0.9), 1)
-            pm10 = round(aqi * random.uniform(1.1, 1.5), 1)
-            yield {
-                "_index": es.INDEX_READINGS,
-                "@timestamp": _iso(ts),
-                "station": station,       # real station name
-                "city": "Delhi",          # schema-valid demo marker
-                "aqi": aqi,
-                "pm25": pm25,
-                "pm10": pm10,
-                "dominant_pollutant": random.choice(POLLUTANTS),
-            }
-
-
 def _telemetry_docs(now: datetime):
     for i in range(N_TELEMETRY):
-        ts = now - timedelta(minutes=random.randint(0, READING_HOURS * 60))
+        ts = now - timedelta(minutes=random.randint(0, SPAN_HOURS * 60))
         event = random.choices(EVENTS, weights=[0.85, 0.15])[0]
         waqi_status = random.choices(WAQI_STATUSES, weights=[0.8, 0.2])[0]
         llm_status = random.choices(LLM_STATUSES, weights=[0.85, 0.15])[0]
@@ -104,7 +77,7 @@ def _telemetry_docs(now: datetime):
 
 def _security_docs(now: datetime):
     for i in range(N_SECURITY):
-        ts = now - timedelta(minutes=random.randint(0, READING_HOURS * 60))
+        ts = now - timedelta(minutes=random.randint(0, SPAN_HOURS * 60))
         yield {
             "_index": es.INDEX_SECURITY,
             "@timestamp": _iso(ts),
@@ -127,7 +100,6 @@ def main() -> int:
 
     counts = {}
     for label, gen in (
-        ("aqi-readings", _reading_docs(now)),
         ("app-telemetry", _telemetry_docs(now)),
         ("security-events", _security_docs(now)),
     ):
