@@ -251,6 +251,19 @@
   </section>
 
   {# --- Five-day outlook --------------------------------------------------- #}
+  {#- The outlook is WAQI-only: a CPCB reading carries forecast=None, so this
+      whole section drops. CPCB is the primary source, so with a CPCB key set
+      the section is absent for almost every reader and REAPPEARS on the same
+      locality whenever the fallback fires -- a section arriving and leaving
+      between renders with nothing said. It accounts for itself now, on the
+      same standard as the WHO line, which explains its own absence for
+      exactly this reason. Only when there is a reading: with none, the page
+      has already said it has no number and a second explanation of a missing
+      forecast would be noise. -#}
+  {% if not outlook and has_reading %}
+  <p class="caveat wide">{{ T('ui', 'outlook_absent', "The five-day outlook comes from the WAQI feed. This reading did not arrive with one, so there is none to show — a reading read from CPCB directly never carries a forecast.") }}
+    <a href="/guide?{{ q }}#numbers">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
+  {% endif %}
   {% if outlook %}
   <section class="card" aria-label="{{ T('ui', 'sec_outlook', 'Five-day outlook') }}">
     <h2 class="kicker">PM2.5 · {{ T('ui', 'outlook_title', 'next five days') }}</h2>

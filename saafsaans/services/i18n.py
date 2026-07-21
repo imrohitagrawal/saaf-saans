@@ -431,6 +431,12 @@ HI: dict = {
         "no_obs_time": "रीडिंग का समय नहीं है",
         "share_title": "{place} की हवा आज: {band}",
         "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
+        # Why the five-day outlook is missing. It comes from the WAQI forecast,
+        # and a reading read from CPCB directly carries none -- so the section
+        # is absent for most readers and returns whenever the fallback fires.
+        "outlook_absent": "पाँच दिन का अनुमान WAQI फ़ीड से आता है। इस रीडिंग के साथ कोई "
+                          "अनुमान नहीं आया, इसलिए दिखाने को कुछ नहीं है — सीधे CPCB से ली गई "
+                          "रीडिंग के साथ अनुमान कभी नहीं आता।",
         # Names no band, for the same reason the hero does not.
         "share_held": "{place}: हम एक पुरानी हवा की रीडिंग सहेजे हुए हैं",
         "share_for": "यह सलाह {who} के लिए है।",

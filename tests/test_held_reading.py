@@ -333,3 +333,67 @@ def test_a_live_reading_reaches_the_prompt_unmarked():
                                     "ITO", "2:00 PM")
     assert "HELD" not in prompt
     assert "STALE DATA" not in prompt
+
+
+# ------------------------------------------------- a section that vanishes
+#
+# Not about held readings, but about the same standard: an element that
+# disappears between renders has to account for itself. The five-day outlook
+# comes from the WAQI forecast, and a CPCB reading carries forecast=None -- so
+# with a CPCB key set the section is absent for almost every reader and returns
+# on the same locality whenever the fallback fires, with nothing said.
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_missing_outlook_explains_itself(monkeypatch, lang):
+    _feed(monkeypatch, retained=False)          # a CPCB reading: forecast None
+    body = _today(lang)
+    assert 'aria-label="' + i18n.t(lang, "ui", "sec_outlook",
+                                   "Five-day outlook") + '"' not in body
+    assert i18n.t(lang, "ui", "outlook_absent",
+                  "The five-day outlook comes from the WAQI feed. This reading "
+                  "did not arrive with one, so there is none to show — a "
+                  "reading read from CPCB directly never carries a forecast."
+                  ) in html.unescape(body)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_reading_that_has_an_outlook_does_not_explain_its_absence(monkeypatch, lang):
+    """The mirror. The explanation must not print above a rendered outlook."""
+    forecast = {"daily": {"pm25": [
+        {"day": "2026-07-21", "avg": 80, "min": 60, "max": 100},
+        {"day": "2026-07-22", "avg": 90, "min": 70, "max": 110}]}}
+
+    def get_aqi(locality, es_client=None):
+        return waqi._reading(PM25, PM10, station=locality, city="Delhi",
+                             stale=False, forecast=forecast, obs_time=OBS,
+                             retained=False, source="waqi"), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+
+    body = html.unescape(_today(lang))
+    assert 'aria-label="' + i18n.t(lang, "ui", "sec_outlook",
+                                   "Five-day outlook") + '"' in body
+    assert i18n.t(lang, "ui", "outlook_absent",
+                  "The five-day outlook comes from the WAQI feed. This reading "
+                  "did not arrive with one, so there is none to show — a "
+                  "reading read from CPCB directly never carries a forecast."
+                  ) not in body
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_page_with_no_reading_does_not_explain_a_missing_outlook(monkeypatch, lang):
+    """The third state. The page has already said it has no number; a second
+    explanation of a missing forecast is noise, not honesty."""
+    def get_aqi(locality, es_client=None):
+        return waqi._fallback(locality), "fallback"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+
+    assert i18n.t(lang, "ui", "outlook_absent",
+                  "The five-day outlook comes from the WAQI feed. This reading "
+                  "did not arrive with one, so there is none to show — a "
+                  "reading read from CPCB directly never carries a forecast."
+                  ) not in html.unescape(_today(lang))
