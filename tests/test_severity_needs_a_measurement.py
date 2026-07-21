@@ -186,14 +186,34 @@ def test_the_share_card_never_carries_severity_without_a_reading(monkeypatch, la
         for loc in waqi.LOCALITIES:
             body = htmllib.unescape(
                 c.get("/", params={**PERSONA, "locality": loc, "lang": lang}).text)
+            # The description fields used to be exempted from the band
+            # assertion by a trailing `or key.endswith("description")`, which
+            # made that assertion unconditionally TRUE for two of the four keys
+            # -- the test written to protect the share card did not protect the
+            # share card. Proved by mutation: appending " Severe" to the
+            # no-reading description passed here and was caught only
+            # incidentally by the whole-body sweep above.
+            #
+            # The exemption existed for one real reason: the Hindi Unknown
+            # meaning legitimately contains "ख़राब" (Poor) in the sentence
+            # telling the reader to ASSUME bad air. The sibling test in
+            # test_share_and_time_honesty.py handles that honestly, by pinning
+            # the description to the Unknown meaning with EXACT EQUALITY -- which
+            # permits the honest sentence and forbids anything appended to it.
+            # Same approach here, so both keys are actually checked.
+            unknown = i18n.t(lang, "aqi_meaning", "Unknown",
+                             normalize.AQI_MEANING["Unknown"])
             for key in ("og:title", "og:description", "twitter:title", "description"):
                 m = re.search(r'<meta (?:property|name)="%s" content="([^"]*)"' % key, body)
                 if not m:
                     continue
-                content = m.group(1)
+                content = htmllib.unescape(m.group(1))
+                if key.endswith("description"):
+                    assert content == unknown, (lang, loc, key, content)
+                    continue
                 for band in BANDS:
-                    assert i18n.t(lang, "band_label", band, band) not in content \
-                        or key.endswith("description"), (lang, loc, key, band)
+                    assert i18n.t(lang, "band_label", band, band) not in content, (
+                        lang, loc, key, band)
                 for rb in risk.RISK_BANDS:
                     verdict = i18n.t(lang, "verdict", rb, pr.verdict_for(rb))
                     assert verdict not in content, (lang, loc, key, rb)
@@ -261,6 +281,50 @@ def test_with_no_live_feed_today_names_the_last_real_reading_and_its_date(
     # pill or a risk score off the back of it.
     assert "hero-pill" not in body, lang
     assert not re.search(r"\d+/100", body), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_last_real_date_is_read_in_ist_not_utc(monkeypatch, lang):
+    """The IST conversion in _fmt_date had no test that could see it.
+
+    The only coverage used ts='2026-06-23T11:00:00+05:30', where
+    `astimezone(IST)` is a no-op, so deleting the line left the suite green.
+    This uses a UTC 'Z' stamp on the far side of midnight IST -- which is
+    exactly the shape of a row dated by `@timestamp`, the compatibility path
+    metrics.station_grid falls back to. 2026-07-19T20:00:00Z is 20 July,
+    01:30 IST: the app must name the day the AIR was measured in Delhi.
+    """
+    from saafsaans.web.main import _month_abbr
+    _no_feed(monkeypatch)
+    _stored(monkeypatch, [{"station": "ITO", "aqi": 149,
+                           "ts": "2026-07-19T20:00:00Z"}])
+    with TestClient(app) as c:
+        body = htmllib.unescape(
+            c.get("/", params={**PERSONA, "locality": "ITO", "lang": lang}).text)
+    text = " ".join(re.search(r'class="last-real">(.*?)</span>',
+                              body, re.S).group(1).split())
+    assert "20 %s" % _month_abbr(lang, 7) in text, (lang, text)
+    assert "19 %s" % _month_abbr(lang, 7) not in text, (lang, text)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_last_real_date_from_another_year_says_which_year(monkeypatch, lang):
+    """The date is the entire warrant for the number beside it, and day-plus-
+    month made 23 June 2025 indistinguishable from 23 June 2026 -- a
+    thirteen-month-old measurement reading as four weeks old. The seed and
+    backfill paths make multi-year rows reachable.
+
+    The mirror is asserted in the same test: a date inside the current year
+    must NOT grow a year, or the fix is just noise on every line.
+    """
+    from saafsaans.web.main import _fmt_date
+    from datetime import datetime
+    from saafsaans.services.clock import IST
+    this_year = datetime.now(IST).year
+    old = _fmt_date("%d-06-23T11:00:00+05:30" % (this_year - 1), lang)
+    assert str(this_year - 1) in old, (lang, old)
+    current = _fmt_date("%d-06-23T11:00:00+05:30" % this_year, lang)
+    assert str(this_year) not in current, (lang, current)
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)

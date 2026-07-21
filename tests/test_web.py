@@ -144,16 +144,46 @@ def test_ask_redirects_so_a_refresh_cannot_resubmit(client):
 
 
 # --- City / System ---------------------------------------------------------
-def test_city_lists_every_station_worst_first():
+def test_city_lists_every_station():
     from saafsaans.services import waqi
     with TestClient(app) as c:
         body = c.get("/city", params=PERSONA).text
     assert body.count('class="station ') == len(waqi.LOCALITIES)
-    # "worst first" is part of the summary sentence, which is only written when
-    # at least one station HAS a reading to be worst of. With none -- the
-    # suite's configuration -- the page says that instead, and ordering nothing
-    # is not a claim worth making.
-    assert ("worst first" in body) or ("reading for none of" in body)
+    # With no readings -- the suite's shipped configuration -- the page says so,
+    # and ordering nothing is not a claim worth making. The ordering itself is
+    # asserted below, where there is something to order.
+    assert "reading for none of" in body
+
+
+def test_city_lists_the_worst_station_first(monkeypatch):
+    """The ordering claim, asserted where it can actually fail.
+
+    This test's assertion used to be
+        assert ("worst first" in body) or ("reading for none of" in body)
+    and under the suite's configuration /city always renders the second
+    sentence, so the first disjunct was unreachable and the ordering was
+    unguarded. Proved by mutation: inverting the sort key in main.city --
+    turning City Pulse best-first while the subtitle still promised "worst
+    first" -- left the entire suite green.
+
+    Readings are pinned here so the order is fully determined, and the check is
+    on the sequence of RENDERED tiles rather than on the presence of the phrase.
+    """
+    from saafsaans.services import waqi
+    stored = [{"station": "Rohini", "aqi": 120, "ts": _now_iso()},
+              {"station": "ITO", "aqi": 401, "ts": _now_iso()},
+              {"station": "Anand Vihar", "aqi": 260, "ts": _now_iso()},
+              {"station": "Dwarka", "aqi": 55, "ts": _now_iso()}]
+    body = _city_body(monkeypatch, stored)
+    order = [re.search(r'class="nm">([^<]+)<', row).group(1)
+             for row in re.findall(r'<a class="station .*?</a>', body, re.S)]
+    numbered = [n for n in order if n in ("ITO", "Anand Vihar", "Rohini", "Dwarka")]
+    assert numbered == ["ITO", "Anand Vihar", "Rohini", "Dwarka"], order
+    # ...and every station we hold nothing for sorts after every one we do.
+    known = {"ITO", "Anand Vihar", "Rohini", "Dwarka"}
+    delhi = [n for n in order if n in waqi.REGIONS["Delhi"]]
+    last_known = max(i for i, n in enumerate(delhi) if n in known)
+    assert all(n in known for n in delhi[:last_known + 1]), delhi
 
 
 def test_city_timestamp_says_what_it_is_and_which_zone():

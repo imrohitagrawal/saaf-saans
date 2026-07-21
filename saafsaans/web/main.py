@@ -1064,11 +1064,18 @@ def _last_real_reading(locality: str, lang: str = "en"):
 
 
 def _fmt_date(iso, lang: str = "en") -> str:
-    """'23 Jun' in IST, or "" when there is no parseable time.
+    """'23 Jun' in IST -- '23 Jun 2025' in another year -- or "" if unparseable.
 
     Empty rather than a placeholder: this date is the entire warrant for the
     number printed beside it, so a reading whose date cannot be established has
     nothing to say and is not shown at all.
+
+    The year is written whenever the reading is not from the current IST year.
+    Day and month alone made a row from 23 June 2025 render identically to one
+    from 23 June 2026, so a thirteen-month-old measurement read as four weeks
+    old -- on the one line where the date is the whole warrant for the number.
+    It is omitted within the current year because "23 Jun 2026" printed in July
+    2026 is noise that makes the useful case harder to read.
     """
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
@@ -1076,9 +1083,15 @@ def _fmt_date(iso, lang: str = "en") -> str:
         return ""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
+    # IST, not UTC. A row dated by @timestamp carries UTC "Z" -- the
+    # compatibility path metrics.station_grid falls back to -- and 20 Jul
+    # 01:30 IST is 19 Jul in UTC. Without this the line names the wrong day.
     dt = dt.astimezone(IST)
     # _month_abbr, not strftime("%b"), which hands a Hindi page "Jun".
-    return f"{dt.day} {_month_abbr(lang, dt.month)}"
+    out = f"{dt.day} {_month_abbr(lang, dt.month)}"
+    if dt.year != datetime.now(IST).year:
+        out = f"{out} {dt.year}"
+    return out
 
 
 def _displayable_sessions(request: Request) -> set:
