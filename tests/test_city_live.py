@@ -411,3 +411,89 @@ def test_the_cached_legend_matches_when_the_tag_is_actually_shown(monkeypatch, l
         "this is not the tag legend")
     assert _THREE_HOURS[lang] not in legend, (
         "the legend states a three-hour threshold the page does not apply")
+
+
+# ------------------------------------- one particulate is not two particulates
+#
+# The grid sorts worst-first and so invites the reader to compare tiles against
+# each other. A CPCB index can be produced from a single particulate -- measured:
+# Wazirpur's PM2.5 instrument was down and its 119 came from PM10 alone -- and
+# that figure is not comparable with a neighbour's 119 from two. The Today page
+# says so beside the reading; the tile showed a bare number.
+def _mixed(monkeypatch, single):
+    """Every locality reports both particulates except those in ``single``,
+    which report PM10 only."""
+    def get_aqi(locality, es_client=None):
+        pm25 = None if locality in single else PM25[locality]
+        reading = waqi._reading(pm25, 180.0, station=locality, city="Delhi",
+                                stale=False, forecast=None,
+                                obs_time="2026-07-21T10:00:00+05:30",
+                                source="cpcb")
+        return reading, "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_single_particulate_tile_is_marked_and_the_others_are_not(monkeypatch, lang):
+    """Both directions in one render, so "mark everything" and "mark nothing"
+    are both failures rather than one of them being a pass."""
+    single = {"Wazirpur", "ITO"}
+    _mixed(monkeypatch, single)
+    with TestClient(app) as client:
+        rows = _rows(client.get("/city", params={**PERSONA, "lang": lang}).text)
+
+    tag = i18n.t(lang, "ui", "tag_partial", "PART")
+    marked = {loc for loc, markup in rows.items() if tag in markup}
+    assert marked == single, (lang, marked)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_partial_tag_explains_itself_in_the_legend(monkeypatch, lang):
+    """A tag word with no legend entry is a code, not an explanation -- and the
+    legend is the one place this page defines its own vocabulary."""
+    _mixed(monkeypatch, {"Wazirpur"})
+    with TestClient(app) as client:
+        body = html.unescape(client.get("/city", params={**PERSONA, "lang": lang}).text)
+    assert i18n.t(lang, "ui", "tag_partial", "PART") in body
+    assert i18n.t(lang, "ui", "tag_partial_legend",
+                  "PART means that station measured only part of what goes into "
+                  "the number, so its figure is not directly comparable with the "
+                  "others. Open the station to see what it did measure.") in body
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_tile_marker_never_names_a_particulate(monkeypatch, lang):
+    """Hard rule: PM2.5 and PM10 belong in the Guide, the System views and the
+    provenance panel. This grid is none of those, so the marker says what the
+    reader can act on without naming an instrument."""
+    _mixed(monkeypatch, {"Wazirpur"})
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    grid = body[body.find('class="station-list"'):]
+    grid = grid[:grid.rfind("</a>")]
+    for token in ("PM2.5", "PM10", "µg/m", "ug/m"):
+        assert token not in grid, (lang, token)
+
+
+def test_a_tile_with_both_particulates_is_never_marked(monkeypatch):
+    """The mirror at the unit level: _partial is about ONE of two, not about
+    anything being absent. A reading with neither has no index and never
+    reaches a tile."""
+    from saafsaans.web.main import _partial
+
+    both = waqi._reading(80.0, 160.0, station="ITO", city="Delhi", stale=False,
+                         forecast=None, obs_time=None)
+    only25 = waqi._reading(80.0, None, station="ITO", city="Delhi", stale=False,
+                           forecast=None, obs_time=None)
+    only10 = waqi._reading(None, 160.0, station="ITO", city="Delhi", stale=False,
+                           forecast=None, obs_time=None)
+    neither = waqi._reading(None, None, station="ITO", city="Delhi", stale=False,
+                            forecast=None, obs_time=None)
+    assert _partial(both) is False
+    assert _partial(only25) is True
+    assert _partial(only10) is True
+    assert neither["aqi"] is None and _partial(neither) is False
+    assert _partial(None) is False

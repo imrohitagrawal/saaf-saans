@@ -771,6 +771,17 @@ def _live_grid(es_client) -> dict:
         pool.shutdown(wait=False)
 
 
+def _partial(reading) -> bool:
+    """True when the index came from ONE particulate rather than two.
+
+    Not "a value is missing": a reading with neither particulate has no index
+    at all and never reaches a tile, so the interesting case is exactly one.
+    """
+    if not reading or reading.get("aqi") is None:
+        return False
+    return (reading.get("pm25") is None) != (reading.get("pm10") is None)
+
+
 @app.get("/city")
 def city(request: Request):
     persona = read_persona(request)
@@ -849,6 +860,22 @@ def city(request: Request):
                          "age": _age_label(row.get("ts"), lang) if source == "cached"
                                 else (_age_label(reading.get("obs_time"), lang)
                                       if source == "held" else None),
+                         # This grid sorts worst-first and so invites the reader
+                         # to compare tiles against each other. A figure worked
+                         # out from one particulate is not comparable with one
+                         # worked out from two -- Wazirpur's PM2.5 instrument
+                         # was down and its index came from PM10 alone -- and
+                         # /?locality=<the same station> now says so while this
+                         # tile showed a bare number beside its neighbours.
+                         #
+                         # Marked in PLAIN LANGUAGE: naming the particulate
+                         # here would put PM2.5/PM10 outside the Guide, the
+                         # System views and the provenance panel, which is the
+                         # one place the reading card is allowed to name them.
+                         # Only for readings we hold the dict for; a row
+                         # rebuilt from Elasticsearch cannot be asked.
+                         "partial": _partial(reading) if source in ("live", "held")
+                                    else False,
                          "selected": loc == selected})
 
     def group(region):

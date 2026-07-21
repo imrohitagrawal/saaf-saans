@@ -271,6 +271,14 @@ HI: dict = {
         # Names the two chips by the words they now carry in Hindi, not by
         # their English originals -- a legend that names a tag the page does
         # not print is a legend for a different page.
+        # The grid sorts worst-first, so it invites comparison between tiles.
+        # A figure from one particulate is not comparable with one from two.
+        # Named in plain language: the particulate belongs on the Today page.
+        "tag_partial": "अधूरी",
+        "tag_partial_legend": "‘अधूरी’ का मतलब है कि उस स्टेशन ने नंबर में जाने वाली चीज़ों में "
+                              "से सिर्फ़ कुछ ही मापी हैं, इसलिए उसका आँकड़ा बाक़ी स्टेशनों से "
+                              "सीधे तुलना करने लायक़ नहीं है। उस स्टेशन को खोलकर देखिए कि "
+                              "उसने क्या मापा है।",
         "tag_legend": "‘सहेजी हुई’ का मतलब है कि उस जगह की जो रीडिंग हमारे पास पहले से है "
                       "हम वही दिखा रहे हैं — अभी-अभी आई हुई नहीं — और टैग बताता है कि माप "
                       "कितना पुराना है। ‘कोई रीडिंग नहीं’ का मतलब "

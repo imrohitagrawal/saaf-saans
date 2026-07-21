@@ -27,6 +27,11 @@
           rendered unconditionally, so a station we hold nothing for still got a
           severity word -- off a stand-in figure that was never measured. -#}
       <span class="bd">{{ s.band if s.band else '' }}</span>
+      {#- Worst-first sorting invites tile-against-tile comparison, and a
+          number worked out from one particulate is not comparable with one
+          worked out from two. Plain language: the particulate is named on the
+          Today page for this station, not here. -#}
+      {% if s.partial %}<span class="tag">{{ T('ui', 'tag_partial', 'PART') }}</span>{% endif %}
     </a>
     {% endfor %}
   </div>
@@ -43,7 +48,8 @@
     carry it: a reading we stored earlier, and a reading we are still holding
     because the source stopped answering -- and the second can be minutes old.
     The old wording promised a threshold the page does not apply. -#}
-<p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we are still holding an earlier reading for that place rather than showing one that just arrived, and the tag says how old the measurement is. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}</p>
+<p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we are still holding an earlier reading for that place rather than showing one that just arrived, and the tag says how old the measurement is. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}
+  {{ T('ui', 'tag_partial_legend', 'PART means that station measured only part of what goes into the number, so its figure is not directly comparable with the others. Open the station to see what it did measure.') }}</p>
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
