@@ -3,15 +3,23 @@
 Why this source, and why it goes first
 --------------------------------------
 WAQI republishes Indian government monitoring data. Reading CPCB directly
-removes a hop, and the hop was costing real coverage: on 21 July 2026 WAQI
-answered for 12 of the 21 localities this app offers, while CPCB answered for
-20 of them in the same minute. ITO in particular had been stale in WAQI's
-mirror since 23 June -- long enough that the app served a fabricated stand-in
-in its place -- while CPCB was publishing it hourly throughout.
+removes a hop.
 
-WAQI is kept as the fallback rather than removed. It covered Wazirpur on the
-day this was written, when CPCB's PM2.5 instrument there was down, so the two
-sources genuinely cover for each other. Neither is trusted alone.
+The dated coverage figures that stood here -- how many localities each source
+answered for on one day in July 2026 -- have been REMOVED rather than
+corrected. They were a live measurement nobody can re-take, this run has no
+way to re-measure them hermetically, and rule 5 says an unsupportable claim
+goes rather than gets softened.
+
+What can be stated is structural, because it is encoded in the tables below:
+this module can address AT MOST 18 of the 21 localities the app offers.
+"Delhi (city)" is an aggregate no one operates, and Greater Noida and
+Ghaziabad have no pinned station. Whether the other 18 match a station the
+feed is publishing today is a fact about the feed, not about this file, and
+nothing here asserts it.
+
+WAQI is kept as the fallback rather than removed. Both sources have been seen
+covering for the other, so neither is trusted alone.
 
 The unit trap
 -------------
@@ -106,11 +114,14 @@ STATION_ALIAS = {
     # station's own name is what the page displays, so the reader is never told
     # a sector reading is a city-wide one.
     #
-    # Greater Noida and Ghaziabad are deliberately absent. FEED_MAP gives them a
-    # bare city slug rather than a station, so there is no existing choice to
-    # mirror, and picking one of Ghaziabad's five would be this file inventing a
-    # decision about whose air represents the city. They stay on WAQI, and show
-    # NO READING when it has nothing.
+    # Greater Noida and Ghaziabad are deliberately absent. FEED_MAP gives them
+    # a bare city slug rather than a station -- which is true, but it does NOT
+    # follow that there is no station behind it, and an earlier version of this
+    # comment drew exactly that inference. What is true is narrower: no station
+    # has ever been PINNED for them here, and picking one of Ghaziabad's
+    # several would be this file inventing a decision about whose air
+    # represents the city. That choice belongs to the NCR expansion, not to
+    # this table. They stay on WAQI, and show NO READING when it has nothing.
     "Noida": "Sector - 62",         # FEED_MAP @11865
     "Gurugram": "Sector-51",        # FEED_MAP @12816
     "Faridabad": "Sector 11",       # FEED_MAP @12813
@@ -163,7 +174,13 @@ def _fetch_lock(city: str):
 
 
 def available() -> bool:
-    return bool(config.cpcb_key())
+    """One oracle, so /health and the fetch path cannot disagree.
+
+    This used to be a second implementation of config.cpcb_available(), which
+    had no caller at all. Two predicates for one question is how a health
+    endpoint comes to report a capability the request path does not have.
+    """
+    return config.cpcb_available()
 
 
 def _normalise(name: str) -> str:

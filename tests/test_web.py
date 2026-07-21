@@ -1432,3 +1432,23 @@ def test_the_no_reading_page_does_not_explain_a_missing_who_line(client, lang):
 
     body = htmllib.unescape(client.get("/", params={**PERSONA, "lang": lang}).text)
     assert pr.who_line(None, lang, has_index=True) not in body
+
+
+def test_health_reports_the_primary_source(client, monkeypatch):
+    """/health reported only "waqi", so a deploy with no CPCB_API_KEY looked
+    green while the PRIMARY source was off.
+
+    Asserted both ways: a False-only assertion would pass on a hardcoded False.
+    """
+    from saafsaans.services import config
+
+    body = client.get("/health").json()
+    assert "cpcb" in body
+    assert body["cpcb"] is False, "the harness blanks CPCB_API_KEY"
+
+    monkeypatch.setattr(config, "cpcb_key", lambda: "a-key")
+    assert client.get("/health").json()["cpcb"] is True
+
+    # Primary source before the fallback, as the footer and the Guide now are.
+    keys = list(body)
+    assert keys.index("cpcb") < keys.index("waqi")

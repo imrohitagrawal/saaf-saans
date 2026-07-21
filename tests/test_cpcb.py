@@ -329,11 +329,11 @@ def test_the_ncr_aliases_point_at_the_station_feed_map_already_chose(feed, label
 
 @pytest.mark.parametrize("label", ["Greater Noida", "Ghaziabad"])
 def test_the_cities_with_no_pinned_station_are_left_to_waqi(feed, label):
-    """Deliberately unmapped: FEED_MAP gives these a bare city slug, so there is
-    no existing choice to mirror and this module must not invent one. If
-    somebody adds an alias, they have made a decision about whose air
-    represents the city and this test should be the thing that makes them say
-    so out loud."""
+    """Deliberately unmapped. FEED_MAP gives these a bare city slug rather than
+    a pinned station -- which does not mean no station answers for that slug,
+    only that nobody chose one HERE. Picking one would be a decision about
+    whose air represents the city, and this test exists to make whoever makes
+    it say so out loud."""
     assert label not in cpcb.STATION_ALIAS
     feed(rows(f"Somewhere, {label} - UPPCB", pm25=30, city=label))
     assert cpcb.values_for(label) is None
@@ -805,3 +805,29 @@ def test_the_flag_ships_off():
     CPCB's single particulate swaps the quantity the CPCB scale is defined on
     for one it is not. Flipping this is a decision, not a tidy-up."""
     assert waqi.PREFER_TWO_PARTICULATES is False
+
+
+# ------------------------------------------------------ what the tables encode
+def test_the_addressable_locality_count_matches_the_docstring():
+    """A TABLE-DRIFT GUARD, and nothing more.
+
+    It checks that the number written in cpcb.__doc__ still equals what the
+    tables in this module actually encode. It is NOT evidence of coverage:
+    whether those 18 localities match a station the feed is publishing today
+    is a fact about the feed that no offline test can assert, and no prose may
+    cite this test as if it did.
+    """
+    import re
+
+    unaliased_ncr = [loc for loc in waqi.REGIONS["NCR"]
+                     if loc not in cpcb.STATION_ALIAS]
+    addressable = (len(waqi.LOCALITIES) - len(cpcb.NOT_A_STATION)
+                   - len(unaliased_ncr))
+
+    # Anchored to its own sentence: the docstring also contains 12, 21, 26,
+    # 300, 315 and 1000, and a loose \d+ would match whichever came first.
+    match = re.search(r"address AT MOST (\d+) of the (\d+) localities",
+                      cpcb.__doc__)
+    assert match, "the addressability sentence is no longer in the docstring"
+    assert int(match.group(1)) == addressable
+    assert int(match.group(2)) == len(waqi.LOCALITIES)

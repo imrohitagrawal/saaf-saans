@@ -83,4 +83,9 @@ def cpcb_key() -> str:
 
 
 def cpcb_available() -> bool:
-    return bool(_clean("CPCB_API_KEY"))
+    """Derived from ``cpcb_key`` rather than re-reading the environment.
+
+    Two functions reading the same variable is how /health comes to report a
+    capability the request path does not have: the fetch path asks for the
+    key, so the availability answer has to be about the same call."""
+    return bool(cpcb_key())

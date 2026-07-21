@@ -366,10 +366,11 @@ def get_aqi(locality: str, es_client=None):
 def _fetch_cpcb(locality: str):
     """A reading built from CPCB's own concentrations, or None.
 
-    CPCB is asked first because it is the upstream WAQI republishes: on
-    21 July 2026 it answered for 20 of the 21 localities against WAQI's 12, and
-    it had been publishing ITO hourly throughout the month WAQI's mirror of it
-    sat stale.
+    CPCB is asked first because it is the upstream WAQI republishes. The dated
+    coverage counts that stood here have been removed: they were a live
+    measurement nobody can re-take, and an unsupportable claim goes rather than
+    gets renumbered. ``cpcb``'s module docstring states the structural bound
+    that IS checkable instead.
 
     ``cpcb.values_for`` returns micrograms, so they are passed to ``_reading``
     unconverted. They must NEVER go through ``aqi_scale.concentration``, which

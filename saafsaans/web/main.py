@@ -1106,7 +1106,10 @@ def favicon():
 
 @app.get("/health")
 def health():
+    # Primary source first. This reported only "waqi", so a deploy with no
+    # CPCB_API_KEY looked green while the PRIMARY source was off.
     return {"ok": True, "es": config.es_mode(),
+            "cpcb": config.cpcb_available(),
             "waqi": config.waqi_available(), "llm": config.llm_available()}
 
 
