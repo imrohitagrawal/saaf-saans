@@ -165,6 +165,16 @@ def test_inhalation_rates_match_the_published_table():
     assert set(risk.EPA_AGE_BANDS) == set(risk.INHALATION_RATES)
 
 
+def test_the_intensity_order_covers_the_rate_table_least_first():
+    """The Guide renders the rate table through this order, so it must name
+    every column exactly once and must not drift away from the rates it
+    labels. There used to be a second private copy in web/main.py, free to
+    disagree with this one."""
+    for age, rates in risk.INHALATION_RATES.items():
+        assert list(risk.INTENSITY_ORDER) == sorted(rates, key=rates.get), age
+    assert set(risk.INTENSITY_ORDER) == set(risk.ACTIVITY_INTENSITY.values())
+
+
 def test_dose_points_are_ratios_of_published_rates():
     # A resting adult is the baseline and scores nothing extra.
     assert risk.inhalation_ratio("adult", "stay_home") == 1.0

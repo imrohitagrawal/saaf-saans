@@ -87,7 +87,11 @@ ACTIVITY_INTENSITY = {
     "stay_home": "sedentary",         # indoors, at rest
     "any": "sedentary",               # unknown plans: assume the low end
 }
-INTENSITY_ORDER = ["sedentary", "light", "moderate", "high"]
+# Least to most exertion. The one place this order is written down: the Guide
+# renders INHALATION_RATES as a table and needs its columns in this order, and
+# a second private copy next to that table would be free to disagree with the
+# rates it is labelling.
+INTENSITY_ORDER = ("sedentary", "light", "moderate", "high")
 
 # Everything is expressed relative to a sedentary adult, so the dose term
 # reads as "you are breathing N times as much air as a resting adult".

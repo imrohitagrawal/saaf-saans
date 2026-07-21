@@ -749,7 +749,6 @@ def simulate(request: Request):
 # the picker's own labels, so a condition cannot be called one thing in the
 # editor and another in the Guide.
 _EPA_AGE_ORDER = ("child", "adult", "senior")
-_INTENSITY_ORDER = ("sedentary", "light", "moderate", "high")
 # risk.py's scoring keyword -> the persona option it stands for.
 _FACTOR_OPTION = {
     "copd": "COPD", "heart": "Heart condition", "pregnancy": "Pregnancy",
@@ -780,7 +779,7 @@ def _epa_rows(lang: str) -> list:
     }
     return [{"label": labels[age.capitalize()], "band": bands[age],
              "rates": [risk.INHALATION_RATES[age][level]
-                       for level in _INTENSITY_ORDER]}
+                       for level in risk.INTENSITY_ORDER]}
             for age in _EPA_AGE_ORDER]
 
 
