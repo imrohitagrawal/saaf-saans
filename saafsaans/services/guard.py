@@ -6,13 +6,33 @@ never reaches the model.
 
 Defence approach:
   1. Length check first (cheap; an oversized prompt is suspicious regardless).
-  2. Normalize the text once (NFKC unicode fold, lowercase, collapse
-     whitespace) so trivial spacing / homoglyph / casing tricks cannot slip a
-     keyword past the patterns.
-  3. Match an ordered regex table. Verb sets and filler-tolerant spacing catch
-     realistic phrasing variants ("ignore instructions", "reveal your prompt",
-     "forget your rules"), while word boundaries avoid false positives on
-     ordinary words ("contact", "react").
+  2. Normalize the text once (NFKC unicode fold, drop format characters,
+     lowercase, collapse whitespace) so spacing, casing and invisible-character
+     tricks cannot slip a keyword past the patterns.
+  3. Match an ordered regex table covering English, Devanagari Hindi and
+     Hinglish (Hindi typed in Latin script). Verb sets and filler-tolerant
+     spacing catch realistic phrasing variants ("ignore instructions", "reveal
+     your prompt", "अपने निर्देश भूल जाओ"), while word boundaries and tight
+     possessive+target adjacency avoid false positives on ordinary words
+     ("contact", "react") and ordinary questions ("ग्रैप के नियम क्या हैं").
+
+What this guard does NOT stop, stated plainly so the next reader is not
+misled:
+  * **Cross-script confusables.** NFKC is a compatibility fold, not a
+    confusable fold: it leaves Cyrillic е о ѕ а and Greek ο ν alone, so
+    "ignorе your instructions" with one Cyrillic letter passes every pattern
+    below while the all-ASCII original is blocked. Folding this properly needs
+    the Unicode confusables table, which the standard library does not ship;
+    a hand-written table of the few substitutions someone happened to try
+    would look like a defence without being one.
+  * **Latin letters carrying combining diacritics** ("ígnore your
+    instructions"). Stripping combining marks would close it, but Devanagari
+    matras are combining marks too, and stripping them would destroy every
+    Hindi pattern below and every legitimate Hindi question.
+  * **Paraphrase in any language**, and injections in languages other than
+    English and Hindi. A keyword table is a first filter, not a boundary.
+The real boundary is downstream: the system prompt is a fixed constant and the
+question is framed to the model as data, not instructions.
 """
 import re
 import unicodedata
