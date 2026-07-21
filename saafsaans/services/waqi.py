@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from . import aqi_scale, config, es
+from . import aqi_scale, config, cpcb, es
 
 # WAQI publishes hourly, and every render of every page asked it again: the
 # fetch is blocking, sits on the request path, and the machine is one 256MB
@@ -68,10 +68,16 @@ def _fetch_lock(locality: str):
 
 
 def cache_clear():
-    """Drop every cached reading. For tests, and for the seeding scripts."""
+    """Drop every cached reading. For tests, and for the seeding scripts.
+
+    Clears the CPCB city cache too. They are separate caches -- one keyed by
+    locality, one by city -- and a test that cleared only this one would still
+    be served yesterday's CPCB payload.
+    """
     with _CACHE_LOCK:
         _CACHE.clear()
         _FETCH_LOCKS.clear()
+    cpcb.cache_clear()
 
 
 TIMEOUT = 5
@@ -342,8 +348,48 @@ def get_aqi(locality: str, es_client=None):
         return _fetch_uncached(locality, es_client)
 
 
+def _fetch_cpcb(locality: str):
+    """A reading built from CPCB's own concentrations, or None.
+
+    CPCB is asked first because it is the upstream WAQI republishes: on
+    21 July 2026 it answered for 20 of the 21 localities against WAQI's 12, and
+    it had been publishing ITO hourly throughout the month WAQI's mirror of it
+    sat stale.
+
+    ``cpcb.values_for`` returns micrograms, so they are passed to ``_reading``
+    unconverted. They must NEVER go through ``aqi_scale.concentration``, which
+    exists to invert WAQI's US-EPA sub-indices -- running a concentration
+    through it would inflate every number in the app. That is the one way this
+    function can be wrong without anything looking wrong.
+    """
+    try:
+        values = cpcb.values_for(locality)
+    except Exception:
+        return None
+    if not values:
+        return None
+    if _obs_too_old(values["obs_time"]):
+        return None
+    reading = _reading(
+        values["pm25"], values["pm10"],
+        station=values["station"], city=values["city"],
+        stale=False, forecast=None, obs_time=values["obs_time"])
+    # No usable particulate means no CPCB AQI. Returning the shell would stop
+    # the WAQI fallback being tried, which is the whole point of having one.
+    return reading if reading["aqi"] is not None else None
+
+
 def _fetch_uncached(locality: str, es_client):
     """The cache miss path. Caller must hold this locality's fetch lock."""
+    reading = _fetch_cpcb(locality)
+    if reading is not None:
+        try:
+            es.index_reading(es_client, {**reading, "station": locality})
+        except Exception:
+            pass  # indexing must never affect the returned reading
+        _cache_put(locality, reading, "ok")
+        return reading, "ok"
+
     token = config.waqi_token()
     if not token:
         return _fallback(locality), "fallback"

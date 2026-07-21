@@ -76,3 +76,11 @@ def elastic_url() -> str:
 
 def elastic_api_key() -> str:
     return _clean("ELASTIC_API_KEY")
+
+
+def cpcb_key() -> str:
+    return _clean("CPCB_API_KEY")
+
+
+def cpcb_available() -> bool:
+    return bool(_clean("CPCB_API_KEY"))
