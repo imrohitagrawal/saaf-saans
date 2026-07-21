@@ -38,4 +38,13 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # anything but 127.0.0.1 by default -- so without this the app believes it is
 # serving plain http and stops marking the session cookie Secure. The container
 # is only reachable through that proxy, so trusting it is the correct scope.
-CMD ["sh", "-c", "exec uvicorn saafsaans.web.main:app --host 0.0.0.0 --port ${PORT} --forwarded-allow-ips='*'"]
+# --no-access-log is a privacy control, not a noise control. The persona rides
+# in the query string, so uvicorn's default access line prints the reader's age,
+# health condition and planned activity next to their IP address on every
+# request:
+#   127.0.0.1:58193 - "GET /?locality=Anand+Vihar&age=Senior&condition=COPD..."
+# The Guide tells every reader that those three fields are never written to a
+# database and that the logs hold only a hashed session id and a status. The
+# field whitelists in services/es.py keep that true of Elasticsearch; nothing
+# kept it true of stdout, which on a hosted platform is collected and retained.
+CMD ["sh", "-c", "exec uvicorn saafsaans.web.main:app --host 0.0.0.0 --port ${PORT} --forwarded-allow-ips='*' --no-access-log"]

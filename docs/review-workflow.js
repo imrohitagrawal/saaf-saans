@@ -25,6 +25,18 @@ export const meta = {
   ],
 }
 
+// A JSON-ENCODED STRING is the failure this guard exists for. Passed one, every
+// property read below returns undefined, `dimensions` falls back to all the
+// built-ins, and the run LOOKS like a clean 61-agent success while reviewing
+// something other than what was asked for -- which is exactly what happened
+// once, costing a full round. Fail loudly instead.
+if (typeof args === 'string') {
+  throw new Error(
+    'args arrived as a string, not an object. Pass real JSON in the tool call ' +
+    '({root: "...", dimensions: [...]}), not a JSON-encoded string. Every custom ' +
+    'dimension would otherwise be silently dropped for the built-in list.')
+}
+
 const root = (args && args.root) || '.'
 const exclude = (args && args.exclude) || '.venv, node_modules, dist, build, vendor'
 
@@ -120,6 +132,11 @@ const killRate = all.length ? Math.round((killed / all.length) * 100) : 0
 
 // A kill rate near zero means the refuters are rubber-stamping; treat the run as
 // suspect rather than as a clean bill of health. See METHODOLOGY.md rule 2.
+// Say which dimensions actually ran. The returned findings carry a dimension
+// each, but a dimension whose reviewer found NOTHING is invisible in that list,
+// so the roster is reported separately -- otherwise "it ran" and "it found
+// nothing" are indistinguishable in the result.
+log(`dimensions run (${dimensions.length}): ${dimensions.map(d => d.key).join(', ')}`)
 log(`${held.length} of ${all.length} findings survived (kill rate ${killRate}%)`)
 if (all.length >= 8 && killRate < 10) {
   log(`WARNING: kill rate ${killRate}% is implausibly low - verifiers may be rubber-stamping.`)
@@ -127,6 +144,7 @@ if (all.length >= 8 && killRate < 10) {
 
 const order = { high: 0, medium: 1, low: 2 }
 return {
+  dimensionsRun: dimensions.map(d => d.key),
   killRate,
   examined: all.length,
   confirmed: held

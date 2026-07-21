@@ -207,3 +207,58 @@ def test_the_security_view_does_not_publish_other_visitors_typed_text():
 
     assert "my private medical question" not in body
     assert "[demo] blocked prompt-injection attempt" in body
+
+
+def test_the_shipped_server_does_not_log_the_persona():
+    """The persona travels in the query string, so uvicorn's default access log
+    prints age, condition and activity next to the client IP on every request:
+
+      127.0.0.1:58193 - "GET /?locality=Anand+Vihar&age=Senior&condition=COPD..."
+
+    Reproduced against a real server before this test was written. The Guide
+    tells every reader those fields are never written to a database and that the
+    logs hold only a hashed session id and a status; the field whitelists above
+    keep that true of Elasticsearch, and nothing kept it true of stdout, which a
+    hosted platform collects and retains. The control is one flag on the shipped
+    command, so the test is on the shipped command.
+    """
+    import pathlib
+    dockerfile = pathlib.Path(__file__).resolve().parent.parent / "Dockerfile"
+    cmd = [ln for ln in dockerfile.read_text().splitlines()
+           if ln.startswith("CMD") and "uvicorn" in ln]
+    assert len(cmd) == 1, f"expected exactly one uvicorn CMD, found {len(cmd)}"
+    assert "--no-access-log" in cmd[0], (
+        "the shipped uvicorn command has no --no-access-log, so the reader's "
+        "health condition is printed beside their IP on every request"
+    )
+
+
+def test_clearing_credentials_needs_them_empty_not_unset():
+    """`services/config` calls ``load_dotenv()`` at import, and load_dotenv does
+    not overwrite a name that is already in the environment -- but it does fill
+    in one that has been UNSET. So `env -u WAQI_TOKEN ...`, the obvious way to
+    neutralise a checkout that has a live .env, is silently undone at import and
+    the process runs against real credentials. `env WAQI_TOKEN= ...` survives.
+
+    This is a footgun, not a defect in the app: a bare script SHOULD pick up
+    .env. It is pinned here because the difference is invisible -- both spellings
+    look like they disable the credential, and only one does -- and because
+    getting it wrong points a review at a live paid API.
+    """
+    import os
+    import subprocess
+    import sys
+
+    probe = ("import os;"
+             "from saafsaans.services import config;"
+             "print(repr(os.environ.get('WAQI_TOKEN')))")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def _probe(env):
+        full = {**os.environ, **env}
+        full.pop("PYTEST_CURRENT_TEST", None)
+        return subprocess.run([sys.executable, "-c", probe], cwd=root, env=full,
+                              capture_output=True, text=True).stdout.strip()
+
+    assert _probe({"WAQI_TOKEN": ""}) == "''", (
+        "setting the variable empty should survive load_dotenv()")
