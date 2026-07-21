@@ -105,6 +105,39 @@ What this does **not** verify: anything about a hosting provider. The Space conf
 secret handling and the platform terms below are read from documentation and have not been
 exercised against a real account.
 
+## Putting it on a custom domain
+
+Done on 2026-07-21 against a Cloudflare-managed domain. A SUBDOMAIN, deliberately:
+Fly gives the app a shared IPv4, which is fine for a subdomain, whereas an apex domain
+needs a dedicated IPv4 at roughly $2/month.
+
+```bash
+flyctl certs add saafsaans.<your-domain> -a saafsaans
+flyctl ips list -a saafsaans          # prints the two addresses to point at
+flyctl certs check saafsaans.<your-domain>
+```
+
+Then two records at the DNS provider, created in its web console — these are records, not
+shell commands:
+
+| Type   | Name        | Value                                  |
+|--------|-------------|----------------------------------------|
+| `A`    | `saafsaans` | the shared IPv4 from `flyctl ips list`  |
+| `AAAA` | `saafsaans` | the dedicated IPv6 from the same output |
+
+Most registrars want the bare subdomain in *Name* (`saafsaans`) and append the zone
+themselves, though `flyctl` prints the fully-qualified form.
+
+**On Cloudflare specifically, set both records to DNS only — the grey cloud, not the
+orange one.** A proxied record makes Cloudflare terminate TLS itself, which stalls Fly's
+certificate validation and double-proxies a service that already sets `force_https` in
+`fly.toml`. The proxy can be turned on afterwards, once `flyctl certs check` reports the
+certificate issued.
+
+Note that no Cloudflare MCP server can create DNS records. There are fourteen official
+ones and the only DNS-related server, `dns-analytics`, is read-only. Record management is
+dashboard, API or `wrangler`.
+
 ## What the platforms actually offer (July 2026)
 
 Read on 2026-07-20. Quotes are from the linked page.

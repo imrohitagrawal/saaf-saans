@@ -236,9 +236,10 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
 3. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
    retrieved during research and is the most decision-relevant unread document; it governs
    whether personalised health advice can legally ship in India.
-4. **Deploy the merged `master`.** Everything below the merge is done and green; the deploy
-   command itself was refused by the harness the run was executing under, not by the gate.
-   `flyctl deploy` from a checkout of `master`, then check `/health` and the five views.
+4. **Point the custom domain at it.** The app is deployed and verified — see below — but
+   still answers only on `saafsaans.fly.dev`. The certificate and the two DNS records are
+   the remaining step; [`DEPLOY.md`](DEPLOY.md) has both, including the Cloudflare
+   grey-cloud caveat.
 5. **Assume the guard still has holes.** Five adversarial rounds each found something, three
    of them found a regression introduced by the previous round's fix, and the module's own
    docstring says a keyword table is a first filter rather than a boundary. The next round
@@ -493,11 +494,23 @@ gone, and `space` was archived as a patch under `docs/archive/` first because it
 merged. Deleting one merged branch is not worth handing back a checkout in a state its owner
 did not leave it in.
 
-**The deploy did not happen, and the gate is not why.** All three conditions the brief set
-were met — suite green at 831, no unresolved high-severity UI finding, `flyctl` already
-authenticated as the owner. The harness refused the deploy command itself. It was not
-retried or worked around. The live site is still running the previous release, which is
-healthy; `flyctl deploy` from `~/Projects/saaf-saans-stable` is all that remains.
+**The deploy was gated, refused, and then done by the owner.** All three conditions the
+brief set were met — suite green, no unresolved high-severity UI finding, `flyctl` already
+authenticated — but the harness the run was executing under refused the deploy command
+itself. It was not retried or worked around; it was reported, and the owner ran it. The
+release is live and was verified afterwards from outside: `/health` reports
+`{"ok":true,"es":"none","waqi":true,"llm":false}`, all five views and the Hindi page return
+200, the not-a-medical-device line and the referrer policy are both present in the served
+HTML, and the page ships zero `<script>` tags.
+
+**A domain was invented rather than asked for.** Told to put the app on the owner's domain,
+this run wrote `stackclimb.io` into the deploy instructions without ever having been told
+what the domain was. It is `.com`. A certificate was issued for a hostname that does not
+exist before the error surfaced. Nothing in the repository asserted the domain, no tool had
+been consulted, and the correct action — asking — costs one sentence. It is recorded here
+because it is the same failure this document spends nine sections on, committed by the
+process that was documenting it: an unsupported claim, written confidently, in the one
+place there was no test to catch it.
 
 ### Decisions taken in the closure run, 20 July 2026
 
