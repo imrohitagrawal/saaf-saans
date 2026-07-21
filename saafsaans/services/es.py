@@ -26,7 +26,15 @@ INDEX_SECURITY = "security-events"
 
 # Field sets a document is allowed to contain. Used as a privacy backstop so a
 # stray persona value can never be written to an index.
-READING_FIELDS = {"@timestamp", "station", "city", "aqi", "pm25", "pm10", "dominant_pollutant"}
+# ``obs_time`` is the FEED's own observation time -- when the air was measured.
+# ``@timestamp`` is when this app wrote the row. They are not the same thing and
+# the difference is load-bearing: without obs_time stored, "how old is this
+# reading" could only be answered with "how long since we fetched it", so a
+# four-week-old observation fetched a minute ago read as one minute old. Rows
+# written before this field existed simply lack it, and every reader falls back
+# to @timestamp for those.
+READING_FIELDS = {"@timestamp", "obs_time", "station", "city", "aqi", "pm25",
+                  "pm10", "dominant_pollutant"}
 # ``user_hash`` is the OPTIONAL salted hash of a signed-in identity — never the
 # raw email/phone. It is the only identity value permitted into an index.
 TELEMETRY_FIELDS = {"@timestamp", "session_hash", "event", "latency_ms", "waqi_status",
@@ -78,6 +86,7 @@ def _safe_index(client, index: str, doc: dict, allowed: set):
 def index_reading(client, reading: dict) -> None:
     doc = {
         "@timestamp": now_iso(),
+        "obs_time": reading.get("obs_time"),
         "station": reading.get("station"),
         "city": reading.get("city"),
         "aqi": reading.get("aqi"),

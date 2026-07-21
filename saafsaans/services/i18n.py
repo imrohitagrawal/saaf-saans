@@ -284,6 +284,13 @@ HI: dict = {
         # Replaces the score chip when there is no reading. The score is built
         # on the air, and an assumed AQI would make the number an invented one.
         "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
+        # Wraps the last stored reading and its date. Two fragments because the
+        # template interleaves the number and the date between them, and Hindi
+        # puts the date before the verb: "<date> को यहाँ आख़िरी बार AQI <n> दर्ज
+        # हुआ था" would need a different assembly order, so the English order is
+        # kept and the Hindi reads naturally within it.
+        "last_reported_before": "यहाँ आख़िरी बार हमने",
+        "last_reported_here": "दर्ज किया था —",
         # Replaces the band advice when there is no band, because there is no
         # reading. The one instruction that does not need to know the air.
         "advice_no_reading": "जब तक हम आपको हवा का हाल न बता सकें, तब तक वही सावधानी "

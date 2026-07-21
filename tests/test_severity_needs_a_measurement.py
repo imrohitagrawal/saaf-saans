@@ -204,3 +204,64 @@ def test_the_no_reading_advice_is_the_one_the_page_renders():
                 / "saafsaans/web/templates/today.html").read_text()
     flat = " ".join(template.split())
     assert " ".join(_ADVICE_NO_READING.split()) in flat
+
+
+# --- The last real reading, with its age -----------------------------------
+def _stored(monkeypatch, rows):
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_with_no_live_feed_today_names_the_last_real_reading_and_its_date(
+        monkeypatch, lang):
+    """Owner decision C. The number is a measurement and the date is its
+    warrant, so they are printed together or not at all -- and with no band
+    word beside them, because a reading from a month ago describes a month ago.
+    """
+    _no_feed(monkeypatch)
+    _stored(monkeypatch, [{"station": "ITO", "aqi": 149,
+                           "ts": "2026-06-23T11:00:00+05:30"}])
+    with TestClient(app) as c:
+        body = htmllib.unescape(
+            c.get("/", params={**PERSONA, "locality": "ITO", "lang": lang}).text)
+    line = re.search(r'class="last-real">(.*?)</span>', body, re.S)
+    assert line, (lang, "no last-real line rendered")
+    text = " ".join(line.group(1).split())
+    assert "149" in text, text
+    assert "23" in text, text
+    from saafsaans.web.main import _month_abbr
+    assert _month_abbr(lang, 6) in text, (lang, text)
+    # The date is the OBSERVATION's, not ours -- and it carries no severity.
+    for band in BANDS:
+        assert i18n.t(lang, "band_label", band, band) not in text, (lang, band)
+    # ...and it is still not a reading: the page must not have grown a hero
+    # pill or a risk score off the back of it.
+    assert "hero-pill" not in body, lang
+    assert not re.search(r"\d+/100", body), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_with_nothing_stored_today_invents_no_last_reading(monkeypatch, lang):
+    """The honest empty state, which is what the SHIPPED configuration renders:
+    with no Elasticsearch credentials there is no client, so no last reading can
+    be looked up and none is claimed."""
+    _no_feed(monkeypatch)
+    _stored(monkeypatch, [])
+    with TestClient(app) as c:
+        body = c.get("/", params={**PERSONA, "locality": "ITO", "lang": lang}).text
+    assert 'class="last-real"' not in body, lang
+    # The page still explains itself rather than going silent.
+    assert i18n.t(lang, "prov", "no_reading", "◌ NO READING") in body, lang
+
+
+def test_a_row_with_no_usable_date_is_not_shown_at_all(monkeypatch):
+    """The date is the entire warrant for the number. A row we cannot date is a
+    number with nothing behind it -- which is what this whole change removes."""
+    _no_feed(monkeypatch)
+    _stored(monkeypatch, [{"station": "ITO", "aqi": 149, "ts": "not-a-date"}])
+    with TestClient(app) as c:
+        body = c.get("/", params={**PERSONA, "locality": "ITO"}).text
+    assert 'class="last-real"' not in body
+    assert "149" not in body

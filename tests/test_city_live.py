@@ -156,3 +156,46 @@ def test_a_silent_feed_falls_back_to_the_last_stored_reading_with_its_age(
     rohini = rows["Rohini"]
     assert _tile_aqi(rohini) == "--", rohini
     assert i18n.t(lang, "ui", "tag_no_reading", "NO READING") in rohini, rohini
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_stale_tile_keeps_its_number_and_age_but_loses_its_band(monkeypatch, lang):
+    """A stored reading is a fact about WHEN IT WAS TAKEN, so it keeps its
+    number and gains its age -- and loses the band word and the severity colour,
+    which state today's air. Saying "Severe" beside a nine-hour-old figure is
+    the sample defect in a slower form.
+    """
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import normalize
+    from saafsaans.web import main as web_main
+    _live(monkeypatch, only=set())
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+    monkeypatch.setattr(web_main.metrics, "station_grid",
+                        lambda client, locs: [{"station": "ITO", "aqi": 401,
+                                               "ts": old}])
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        tile = _rows(c.get("/city", params={**PERSONA, "lang": lang}).text)["ITO"]
+
+    assert _tile_aqi(tile) == "401", tile                    # the fact survives
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") in tile
+    for band in ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"):
+        assert i18n.t(lang, "band_label", band, band) not in tile, (lang, band)
+    # ...and the colour, which says the same thing without words.
+    assert "band-%s" % normalize.band_for(401)[3] not in tile, tile
+    assert "band-%s" % normalize.band_for(None)[3] in tile, tile
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_live_tile_does_keep_its_band(monkeypatch, lang):
+    """The mirror of the test above. Stripping the band everywhere would pass
+    that one; the band must survive exactly where it is earned."""
+    from saafsaans.services import normalize
+    _live(monkeypatch)
+    with TestClient(app) as c:
+        rows = _rows(c.get("/city", params={**PERSONA, "lang": lang}).text)
+    for loc, tile in rows.items():
+        aqi = int(_tile_aqi(tile))
+        band = normalize.band_for(aqi)
+        assert i18n.t(lang, "band_label", band[0], band[0]) in tile, (lang, loc)
+        assert "band-%s" % band[3] in tile, (lang, loc, tile)

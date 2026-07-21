@@ -445,6 +445,14 @@ def today(request: Request):
     verdict = (i18n.t(lang, "verdict", band, pr.verdict_for(band)) if has_reading
                else pr.no_reading_verdict(persona["locality"], lang=lang))
     ctx["has_reading"] = has_reading
+    # With no live reading, say what we DID last see and when -- the owner
+    # decision, and the only honest thing left to put in that space. It is a
+    # real measurement with its own date attached, so it is a fact rather than
+    # a stand-in. It is printed as a number and a date and nothing else: no
+    # band word, no colour, no advice. A reading from three weeks ago must not
+    # tell anybody what to do today.
+    ctx["last_real"] = (None if has_reading
+                        else _last_real_reading(persona["locality"], lang))
     # The band label and the meaning are translated here rather than in the
     # template because the share card is built from them too, and the card must
     # not name a band in a language the page does not use.
@@ -691,10 +699,19 @@ def city(request: Request):
         else:
             source = "none"
         label, _c, _h, slug = normalize.band_for(aqi)
+        # The band word, and the colour ramp that carries the same meaning
+        # without words, belong to a CURRENT measurement only. A stored reading
+        # keeps its number and gains its age -- both facts -- but saying
+        # "Severe" beside a figure from nine hours ago states today's air from
+        # yesterday's evidence, which is the same error as the sample in a
+        # slower form.
         stations.append({"name": loc, "aqi": aqi,
                          "band": i18n.t(lang, "band_label", label, label)
-                                 if aqi is not None else None,
-                         "slug": slug,
+                                 if source == "live" else None,
+                         # The Unknown slug, taken from normalize rather than
+                         # written out, so the two cannot drift apart.
+                         "slug": slug if source == "live"
+                                 else normalize.band_for(None)[3],
                          "source": source,
                          "age": None if source != "cached"
                                 else _age_label(row.get("ts"), lang),
@@ -993,6 +1010,53 @@ def health():
 
 
 # --- helpers ---------------------------------------------------------------
+def _last_real_reading(locality: str, lang: str = "en"):
+    """``{"aqi": n, "when": "23 June"}`` for a locality, or None.
+
+    The last measurement this app actually stored for the place, dated by when
+    the AIR was measured rather than by when we fetched it. Returns None -- and
+    the page then says only that it has no reading -- when there is no
+    Elasticsearch client, no stored row, or no usable value in it. Nothing is
+    substituted in that case; the empty state IS the answer.
+
+    Note for anyone reading production behaviour off this: with no ELASTIC_*
+    credentials there is no client, so this always returns None and every
+    locality shows the plain empty state.
+    """
+    client = get_client()
+    if client is None:
+        return None
+    try:
+        rows = metrics.station_grid(client, [locality])
+    except Exception:
+        return None
+    row = next((r for r in rows if r.get("station") == locality), None)
+    if not row or row.get("aqi") is None or not row.get("ts"):
+        return None
+    when = _fmt_date(row["ts"], lang)
+    if not when:
+        return None
+    return {"aqi": row["aqi"], "when": when}
+
+
+def _fmt_date(iso, lang: str = "en") -> str:
+    """'23 Jun' in IST, or "" when there is no parseable time.
+
+    Empty rather than a placeholder: this date is the entire warrant for the
+    number printed beside it, so a reading whose date cannot be established has
+    nothing to say and is not shown at all.
+    """
+    try:
+        dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt = dt.astimezone(IST)
+    # _month_abbr, not strftime("%b"), which hands a Hindi page "Jun".
+    return f"{dt.day} {_month_abbr(lang, dt.month)}"
+
+
 def _is_fresh(ts, hours: int = 3) -> bool:
     """True when a stored reading is recent enough to call live."""
     if not ts:

@@ -298,7 +298,12 @@ def station_grid(client, localities: list) -> list:
             rows.append({
                 "station": b["key"],
                 "aqi": src.get("aqi"),
-                "ts": src.get("@timestamp"),
+                # When the AIR was measured, falling back to when we wrote the
+                # row for documents indexed before obs_time was stored. A
+                # reading's age is a fact about the observation, not about our
+                # fetch schedule, and the two can differ by weeks.
+                "ts": src.get("obs_time") or src.get("@timestamp"),
+                "written": src.get("@timestamp"),
             })
         return rows
     except Exception:

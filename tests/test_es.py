@@ -110,3 +110,30 @@ def test_log_swallows_client_exception():
     # Must not raise.
     es.log_telemetry(Boom(), {"event": "x", "session_hash": "h"})
     es.log_security(Boom(), {"event_type": "y", "session_hash": "h"})
+
+
+def test_a_reading_is_indexed_with_the_time_the_air_was_measured():
+    """Without obs_time stored, "how old is this reading" could only be
+    answered "how long since we fetched it". WAQI's ITO mirror served an
+    observation dated 23 June that the app fetched on 19 July, so the two
+    differ by a month and only the wrong one was ever written down.
+
+    The privacy backstop is checked in the same breath: obs_time has to be in
+    READING_FIELDS or _safe_index strips it right back out again.
+    """
+    captured = {}
+
+    class Recorder:
+        def index(self, index, document):
+            captured["index"] = index
+            captured["doc"] = document
+
+    es.index_reading(Recorder(), {
+        "station": "ITO", "city": "Delhi", "aqi": 149, "pm25": 54.0,
+        "pm10": 63.0, "dominant_pollutant": "pm25",
+        "obs_time": "2026-06-23T11:00:00+05:30",
+    })
+    assert "obs_time" in es.READING_FIELDS
+    assert captured["doc"]["obs_time"] == "2026-06-23T11:00:00+05:30"
+    # ...and it is a different fact from when we wrote the row.
+    assert captured["doc"]["@timestamp"] != captured["doc"]["obs_time"]

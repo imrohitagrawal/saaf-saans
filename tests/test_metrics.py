@@ -160,10 +160,32 @@ def test_station_grid_shape_and_numbers():
         {"key": "Empty", "latest": {"hits": {"hits": []}}},
     ]}}}
     out = metrics.station_grid(FakeESClient(resp), ["Anand Vihar", "Rohini"])
+    # `ts` is the reading's age, so it is the OBSERVATION time, falling back to
+    # the write time for rows indexed before obs_time was stored. Neither row
+    # here carries one, so both fall back -- that is the compatibility path.
     assert out == [
-        {"station": "Anand Vihar", "aqi": 402, "ts": "2026-07-18T10:00:00Z"},
-        {"station": "Rohini", "aqi": 188, "ts": "2026-07-18T10:00:00Z"},
+        {"station": "Anand Vihar", "aqi": 402, "ts": "2026-07-18T10:00:00Z",
+         "written": "2026-07-18T10:00:00Z"},
+        {"station": "Rohini", "aqi": 188, "ts": "2026-07-18T10:00:00Z",
+         "written": "2026-07-18T10:00:00Z"},
     ]
+
+
+def test_station_grid_ages_a_row_by_when_the_air_was_measured():
+    """The defect this closes: a feed observation may be weeks older than our
+    fetch of it, and only the fetch time was ever stored. ITO's WAQI mirror
+    served a reading dated 23 June that the app indexed with a now-timestamp,
+    so a month-old observation would have rendered as minutes old."""
+    resp = {"aggregations": {"stations": {"buckets": [
+        {"key": "ITO", "latest": {"hits": {"hits": [
+            {"_source": {"aqi": 149,
+                         "obs_time": "2026-06-23T11:00:00+05:30",
+                         "@timestamp": "2026-07-19T06:00:00Z"}}
+        ]}}},
+    ]}}}
+    out = metrics.station_grid(FakeESClient(resp), ["ITO"])
+    assert out[0]["ts"] == "2026-06-23T11:00:00+05:30"
+    assert out[0]["written"] == "2026-07-19T06:00:00Z"
 
 
 def test_station_grid_none_client_empty_list():
