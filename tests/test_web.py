@@ -234,11 +234,31 @@ def test_provenance_opens_per_turn_independently(client):
     assert body.count('class="prov-body"') == 1     # only the requested turn opens
 
 
-def test_provenance_label_states_what_it_contains(client):
+@pytest.mark.parametrize("status, says, not_says", [
+    ("ok", "live reading +", "sample reading +"),
+    ("fallback", "sample reading +", "live reading +"),
+])
+def test_provenance_label_states_what_it_contains(client, monkeypatch,
+                                                  status, says, not_says):
+    """The collapsed summary must name the feed status it actually got.
+
+    This test used to assert "live reading +" unconditionally, on a fixture
+    with no WAQI token -- where every reading is a labelled sample. It was
+    pinning a false claim under the name "states what it contains", which is
+    precisely the thing it was not checking. Both branches are covered here so
+    the assertion cannot pass on whichever one the environment happens to
+    produce.
+    """
+    from saafsaans.services import waqi
+
+    real = waqi.get_aqi
+    monkeypatch.setattr(waqi, "get_aqi",
+                        lambda loc, es_client=None: (real(loc, es_client)[0], status))
     client.post("/ask", params=PERSONA, data={"question": "Should I cycle?"})
     body = client.get("/", params=PERSONA).text
     assert "What this answer is based on" in body
-    assert "live reading +" in body and "guidance sources" in body
+    assert says in body and "guidance sources" in body
+    assert not_says not in body
 
 
 # --- Guide ------------------------------------------------------------------
