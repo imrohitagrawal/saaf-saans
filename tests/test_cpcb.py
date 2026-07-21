@@ -12,6 +12,8 @@ ways this integration can be wrong while looking right:
   two runs deleting invented readings.
 """
 import json
+import threading
+import time
 
 import pytest
 
@@ -417,3 +419,91 @@ def test_the_request_timeout_is_a_page_load_budget():
     was never going to complete."""
     assert cpcb.TIMEOUT <= 10
     assert cpcb.DEADLINE <= 20
+
+
+# ------------------------------------------------------- the thundering herd
+#
+# Every test below MUST stub ``config.cpcb_key``. Without it ``available()``
+# short-circuits, ``values_for`` returns None before reaching the fetch, and a
+# herd test passes with a counter of zero -- green while measuring nothing.
+def test_one_cold_miss_produces_one_upstream_fetch_not_eight(monkeypatch):
+    """Measured on a cold /city render: eight workers, eight Delhi fetches.
+
+    ``waqi._FETCH_LOCKS`` cannot collapse this. Those are keyed by locality,
+    and these are eight DIFFERENT localities sharing one CPCB city entry.
+    """
+    monkeypatch.setattr(config, "cpcb_key", lambda: "test-key")
+    localities = ["ITO", "DTU", "Rohini", "Dwarka",
+                  "Okhla", "Wazirpur", "Najafgarh", "Punjabi Bagh"]
+    barrier = threading.Barrier(len(localities))
+    released = threading.Event()
+    calls = []
+
+    def slow(city):
+        calls.append(city)
+        # Hold the first fetch open until every thread has had its chance to
+        # arrive, so a missing lock shows up as extra calls rather than as a
+        # race the test happens to win.
+        released.wait(5)
+        return rows("ITO, Delhi - CPCB", pm25=53) + rows("DTU, Delhi - CPCB", pm25=46)
+
+    monkeypatch.setattr(cpcb, "_fetch_city", slow)
+    out = {}
+
+    def worker(locality):
+        barrier.wait(5)
+        out[locality] = cpcb._stations("Delhi")
+
+    threads = [threading.Thread(target=worker, args=(loc,)) for loc in localities]
+    for thread in threads:
+        thread.start()
+    # Every thread is either inside the fetch or queued on the city lock by now.
+    time.sleep(0.2)
+    released.set()
+    for thread in threads:
+        thread.join(5)
+
+    assert calls == ["Delhi"], f"one cold miss made {len(calls)} upstream fetches"
+    assert len(out) == len(localities)
+    payloads = list(out.values())
+    assert all(payload == payloads[0] for payload in payloads)
+    assert payloads[0], "every worker got an empty payload"
+
+
+def test_a_second_city_is_not_blocked_by_a_slow_first_city(monkeypatch):
+    """The lock is per city, not global.
+
+    A single global lock passes the test above and fails this one: Gurugram
+    would queue behind Delhi's fetch instead of running beside it. Gated on an
+    Event released only once both fetches are in flight, never on the clock.
+    """
+    monkeypatch.setattr(config, "cpcb_key", lambda: "test-key")
+    both_in_flight = threading.Barrier(2, timeout=5)
+
+    def fetch(city):
+        both_in_flight.wait()       # raises BrokenBarrierError if serialised
+        return rows(f"Sector-51, {city} - CPCB", pm25=77, city=city)
+
+    monkeypatch.setattr(cpcb, "_fetch_city", fetch)
+    results = {}
+
+    def worker(city):
+        try:
+            results[city] = cpcb._stations(city)
+        except Exception as exc:    # noqa: BLE001 - recorded, asserted below
+            results[city] = exc
+
+    threads = [threading.Thread(target=worker, args=(city,))
+               for city in ("Delhi", "Gurugram")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(10)
+
+    assert set(results) == {"Delhi", "Gurugram"}
+    for city, result in results.items():
+        # A serialised fetch breaks the barrier, ``_fetch_and_store`` absorbs
+        # the exception and caches the EMPTY failure marker -- which is still a
+        # dict. So the payload itself is asserted, not merely its type.
+        assert result, f"{city} did not fetch concurrently: {result}"
+        assert f"Sector-51, {city} - CPCB" in result

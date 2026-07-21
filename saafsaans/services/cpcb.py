@@ -122,6 +122,26 @@ _TTL_FAILURE = 60
 _cache: dict = {}
 _lock = threading.Lock()
 
+# One upstream fetch per city at a time. ``waqi._FETCH_LOCKS`` cannot collapse
+# this herd: those locks are keyed by LOCALITY while this cache is keyed by
+# CITY, so eight different Delhi localities hold eight different waqi locks and
+# all eight miss the same empty "Delhi" entry. Measured: ``main._live_grid``
+# submits 21 localities to an 8-worker pool, and a cold /city render made eight
+# Delhi fetches of up to four HTTP requests each.
+#
+# The accepted tradeoff, stated because it is a change and not a free win:
+# seven of the eight workers now WAIT on a cold Delhi miss, bounded by DEADLINE
+# (15s), while ``main._CITY_FETCH_BUDGET`` is 6.0s. Stragglers are abandoned by
+# that budget and render NO READING or CACHED rather than a number. That is
+# strictly better than eight independent 15s fetches, but it moves WHICH
+# localities land inside the budget on a cold render.
+_FETCH_LOCKS: dict = {}
+
+
+def _fetch_lock(city: str):
+    with _lock:
+        return _FETCH_LOCKS.setdefault(city, threading.Lock())
+
 
 def available() -> bool:
     return bool(config.cpcb_key())
@@ -202,14 +222,34 @@ def _stations(city: str):
     Cached per city and not per locality: one upstream call answers for every
     station in it, and City Pulse asks for twenty-one in a row.
     """
+    hit = _cached(city)
+    if hit is not None:
+        return hit
+
+    with _fetch_lock(city):
+        # Re-probe inside the lock: while this thread queued, the thread that
+        # held it has already filled the cache. Without this re-probe the queue
+        # still produces one upstream fetch each as it files through, which is
+        # the herd arriving late rather than not at all.
+        hit = _cached(city)
+        if hit is not None:
+            return hit
+        return _fetch_and_store(city)
+
+
+def _cached(city: str):
+    """The cached grouping for a city, or None when there is nothing fresh."""
     with _lock:
         hit = _cache.get(city)
-        if hit:
-            stored_at, grouped = hit
-            ttl = _TTL if grouped else _TTL_FAILURE
-            if time.time() - stored_at < ttl:
-                return grouped
+    if not hit:
+        return None
+    stored_at, grouped = hit
+    ttl = _TTL if grouped else _TTL_FAILURE
+    return grouped if time.time() - stored_at < ttl else None
 
+
+def _fetch_and_store(city: str):
+    """Fetch one city and cache the result. Caller holds the city fetch lock."""
     try:
         records = _fetch_city(city)
     except Exception:
@@ -282,3 +322,4 @@ def values_for(locality: str):
 def cache_clear():
     with _lock:
         _cache.clear()
+        _FETCH_LOCKS.clear()
