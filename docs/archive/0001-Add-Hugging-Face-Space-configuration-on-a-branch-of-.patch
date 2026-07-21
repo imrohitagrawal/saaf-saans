@@ -1,0 +1,43 @@
+From cc541ae3b6ceea2a2a0b1296a5f929635bea29d2 Mon Sep 17 00:00:00 2001
+From: Rohit Agrawal <rohit.ra.agrawal@gmail.com>
+Date: Mon, 20 Jul 2026 13:57:38 +0530
+Subject: [ARCHIVED space] Add Hugging Face Space configuration on a branch of
+ its own
+
+Spaces reads its configuration from YAML front matter at the top of README.md.
+Putting that on master would render as a stray metadata table above the project
+README on GitHub, so it lives here instead: this branch is what gets pushed to
+the Space, and master stays a document written for a human reader.
+
+The emoji field is Spaces gallery metadata, not an icon in the application. The
+app still ships none.
+---
+ README.md | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/README.md b/README.md
+index db7be78..f8a5d19 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,18 @@
++---
++title: SaafSaans
++emoji: 🌫️
++colorFrom: blue
++colorTo: gray
++sdk: docker
++app_port: 7860
++pinned: false
++short_description: Delhi air quality, scored for your body, in plain language
++---
++
++<!-- The block above is Hugging Face Spaces configuration and exists only on this
++     branch. `master` and `v1-closure` stay clean. The emoji is Spaces metadata
++     for its gallery card, not an icon in the application, which ships none. -->
++
+ # SaafSaans — Delhi Air Quality & Public Health Companion
+ 
+ Answers one question in under five seconds: **"Is it safe for *me* to go outside right now, and if not, when?"**
+-- 
+2.54.0
+
