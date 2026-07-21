@@ -137,6 +137,23 @@ fixed constant and the question is framed as *data, not instructions*; every att
 **Exposed edges.** Secrets live only in `.env` (git-ignored). Every outbound call is
 timeout-bounded (WAQI 5s, LLM 30s, ES 10s) with a graceful fallback.
 
+**Third parties in the page.** The two type families are loaded from Google Fonts, so a
+visitor's IP address reaches Google on every page view. The persona does not: it travels in
+the query string, and the page declares
+`<meta name="referrer" content="strict-origin-when-cross-origin">`, so a cross-origin request
+carries the origin alone and never the age, condition or activity. That is asserted by
+`test_no_page_can_leak_the_persona_in_a_referer_header`, and
+`test_the_only_third_party_origin_is_the_font_host` fails if a third origin is ever added.
+The IP exposure is real and is not fixed: self-hosting the two families would remove it, and
+that is a change to the deploy artifact whose rendering cannot be checked without a person
+looking at it. It is recorded here rather than done quietly.
+
+**What the server records.** Telemetry and security events go through the field whitelists in
+`services/es.py`. The shipped container also runs uvicorn with `--no-access-log`, because the
+default access line prints the full request path — and therefore the persona — beside the
+client IP. `test_the_shipped_server_does_not_log_the_persona` asserts the flag is on the
+shipped command.
+
 ## Layout
 
 ```

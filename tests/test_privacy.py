@@ -262,3 +262,49 @@ def test_clearing_credentials_needs_them_empty_not_unset():
 
     assert _probe({"WAQI_TOKEN": ""}) == "''", (
         "setting the variable empty should survive load_dotenv()")
+
+
+def test_no_page_can_leak_the_persona_in_a_referer_header():
+    """The persona travels in the query string and the page fetches its fonts
+    from a third party, so every page view makes a cross-origin request while
+    the URL holds the reader's age and health condition.
+
+    Current browsers default to strict-origin-when-cross-origin, which sends
+    the origin alone -- so the persona does not in fact reach Google today.
+    That is a default, not a guarantee, and this is the one field that must not
+    leak, so the policy is declared rather than assumed.
+    """
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        for path in ("/", "/city", "/system", "/guide"):
+            body = client.get(path, params={"locality": "Anand Vihar", "age": "Senior",
+                                            "condition": "COPD",
+                                            "activity": "Outdoor exercise"}).text
+            assert '<meta name="referrer" content="strict-origin-when-cross-origin">' in body, (
+                f"{path} declares no referrer policy while linking a third-party origin"
+            )
+
+
+def test_the_only_third_party_origin_is_the_font_host():
+    """Recorded so that adding another one is a decision rather than a drift.
+
+    The threat model in README names this exposure: a visitor's IP reaches
+    Google on every page view. Self-hosting the two families would remove it
+    and is a change to the deploy artifact, deliberately not made unattended.
+    """
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                       "condition": "None", "activity": "Walking"}).text
+    origins = {re.match(r"https?://[^/]+", url).group(0)
+               for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', body)}
+    assert origins <= {"https://fonts.googleapis.com", "https://fonts.gstatic.com"}, (
+        f"a new third-party origin appears on the page: {origins}")
