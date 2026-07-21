@@ -1,0 +1,153 @@
+"""The two endpoints that do work on demand are unauthenticated by design.
+
+`POST /ask` writes telemetry, may write a security event, and calls a paid
+model when a key is configured. `POST /system/simulate` writes a document per
+attack in the demo set. Neither asks who you are -- requiring registration
+before someone may ask whether the air is safe would defeat the app -- so a
+limit is the only thing between one loop and unbounded writes on a single
+256 MB machine.
+"""
+import pytest
+from fastapi.testclient import TestClient
+
+from saafsaans.services import ratelimit
+from saafsaans.web.main import app
+
+PERSONA = {"locality": "Anand Vihar", "age": "Adult",
+           "condition": "Asthma", "activity": "Outdoor exercise"}
+
+
+def test_a_reader_asking_normally_is_never_throttled():
+    """The limit exists to stop a loop, not to ration a person. Ten questions
+    in a sitting is a curious reader, not an attack."""
+    with TestClient(app) as client:
+        for i in range(10):
+            client.post("/ask", params=PERSONA, data={"question": f"Is it safe? {i}"})
+        body = client.get("/", params=PERSONA).text
+    assert "Too many questions" not in body
+
+
+def test_a_loop_is_stopped_and_told_when_to_come_back():
+    with TestClient(app) as client:
+        for i in range(ratelimit.ASK_LIMIT + 3):
+            client.post("/ask", params=PERSONA, data={"question": f"q{i}"})
+        body = client.get("/", params=PERSONA).text
+    assert "Too many questions" in body
+    assert "try again in about" in body
+
+
+def test_the_throttle_is_explained_in_hindi_too():
+    with TestClient(app) as client:
+        for i in range(ratelimit.ASK_LIMIT + 3):
+            client.post("/ask", params={**PERSONA, "lang": "hi"},
+                        data={"question": f"q{i}"})
+        body = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert "अभी बहुत सारे सवाल आ गए।" in body
+    assert "Too many questions" not in body
+
+
+def test_a_throttled_question_reaches_neither_the_model_nor_any_index(monkeypatch):
+    """The whole point: the work must not happen. A limiter that refuses AFTER
+    calling the model has spent the money it exists to save."""
+    from saafsaans.web import main as web_main
+
+    calls = {"telemetry": 0, "security": 0}
+    monkeypatch.setattr(web_main.es, "log_telemetry",
+                        lambda c, d: calls.__setitem__("telemetry", calls["telemetry"] + 1))
+    monkeypatch.setattr(web_main.es, "log_security",
+                        lambda c, d: calls.__setitem__("security", calls["security"] + 1))
+
+    with TestClient(app) as client:
+        for i in range(ratelimit.ASK_LIMIT):
+            client.post("/ask", params=PERSONA, data={"question": f"q{i}"})
+        before = calls["telemetry"]
+        for i in range(5):
+            client.post("/ask", params=PERSONA, data={"question": f"over{i}"})
+
+    assert calls["telemetry"] == before, (
+        "a throttled question still wrote telemetry, so the limiter is not "
+        "saving the work it exists to save")
+
+
+def test_a_rate_limit_trip_is_not_logged_as_a_security_event(monkeypatch):
+    """Writing one security event per blocked request hands the flooder the
+    very index the limit protects, and a rate-limit trip is not an attack."""
+    from saafsaans.web import main as web_main
+    events = []
+    monkeypatch.setattr(web_main.es, "log_security", lambda c, d: events.append(d))
+
+    with TestClient(app) as client:
+        for i in range(ratelimit.ASK_LIMIT + 5):
+            client.post("/ask", params=PERSONA, data={"question": f"q{i}"})
+
+    assert not [e for e in events if "rate" in str(e).lower()], events
+
+
+def test_the_simulate_endpoint_is_limited_harder_than_ask():
+    """Nobody needs the red-team demo twenty times in five minutes, and it
+    writes a document per attack every time it runs."""
+    assert ratelimit.SIMULATE_LIMIT < ratelimit.ASK_LIMIT
+    with TestClient(app) as client:
+        codes = [client.post("/system/simulate", params=PERSONA,
+                             follow_redirects=False).status_code
+                 for _ in range(ratelimit.SIMULATE_LIMIT + 2)]
+    assert all(c == 303 for c in codes), codes
+
+
+# --- the limiter itself ----------------------------------------------------
+def test_each_caller_gets_their_own_budget():
+    """Keyed per client. One heavy user must not lock everyone else out --
+    which, on a shared limit, is a denial of service anyone can perform."""
+    for _ in range(ratelimit.ASK_LIMIT + 1):
+        ratelimit.check("ask:1.1.1.1", ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    blocked, _ = ratelimit.check("ask:1.1.1.1", ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    allowed, _ = ratelimit.check("ask:2.2.2.2", ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    assert blocked is False
+    assert allowed is True
+
+
+def test_the_window_reopens():
+    """A limiter that never forgets is a ban."""
+    for _ in range(ratelimit.ASK_LIMIT + 1):
+        ratelimit.check("ask:3.3.3.3", ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    assert ratelimit.check("ask:3.3.3.3", ratelimit.ASK_LIMIT,
+                           ratelimit.ASK_WINDOW)[0] is False
+    with ratelimit._LOCK:
+        start, count = ratelimit._BUCKETS["ask:3.3.3.3"]
+        ratelimit._BUCKETS["ask:3.3.3.3"] = (start - ratelimit.ASK_WINDOW - 1, count)
+    assert ratelimit.check("ask:3.3.3.3", ratelimit.ASK_LIMIT,
+                           ratelimit.ASK_WINDOW)[0] is True
+
+
+def test_the_bucket_table_cannot_grow_without_bound():
+    """X-Forwarded-For is attacker-controlled, so a bucket per distinct value
+    is a memory leak reachable from the internet, on a 256 MB machine."""
+    for i in range(ratelimit._MAX_BUCKETS + 500):
+        ratelimit.check(f"ask:10.0.{i // 256}.{i % 256}", 100, 300)
+    assert len(ratelimit._BUCKETS) <= ratelimit._MAX_BUCKETS
+
+
+@pytest.mark.parametrize("headers,expected", [
+    ({"x-forwarded-for": "203.0.113.7"}, "203.0.113.7"),
+    ({"x-forwarded-for": "203.0.113.7, 10.0.0.1, 10.0.0.2"}, "203.0.113.7"),
+    ({"x-forwarded-for": "  203.0.113.7  "}, "203.0.113.7"),
+])
+def test_the_originating_client_is_read_not_the_proxy(headers, expected):
+    """Fly terminates TLS at its proxy and appends the real client, so
+    request.client.host is the proxy for every visitor alike -- keying on it
+    would put the whole internet in one bucket and throttle everyone at once.
+    The FIRST entry is the originating client; the rest are hops."""
+    class _Req:
+        def __init__(self, h):
+            self.headers = h
+            self.client = type("C", (), {"host": "127.0.0.1"})()
+
+    assert ratelimit.client_key(_Req(headers)) == expected
+
+
+def test_a_caller_with_no_forwarded_header_still_gets_a_key():
+    class _Req:
+        headers = {}
+        client = type("C", (), {"host": "198.51.100.4"})()
+
+    assert ratelimit.client_key(_Req()) == "198.51.100.4"

@@ -84,7 +84,7 @@ def test_security_stats_shape_and_numbers():
             {"key": "ignore_instructions", "doc_count": 3},
             {"key": "reveal_secrets", "doc_count": 1},
         ]},
-        "over_time": {"buckets": [
+        "_removed_over_time": {"buckets": [
             {"key_as_string": "2026-07-18T00:00:00Z", "key": 1, "doc_count": 2},
             {"key_as_string": "2026-07-18T01:00:00Z", "key": 2, "doc_count": 2},
         ]},
@@ -93,21 +93,21 @@ def test_security_stats_shape_and_numbers():
     out = metrics.security_stats(FakeESClient(resp))
     assert out["total_blocked"] == 4
     assert out["by_pattern"][0] == {"pattern": "ignore_instructions", "count": 3}
-    assert out["over_time"][0]["ts"] == "2026-07-18T00:00:00Z"
-    assert out["over_time"][0]["count"] == 2
+    assert "over_time" not in out, (
+        "security_stats returned an unbounded hourly histogram that nothing "
+        "renders; the Security chart uses security_daily")
     assert out["block_rate"] == 1.0
 
 
 def test_security_stats_none_client_empty_shape():
     out = metrics.security_stats(None)
-    assert out == {"total_blocked": 0, "by_pattern": [], "over_time": [], "block_rate": 0.0}
+    assert out == {"total_blocked": 0, "by_pattern": [], "block_rate": 0.0}
 
 
 def test_security_stats_exception_empty_shape():
     out = metrics.security_stats(BoomClient())
     assert out["total_blocked"] == 0
     assert out["by_pattern"] == []
-    assert out["over_time"] == []
 
 
 # --- aqi_trend ------------------------------------------------------------

@@ -30,3 +30,31 @@ def _no_live_external_calls():
         if v is not None:
             os.environ[k] = v
     main._client = None
+
+
+@pytest.fixture(autouse=True)
+def _no_cached_readings_between_tests():
+    """``waqi.get_aqi`` memoises per locality, so without this a test that
+    stubs the feed leaves its reading visible to the next one and tests pass
+    or fail depending on the order they ran in.
+
+    The cache is process-global on purpose -- that is what makes it shared
+    between visitors -- so isolating it belongs here rather than in each test.
+    """
+    from saafsaans.services import waqi
+    waqi.cache_clear()
+    yield
+    waqi.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_rate_limit_carryover_between_tests():
+    """The limiter keys on client IP, and every test client presents the same
+    one, so without this the suite shares a single bucket: a file that posts
+    twenty questions throttles whatever runs after it, and the failure lands
+    somewhere unrelated to the cause.
+    """
+    from saafsaans.services import ratelimit
+    ratelimit.reset()
+    yield
+    ratelimit.reset()

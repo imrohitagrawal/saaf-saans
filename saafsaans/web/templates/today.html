@@ -237,7 +237,16 @@
         <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
         <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
 
-        {% if t.kind == 'refusal' %}
+        {% if t.kind == 'throttled' %}
+          {#- Same flat treatment as a refusal: being asked to wait is not an
+              accusation either, and the reader needs the number of minutes
+              more than they need an apology. -#}
+          <div class="refusal">
+            <b>{{ T('ui', 'throttled_title', 'Too many questions just now.') }}</b>
+            <p>{{ T('ui', 'throttled_body', 'This is a small free service on one machine, so questions are limited. Nothing was wrong with what you asked — try again in a few minutes and it will go through.') }}</p>
+            <p class="caveat on-tint mono">{{ T('ui', 'throttled_wait', 'try again in about') }} {{ t.minutes }} {{ T('ui', 'throttled_minutes', 'min') }}</p>
+          </div>
+        {% elif t.kind == 'refusal' %}
           {# Flat, no red, no icon: a blocked prompt is routine, not an accusation. #}
           <div class="refusal">
             <b>{{ T('ui', 'refusal_title', 'Not processed.') }}</b>

@@ -7,11 +7,55 @@ status ("ok" / "fallback") is returned *separately* from the reading so it is
 never written into the aqi-readings index.
 """
 import re
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
 
 from . import aqi_scale, config, es
+
+# WAQI publishes hourly, and every render of every page asked it again: the
+# fetch is blocking, sits on the request path, and the machine is one 256MB
+# instance that scales to zero. Ten readers in the same minute meant ten round
+# trips for a number that had not changed. One entry per locality, shared by
+# every visitor to it.
+#
+# The indexing side matters as much. A reading was written to Elasticsearch on
+# every render too, so aqi-readings grew with TRAFFIC rather than with
+# OBSERVATIONS -- the same hourly figure stored hundreds of times, which is a
+# false account of how often the city was measured and makes every aggregate
+# over that index wrong. A cache hit indexes nothing, so the index now grows
+# with what was actually observed.
+_CACHE_TTL = 600            # a live reading; WAQI publishes hourly
+_CACHE_TTL_FALLBACK = 60    # a failure, retried sooner
+_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def _cache_get(locality: str):
+    """The cached ``(reading, status)`` for a locality, or None if stale."""
+    with _CACHE_LOCK:
+        hit = _CACHE.get(locality)
+    if hit is None:
+        return None
+    stored_at, reading, status = hit
+    ttl = _CACHE_TTL if status == "ok" else _CACHE_TTL_FALLBACK
+    if time.monotonic() - stored_at >= ttl:
+        return None
+    return reading, status
+
+
+def _cache_put(locality: str, reading, status: str):
+    with _CACHE_LOCK:
+        _CACHE[locality] = (time.monotonic(), reading, status)
+
+
+def cache_clear():
+    """Drop every cached reading. For tests, and for the seeding scripts."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
 
 TIMEOUT = 5
 
@@ -274,6 +318,10 @@ def get_aqi(locality: str, es_client=None):
     On a successful live fetch the reading is also indexed into aqi-readings
     when ``es_client`` is connected.
     """
+    cached = _cache_get(locality)
+    if cached is not None:
+        return cached
+
     token = config.waqi_token()
     if not token:
         return _fallback(locality), "fallback"
@@ -289,7 +337,12 @@ def get_aqi(locality: str, es_client=None):
         reading = None
 
     if reading is None:
-        return _fallback(locality), "fallback"
+        # Cached too, on a shorter TTL: a station that is down stays down for
+        # a while, and hammering it once per render is how a slow upstream
+        # becomes a slow site.
+        result = (_fallback(locality), "fallback")
+        _cache_put(locality, *result)
+        return result
 
     # A feed that answers for somewhere else is not this locality's air. The
     # previous version had no such check and presented the Anand Vihar, Delhi
@@ -297,7 +350,9 @@ def get_aqi(locality: str, es_client=None):
     # borrowing another station whenever one 404s is the same mislabelling by
     # a slower route, and this check would reject its result anyway.
     if not _corroborates(locality, reading["city"]):
-        return _fallback(locality), "fallback"
+        result = (_fallback(locality), "fallback")
+        _cache_put(locality, *result)
+        return result
 
     try:
         # Index under the canonical UI locality label (not WAQI's verbose
@@ -306,6 +361,10 @@ def get_aqi(locality: str, es_client=None):
         es.index_reading(es_client, {**reading, "station": locality})
     except Exception:
         pass  # indexing must never affect the returned reading
+    # Stored AFTER indexing, so the one render that actually fetched is also
+    # the one render that writes. Every reader served from the cache adds
+    # nothing to aqi-readings.
+    _cache_put(locality, reading, "ok")
     return reading, "ok"
 
 

@@ -398,6 +398,15 @@ HI: dict = {
         # Names the same log the Guide's privacy answer names ("सुरक्षा लॉग"),
         # so a reader who follows one to the other finds the same thing.
         "refusal_audit": "मॉडल तक पहुँचने से पहले रोका गया · सुरक्षा लॉग में दर्ज",
+        # today.html, when /ask is rate limited. Deliberately not phrased as
+        # an accusation or an error: the reader did nothing wrong, and what
+        # they need is the wait, not an apology.
+        "throttled_title": "अभी बहुत सारे सवाल आ गए।",
+        "throttled_body": "यह एक छोटी मुफ़्त सेवा है, एक ही मशीन पर चलती है, "
+                          "इसलिए सवालों की एक सीमा है। आपके सवाल में कोई गड़बड़ "
+                          "नहीं थी — कुछ मिनट बाद दोबारा पूछिए, चला जाएगा।",
+        "throttled_wait": "दोबारा कोशिश कीजिए लगभग",
+        "throttled_minutes": "मिनट में",
         "disclaimer": "यह सामान्य जानकारी है, डॉक्टरी सलाह नहीं।",
         # main.py, when an answer cannot be built. Carries a safe default
         # instruction, so it must not be shortened to an apology.

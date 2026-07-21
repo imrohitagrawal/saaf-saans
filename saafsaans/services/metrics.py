@@ -90,14 +90,21 @@ def telemetry_kpis(client) -> dict:
 
 
 def _empty_security():
-    return {"total_blocked": 0, "by_pattern": [], "over_time": [], "block_rate": 0.0}
+    return {"total_blocked": 0, "by_pattern": [], "block_rate": 0.0}
 
 
 def security_stats(client) -> dict:
-    """Aggregate security-events: total blocked, top patterns, hourly timeline.
+    """Aggregate security-events: total blocked, top patterns, block rate.
 
     ``block_rate`` is the share of events whose action_taken == 'blocked'.
     Empty shape on failure.
+
+    It used to also return an hourly ``over_time`` histogram over the ENTIRE
+    index, unbounded and growing with every event ever logged. Nothing
+    rendered it: the Security chart is filled by ``security_daily``, which
+    buckets by day over a fixed window, and said so in its own docstring. An
+    unbounded aggregation computed on every view of a page that never shows it
+    is a cost with no reader.
     """
     if client is None:
         return _empty_security()
@@ -107,9 +114,6 @@ def security_stats(client) -> dict:
             size=0,
             aggs={
                 "by_pattern": {"terms": {"field": "pattern_matched", "size": 20}},
-                "over_time": {
-                    "date_histogram": {"field": "@timestamp", "fixed_interval": "1h"}
-                },
                 "by_action": {"terms": {"field": "action_taken", "size": 10}},
             },
         )
@@ -122,10 +126,6 @@ def security_stats(client) -> dict:
             {"pattern": b["key"], "count": b["doc_count"]}
             for b in _buckets("by_pattern")
         ]
-        over_time = [
-            {"ts": b.get("key_as_string") or b.get("key"), "count": b["doc_count"]}
-            for b in _buckets("over_time")
-        ]
         action_counts = {b["key"]: b["doc_count"] for b in _buckets("by_action")}
         action_total = sum(action_counts.values())
         blocked = action_counts.get("blocked", 0)
@@ -136,7 +136,6 @@ def security_stats(client) -> dict:
         return {
             "total_blocked": blocked if action_total else total,
             "by_pattern": by_pattern,
-            "over_time": over_time,
             "block_rate": block_rate,
         }
     except Exception:

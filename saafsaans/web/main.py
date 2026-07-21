@@ -30,7 +30,7 @@ from fastapi.templating import Jinja2Templates
 from saafsaans.attack_demo import ATTACKS
 from saafsaans.services import (
     aqi_scale, clock, config, es, forecast, guard, i18n, llm, metrics,
-    normalize, risk, waqi,
+    normalize, ratelimit, risk, waqi,
 )
 from saafsaans.web import presenters as pr
 
@@ -499,6 +499,26 @@ def ask(request: Request, question: str = Form(...)):
     client = get_client()
 
     hashed = normalize.session_hash(sid)
+
+    # Before any work is done. This endpoint writes telemetry, may write a
+    # security event, and calls a paid model when a key is configured, and it
+    # is unauthenticated by design -- asking someone to register before they
+    # may ask whether the air is safe would defeat the point of the app. The
+    # limit is sized to stop a loop, not to ration a person.
+    allowed, retry_after = ratelimit.check(
+        f"ask:{ratelimit.client_key(request)}",
+        ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    if not allowed:
+        # Shown as a turn in the thread, like a refusal, so the answer appears
+        # where the reader was already looking. Nothing is logged: a
+        # rate-limit trip is not a security event, and writing one per blocked
+        # request would hand the flooder the very index this protects.
+        add_turn(sid, {"kind": "throttled",
+                       "question": normalize.excerpt(question),
+                       "minutes": max(1, (retry_after + 59) // 60),
+                       "persona_line": pr.persona_line(persona, lang=lang)})
+        return _back(request, sid, theme, lang)
+
     data = advisor_data(persona, lang)
     reading, waqi_status = data["reading"], data["waqi_status"]
     start = time.time()
@@ -767,6 +787,24 @@ def simulate(request: Request):
     theme = read_theme(request)
     lang = read_lang(request)
     client = get_client()
+
+    # Writes one security-event per attack in the demo set, on demand, with no
+    # authentication. Left open it is a document generator pointed at the very
+    # index the Security view reads -- a flooder could bury the real blocked
+    # prompts under demo rows and make that page useless, which is worse than
+    # the write cost. A tighter limit than /ask because nobody needs to run the
+    # red-team demo twenty times in five minutes.
+    allowed, _retry = ratelimit.check(
+        f"simulate:{ratelimit.client_key(request)}",
+        ratelimit.SIMULATE_LIMIT, ratelimit.SIMULATE_WINDOW)
+    if not allowed:
+        # Straight back to the view. The Security page already renders what the
+        # previous run wrote, so there is nothing to explain and nothing new
+        # to show.
+        return RedirectResponse(
+            "/system?view=security&" + _qs(persona, theme, lang) + "#security",
+            status_code=303)
+
     hashed = normalize.session_hash("red-team-demo")
     for _name, prompt in ATTACKS:
         ok, pattern = guard.check(prompt)

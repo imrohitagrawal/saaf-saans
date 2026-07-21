@@ -283,3 +283,98 @@ def test_missing_or_unparseable_obs_time_is_not_treated_as_stale(monkeypatch):
         reading, status = waqi.get_aqi("ITO")
         assert status == "ok"
         assert reading["stale"] is False
+
+
+# --- the reading is fetched once, not once per reader ----------------------
+def test_repeat_readers_of_a_locality_share_one_upstream_fetch(monkeypatch):
+    """The fetch is blocking and sits on the request path, on one 256MB
+    machine that scales to zero. Ten readers in the same minute meant ten
+    round trips for a number WAQI only republishes hourly."""
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    calls = []
+
+    def _counted(*a, **k):
+        calls.append(1)
+        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _iso(1)))
+
+    monkeypatch.setattr(waqi.requests, "get", _counted)
+    first = waqi.get_aqi("Anand Vihar")
+    for _ in range(9):
+        assert waqi.get_aqi("Anand Vihar") == first
+    assert len(calls) == 1, f"{len(calls)} upstream fetches for 10 readers"
+
+
+def test_a_different_locality_is_not_served_another_ones_reading(monkeypatch):
+    """The cache key is the locality. Serving Rohini's air as Dwarka's would be
+    the mislabelling bug this module already has a corroboration check for."""
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    seen = []
+
+    def _by_feed(url, *a, **k):
+        seen.append(url)
+        name = "Anand Vihar, Delhi, Delhi, India" if "anand" in url.lower() \
+            else "Dwarka, Delhi, Delhi, India"
+        return Resp(200, _payload(name, _iso(1)))
+
+    monkeypatch.setattr(waqi.requests, "get", _by_feed)
+    waqi.get_aqi("Anand Vihar")
+    waqi.get_aqi("Dwarka")
+    assert len(seen) == 2, "the second locality was served from the first's entry"
+
+
+def test_a_cache_hit_writes_nothing_to_elasticsearch(monkeypatch):
+    """aqi-readings grew with TRAFFIC rather than with OBSERVATIONS: the same
+    hourly figure was stored on every render, which is a false account of how
+    often the city was measured and makes every aggregate over it wrong."""
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(waqi.requests, "get",
+                        lambda *a, **k: Resp(200, _payload(
+                            "Anand Vihar, Delhi, Delhi, India", _iso(1))))
+    indexed = []
+    monkeypatch.setattr(waqi.es, "index_reading",
+                        lambda client, doc: indexed.append(doc))
+
+    for _ in range(10):
+        waqi.get_aqi("Anand Vihar", es_client=object())
+    assert len(indexed) == 1, (
+        f"{len(indexed)} documents written for one observation")
+
+
+def test_a_stale_entry_is_refetched(monkeypatch):
+    """A cache that never expires is a different bug: the page would show
+    yesterday's air. The entry must age out."""
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    calls = []
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: (
+        calls.append(1), Resp(200, _payload(
+            "Anand Vihar, Delhi, Delhi, India", _iso(1))))[1])
+
+    waqi.get_aqi("Anand Vihar")
+    assert len(calls) == 1
+    # Age every entry past the live TTL without sleeping through it.
+    with waqi._CACHE_LOCK:
+        for key, (stored_at, reading, status) in list(waqi._CACHE.items()):
+            waqi._CACHE[key] = (stored_at - waqi._CACHE_TTL - 1, reading, status)
+    waqi.get_aqi("Anand Vihar")
+    assert len(calls) == 2, "a stale entry was served instead of refetched"
+
+
+def test_a_failing_station_is_retried_sooner_than_a_good_one(monkeypatch):
+    """A failure is cached too -- hammering a down station once per render is
+    how a slow upstream becomes a slow site -- but on a shorter clock."""
+    assert waqi._CACHE_TTL_FALLBACK < waqi._CACHE_TTL
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    calls = []
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: (
+        calls.append(1), Resp(500, {}))[1])
+
+    reading, status = waqi.get_aqi("Anand Vihar")
+    assert status == "fallback"
+    waqi.get_aqi("Anand Vihar")
+    assert len(calls) == 1, "the failing station was refetched immediately"
+
+    with waqi._CACHE_LOCK:
+        for key, (stored_at, r, s) in list(waqi._CACHE.items()):
+            waqi._CACHE[key] = (stored_at - waqi._CACHE_TTL_FALLBACK - 1, r, s)
+    waqi.get_aqi("Anand Vihar")
+    assert len(calls) == 2, "the failure was cached for the full live TTL"
