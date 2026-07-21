@@ -1,13 +1,14 @@
 # Phase 1 → Phase 2: what carries over
 
-Written 2026-07-20, at the close of phase 1.
+Written 2026-07-20, at the close of phase 1, **in the phase-2 repository** and archived
+here unchanged — so "this repository" below means that one, not this one. Phase 2 was
+cancelled at the spec stage; see [`README.md`](README.md).
 
-Phase 1 is [`~/Projects/saaf-saans`](../../saaf-saans), tagged `v1.0.0` — a Delhi
-air-quality companion whose headline is the **ambient AQI**, with a personal risk score
-layered on top.
+Phase 1 is this codebase, `saaf-saans`, tagged `v1.0.0` — a Delhi air-quality companion
+whose headline is the **ambient AQI**, with a personal risk score layered on top.
 
-Phase 2 is this repository — an **exposure ledger** whose headline is **inhaled dose in
-micrograms**. Same domain, same service layer, different wedge.
+Phase 2 was to be `~/Projects/saafsaans` — an **exposure ledger** whose headline is
+**inhaled dose in micrograms**. Same domain, same service layer, different wedge.
 
 This file records what to take, what to leave, and what phase 1 learned the hard way.
 The design spec (`docs/phase-2/2026-07-19-exposure-ledger-design.md`) predates

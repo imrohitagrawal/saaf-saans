@@ -1,4 +1,5 @@
 """Privacy invariants: no raw persona leaves the process into any index."""
+import pathlib
 import uuid
 
 import pytest
@@ -248,20 +249,39 @@ def test_clearing_credentials_needs_them_empty_not_unset():
     import os
     import subprocess
     import sys
+    import tempfile
 
     probe = ("import os;"
              "from saafsaans.services import config;"
              "print(repr(os.environ.get('WAQI_TOKEN')))")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    def _probe(env):
-        full = {**os.environ, **env}
-        full.pop("PYTEST_CURRENT_TEST", None)
-        return subprocess.run([sys.executable, "-c", probe], cwd=root, env=full,
-                              capture_output=True, text=True).stdout.strip()
+    # A .env of our own, in a directory of our own. Reading the repository's
+    # real .env would make this test depend on whether the machine running it
+    # happens to have credentials -- and an earlier version of this test, which
+    # asserted only the empty case, could not fail at all: it checked that a
+    # subprocess started with WAQI_TOKEN="" sees "", which is a fact about
+    # `env` and not about this application.
+    with tempfile.TemporaryDirectory() as tmp:
+        (pathlib.Path(tmp) / ".env").write_text("WAQI_TOKEN=from-dotenv\n")
 
-    assert _probe({"WAQI_TOKEN": ""}) == "''", (
-        "setting the variable empty should survive load_dotenv()")
+        def _probe(env):
+            full = {**os.environ, **env, "PYTHONPATH": root}
+            full.pop("PYTEST_CURRENT_TEST", None)
+            return subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=full,
+                                  capture_output=True, text=True).stdout.strip()
+
+        unset = {k: v for k, v in os.environ.items() if k != "WAQI_TOKEN"}
+        unset["PYTHONPATH"] = root
+        unset.pop("PYTEST_CURRENT_TEST", None)
+        refilled = subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=unset,
+                                  capture_output=True, text=True).stdout.strip()
+
+        assert refilled == "'from-dotenv'", (
+            f"UNSETTING the variable should let load_dotenv() refill it from "
+            f"the .env -- that is the trap. Got {refilled}")
+        assert _probe({"WAQI_TOKEN": ""}) == "''", (
+            "setting the variable EMPTY should survive load_dotenv()")
 
 
 def test_no_page_can_leak_the_persona_in_a_referer_header():

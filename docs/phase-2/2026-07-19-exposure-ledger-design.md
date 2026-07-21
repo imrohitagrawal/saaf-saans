@@ -2,7 +2,7 @@
 
 Date: 2026-07-19
 Status: **partially superseded.** Written before phase 1 finished, so it is stale in
-three places, all resolved in [`docs/INHERITED-FROM-V1.md`](../../INHERITED-FROM-V1.md),
+three places, all resolved in [`INHERITED-FROM-V1.md`](INHERITED-FROM-V1.md),
 which wins wherever the two disagree:
 
 1. It describes v1 as a Streamlit app. v1 was migrated to **FastAPI + Jinja2** and

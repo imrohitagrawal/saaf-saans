@@ -74,7 +74,13 @@ ALLOWED = {
     # lists them; the provenance panel tags each advisory with one.
     "EPA", "GINA", "GOLD", "AHA", "ACOG", "ICMR", "NAAQS",
     # A shell command in the City Pulse empty state. Commands are not prose.
-    "python", "saafsaans.seed", "demo", "history",
+    # Only the two tokens that are not also ordinary English: the command is
+    # removed from the text before scanning (see _stray_latin), because
+    # blanket-exempting "demo" and "history" -- which is what the token split
+    # of seed_demo_history forces -- would have excused those two words on
+    # every page, in every persona, forever. An allowlist entry costs whatever
+    # its word is worth elsewhere.
+    "python", "saafsaans.seed",
     # The feed's own lowercase pollutant codes, quoted in the glossary entry
     # that explains what "dominant pollutant" means. They are the literal
     # strings the data uses, so a reader matching them against the reading
@@ -199,7 +205,15 @@ def _element(html_body: str, marker: str, tag: str = "div") -> str:
     raise AssertionError(f"element matching {marker!r} is never closed")
 
 
+# Literal strings that are not prose and cannot be translated, removed whole
+# rather than by their tokens. Splitting a command into words and exempting
+# each one hands the ordinary words in it a permanent pass everywhere else.
+_NOT_PROSE = ("python -m saafsaans.seed_demo_history",)
+
+
 def _stray_latin(text: str) -> set:
+    for literal in _NOT_PROSE:
+        text = text.replace(literal, " ")
     return {word for word in LATIN_RUN.findall(text) if word not in ALLOWED}
 
 
