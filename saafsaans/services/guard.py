@@ -46,24 +46,23 @@ _FILLER = r"[\w\s'\"-]{0,30}?"  # tolerant, non-greedy filler between verb/targe
 # "instructions", "rules" and "guidelines" are ordinary words in a health
 # question -- the instructions on an inhaler box, the rules about morning walks
 # -- so a verb-plus-noun pair is not on its own an attack. What makes it one is
-# the target being bound to THIS MODEL: "your instructions", "the previous
-# instructions", "the above rules". The Devanagari and Hinglish tables have
+# the target being bound to THIS MODEL. The Devanagari and Hinglish tables have
 # required that binding from the start; the English table did not, and refused
 # "ignore the instructions on the old inhaler box" until this was added.
 # "prompt" is deliberately NOT gated: it is not an ordinary word in this app's
 # traffic, where the subject is air quality and asthma.
-# A binder points the target at THIS conversation. Two kinds, because they earn
-# their keep differently:
+#
+# A binder points the target at THIS conversation, and there are two kinds
+# because they earn their keep differently:
 #   * STRONG binders ("your", "previous", "above", "system") mean the model's
 #     own instructions wherever they appear, so they count in any position.
-#   * A bare quantifier ("all", "any") does not: "follow all instructions on the
-#     label" is ordinary, and so is "should I skip all instructions from my
-#     doctor?". It counts only in imperative position, which is where the
-#     injection sits.
-# Only words that actually point at THIS conversation. Demonstratives and
-# ordinals were briefly listed here and do not: "these instructions" is
-# whatever the reader is holding, and "the first instructions the nurse gave"
-# is a memory, so both were refused.
+#     Demonstratives and ordinals were briefly listed among them and do not
+#     belong: "these instructions" is whatever the reader is holding, and "the
+#     first instructions the nurse gave" is a memory. Both were refused.
+#   * A bare quantifier ("all", "any") does not bind at all: "follow all
+#     instructions on the label" is ordinary, and so is "should I skip all
+#     instructions from my doctor?". It counts only in imperative position,
+#     which is where an injected order sits.
 _EN_STRONG = (r"(?:\byour\b|\b(?:previous|prior|earlier|above|preceding|"
               r"original|system|aforementioned)\b)")
 _EN_BOUND = _EN_STRONG + r"\s*(?:[\w'-]+\s+){0,2}?"
