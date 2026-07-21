@@ -185,7 +185,7 @@ CONDITION_HELP = {
               "and traffic gases are common triggers.",
     "Heart condition": "Any diagnosed heart or circulatory condition. Fine particles raise "
                        "the short-term risk of angina and irregular heartbeats.",
-    "Pregnancy": "Pregnancy raises sensitivity to fine particles, which are linked to lower "
+    "Pregnancy": "Raises sensitivity to fine particles, which are linked to lower "
                  "birth weight and preterm birth.",
     "COPD": "Chronic Obstructive Pulmonary Disease — long-term lung damage, usually from "
             "smoking or long exposure to smoke and dust, that narrows the airways and makes "

@@ -47,9 +47,9 @@ The engineering was fine. That was not the problem.
 | 577 lines of HTML strings injected into Streamlit | FastAPI + Jinja2, hand-written semantic markup |
 | Colour ramp copied from CPCB | Severity correlates with contrast in both themes; the official ramp is quarantined to one labelled badge |
 | Glossary stranded at page bottom | Definitions open in place, next to the term |
-| Cached and live data styled identically | `◌ CACHED`, a dead-feed notice, and fallbacks logged as fallbacks |
+| Cached and live data styled identically | a `CACHED` tag carrying the reading's age, a `SAMPLE` tag where no reading is held, a dead-feed notice, and fallbacks logged as fallbacks |
 | Emoji as icons | None |
-| 142 tests | 186, including end-to-end tests that assert no page ships JavaScript |
+| 142 tests | 773, including end-to-end tests that assert no page ships JavaScript |
 
 Bugs the rebuild surfaced, all of which had been live:
 
@@ -80,10 +80,11 @@ from a real design brief, a real design, and being willing to throw away a worki
 
 ## What this repo is now
 
-A finished, documented baseline. It is not being extended — the successor takes the same service
-layer in a different direction, with **inhaled dose in micrograms** as the headline metric rather
-than ambient AQI, accumulating over time and grounded in published inhalation rates rather than
-invented weights.
+A documented baseline, still maintained: it has since gained a drafted Hindi translation, a
+prompt-injection guard covering Devanagari and Hinglish, and an accessibility pass. What it is
+not getting is new scope — the successor takes the same service layer in a different direction,
+with **inhaled dose in micrograms** as the headline metric rather than ambient AQI, accumulating
+over time and grounded in published inhalation rates rather than invented weights.
 
 The two repositories together are the point: what was built, why it was weak, and what was done
 about it.

@@ -1,4 +1,5 @@
 """Privacy invariants: no raw persona leaves the process into any index."""
+import pathlib
 import uuid
 
 import pytest
@@ -207,3 +208,123 @@ def test_the_security_view_does_not_publish_other_visitors_typed_text():
 
     assert "my private medical question" not in body
     assert "[demo] blocked prompt-injection attempt" in body
+
+
+def test_the_shipped_server_does_not_log_the_persona():
+    """The persona travels in the query string, so uvicorn's default access log
+    prints age, condition and activity next to the client IP on every request:
+
+      127.0.0.1:58193 - "GET /?locality=Anand+Vihar&age=Senior&condition=COPD..."
+
+    Reproduced against a real server before this test was written. The Guide
+    tells every reader those fields are never written to a database and that the
+    logs hold only a hashed session id and a status; the field whitelists above
+    keep that true of Elasticsearch, and nothing kept it true of stdout, which a
+    hosted platform collects and retains. The control is one flag on the shipped
+    command, so the test is on the shipped command.
+    """
+    import pathlib
+    dockerfile = pathlib.Path(__file__).resolve().parent.parent / "Dockerfile"
+    cmd = [ln for ln in dockerfile.read_text().splitlines()
+           if ln.startswith("CMD") and "uvicorn" in ln]
+    assert len(cmd) == 1, f"expected exactly one uvicorn CMD, found {len(cmd)}"
+    assert "--no-access-log" in cmd[0], (
+        "the shipped uvicorn command has no --no-access-log, so the reader's "
+        "health condition is printed beside their IP on every request"
+    )
+
+
+def test_clearing_credentials_needs_them_empty_not_unset():
+    """`services/config` calls ``load_dotenv()`` at import, and load_dotenv does
+    not overwrite a name that is already in the environment -- but it does fill
+    in one that has been UNSET. So `env -u WAQI_TOKEN ...`, the obvious way to
+    neutralise a checkout that has a live .env, is silently undone at import and
+    the process runs against real credentials. `env WAQI_TOKEN= ...` survives.
+
+    This is a footgun, not a defect in the app: a bare script SHOULD pick up
+    .env. It is pinned here because the difference is invisible -- both spellings
+    look like they disable the credential, and only one does -- and because
+    getting it wrong points a review at a live paid API.
+    """
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    probe = ("import os;"
+             "from saafsaans.services import config;"
+             "print(repr(os.environ.get('WAQI_TOKEN')))")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # A .env of our own, in a directory of our own. Reading the repository's
+    # real .env would make this test depend on whether the machine running it
+    # happens to have credentials -- and an earlier version of this test, which
+    # asserted only the empty case, could not fail at all: it checked that a
+    # subprocess started with WAQI_TOKEN="" sees "", which is a fact about
+    # `env` and not about this application.
+    with tempfile.TemporaryDirectory() as tmp:
+        (pathlib.Path(tmp) / ".env").write_text("WAQI_TOKEN=from-dotenv\n")
+
+        def _probe(env):
+            full = {**os.environ, **env, "PYTHONPATH": root}
+            full.pop("PYTEST_CURRENT_TEST", None)
+            return subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=full,
+                                  capture_output=True, text=True).stdout.strip()
+
+        unset = {k: v for k, v in os.environ.items() if k != "WAQI_TOKEN"}
+        unset["PYTHONPATH"] = root
+        unset.pop("PYTEST_CURRENT_TEST", None)
+        refilled = subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=unset,
+                                  capture_output=True, text=True).stdout.strip()
+
+        assert refilled == "'from-dotenv'", (
+            f"UNSETTING the variable should let load_dotenv() refill it from "
+            f"the .env -- that is the trap. Got {refilled}")
+        assert _probe({"WAQI_TOKEN": ""}) == "''", (
+            "setting the variable EMPTY should survive load_dotenv()")
+
+
+def test_no_page_can_leak_the_persona_in_a_referer_header():
+    """The persona travels in the query string and the page fetches its fonts
+    from a third party, so every page view makes a cross-origin request while
+    the URL holds the reader's age and health condition.
+
+    Current browsers default to strict-origin-when-cross-origin, which sends
+    the origin alone -- so the persona does not in fact reach Google today.
+    That is a default, not a guarantee, and this is the one field that must not
+    leak, so the policy is declared rather than assumed.
+    """
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        for path in ("/", "/city", "/system", "/guide"):
+            body = client.get(path, params={"locality": "Anand Vihar", "age": "Senior",
+                                            "condition": "COPD",
+                                            "activity": "Outdoor exercise"}).text
+            assert '<meta name="referrer" content="strict-origin-when-cross-origin">' in body, (
+                f"{path} declares no referrer policy while linking a third-party origin"
+            )
+
+
+def test_the_only_third_party_origin_is_the_font_host():
+    """Recorded so that adding another one is a decision rather than a drift.
+
+    The threat model in README names this exposure: a visitor's IP reaches
+    Google on every page view. Self-hosting the two families would remove it
+    and is a change to the deploy artifact, deliberately not made unattended.
+    """
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                       "condition": "None", "activity": "Walking"}).text
+    origins = {re.match(r"https?://[^/]+", url).group(0)
+               for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', body)}
+    assert origins <= {"https://fonts.googleapis.com", "https://fonts.gstatic.com"}, (
+        f"a new third-party origin appears on the page: {origins}")

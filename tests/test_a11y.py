@@ -28,8 +28,10 @@ CSS_PATH = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
 PERSONA = {"locality": "Anand Vihar", "age": "Adult",
            "condition": "Asthma", "activity": "Outdoor exercise", "theme": "light"}
 
-# The narrowest phone the site targets, and the line-height every box inherits
-# from `body`. Both are inputs to the measurements, not conclusions of them.
+# The narrowest phone the site targets, and the line-height a box inherits from
+# `body` when nothing nearer declares one. Both are inputs to the measurements,
+# not conclusions of them -- and the second is a fallback, not an assumption:
+# `_line_height` reads the declared value wherever there is one.
 VIEWPORT = 375
 BODY_LINE_HEIGHT = 1.55
 BODY_FONT_SIZE = 15.0
@@ -85,10 +87,19 @@ def _rules(text):
 
 @pytest.fixture(scope="module")
 def sheet():
+    """The stylesheet, split into the contexts a browser can be in.
+
+    `media` holds EVERY `@media` block by its query, not the two the older
+    assertions happened to name. Reading only "top", "(pointer: fine)" and
+    "(max-width: 560px)" meant a rule written in any other block was invisible
+    to every test here -- which is exactly how `(pointer: coarse)` came to hold
+    the only Devanagari padding on the site with nothing measuring it.
+    """
     top, media = _split_media(_strip_comments(_css()))
     return {"top": _rules(top),
             "fine": _rules(media.get("(pointer: fine)", "")),
             "narrow": _rules(media.get("(max-width: 560px)", "")),
+            "media": {query: _rules(body) for query, body in media.items()},
             "raw": _css()}
 
 
@@ -143,17 +154,23 @@ class _Tree(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.root = {"tag": "#root", "attrs": {}, "kids": [], "parent": None}
+        self.root = {"tag": "#root", "attrs": {}, "kids": [], "parent": None, "text": ""}
         self.stack = [self.root]
 
     def handle_starttag(self, tag, attrs):
-        node = {"tag": tag, "attrs": dict(attrs), "kids": [], "parent": self.stack[-1]}
+        node = {"tag": tag, "attrs": dict(attrs), "kids": [], "parent": self.stack[-1],
+                "text": ""}
         self.stack[-1]["kids"].append(node)
         if tag not in self.VOID:
             self.stack.append(node)
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs if tag in self.VOID else attrs)
+
+    def handle_data(self, data):
+        """Text is attributed to the element that directly contains it, so a
+        size can be resolved for the box the glyphs are actually painted in."""
+        self.stack[-1]["text"] += data
 
     def handle_endtag(self, tag):
         for depth in range(len(self.stack) - 1, 0, -1):
@@ -341,13 +358,57 @@ CONTROLS = {
 }
 
 
+def _resolve_edges(shorthand):
+    """A padding shorthand as (top, bottom)."""
+    parts = [(_px(p) or 0.0) for p in (shorthand or "").split()]
+    if not parts:
+        return 0.0, 0.0
+    return parts[0], (parts[2] if len(parts) >= 3 else parts[0])
+
+
+def _padding_y(rules, chain):
+    """Vertical padding down `chain`, with `padding-top`/`padding-bottom`
+    longhands overriding the shorthand set earlier in the same chain.
+
+    The chain is in ascending specificity, so a later entry wins -- which is how
+    the Devanagari optical shift (longhands) refines the touch floor (shorthand)
+    rather than being averaged with it.
+    """
+    top = bottom = 0.0
+    for key in chain:
+        decls = _decls(rules, key)
+        if "padding" in decls:
+            top, bottom = _resolve_edges(decls["padding"])
+        if "padding-top" in decls:
+            top = _px(decls["padding-top"]) or 0.0
+        if "padding-bottom" in decls:
+            bottom = _px(decls["padding-bottom"]) or 0.0
+    return top + bottom
+
+
+def _line_height(decls, font):
+    """The line box, in px, from whatever the cascade actually hands this control.
+
+    NOT a constant. `body` sets 1.55, but the flex-centring rule sets 1.2 on the
+    five pill-shaped controls, and assuming 1.55 for those overstates every one
+    of their heights by 0.35 x font-size -- which is precisely how five targets
+    sat under the 44px floor while this file reported them over it.
+    """
+    declared = (decls.get("line-height") or "").strip()
+    if declared:
+        as_px = _px(declared)
+        if as_px is not None:
+            return as_px
+        return round(font * float(declared), 2)
+    return round(font * BODY_LINE_HEIGHT, 2)
+
+
 def _measured_height(rules, chain, inherited_font):
     decls = {}
     for key in chain:
         decls.update(_decls(rules, key))
     font = _px(decls.get("font-size", "")) or inherited_font
-    content = round(font * BODY_LINE_HEIGHT, 2)
-    box = content + _edges(decls.get("padding"), "y") + _border(decls, "y")
+    box = _line_height(decls, font) + _padding_y(rules, chain) + _border(decls, "y")
     return max(box, _px(decls.get("min-height", "")) or 0.0)
 
 
@@ -393,6 +454,59 @@ def test_coarse_pointer_touch_targets_clear_the_floor(sheet, pages):
         if height + 0.05 < floor:
             too_small.append(f"{label} ({' -> '.join(chain)}): {height:.1f}px < {floor}px")
     assert not too_small, "coarse-pointer targets below the floor:\n  " + "\n  ".join(too_small)
+
+
+# The same controls once a Devanagari label is in them. Hindi changes two of the
+# three inputs to the height -- the size floor raises the font, and the optical
+# correction rewrites the padding as longhands -- so a Latin measurement says
+# nothing about them. `:lang(hi) .pill-btn` is the case that was 39px.
+HINDI_CONTROLS = {
+    "persona editor toggle": [".pill-btn", ":lang(hi) .pill-btn"],
+    "segment option": [".seg a", ":lang(hi) .seg a"],
+    "provenance button": [".prov-btn", ":lang(hi) .prov-btn"],
+}
+
+
+def test_hindi_controls_clear_the_touch_floor_on_a_coarse_pointer(sheet, hindi_pages):
+    """A coarse pointer is where the floor has to hold, and it is also the only
+    context the Devanagari optical shift is written for. Measure the two
+    together: top-level rules, then the `(pointer: coarse)` block over them."""
+    rules = sheet["top"] + sheet["media"].get("(pointer: coarse)", [])
+    too_small = []
+    for label, chain in HINDI_CONTROLS.items():
+        height = _measured_height(rules, chain,
+                                  _smallest_inherited_font(sheet, hindi_pages, chain))
+        if height + 0.05 < TARGET_FLOOR:
+            too_small.append(f"{label} ({' -> '.join(chain)}): {height:.1f}px < {TARGET_FLOOR}px")
+    assert not too_small, ("Hindi coarse-pointer targets below the floor:\n  "
+                           + "\n  ".join(too_small))
+
+
+def test_the_devanagari_optical_shift_moves_padding_without_spending_it(sheet):
+    """The shift exists to drop the ink a couple of pixels inside a box whose
+    height is already decided. Any rule that changes the TOTAL is not shifting
+    the ink, it is resizing the target -- which is the defect, not the remedy.
+
+    Checked inside `(pointer: coarse)`, because that is the context where the
+    total is a touch floor rather than a density choice. The top-level copies of
+    these shifts sit on chips, which are not targets at all.
+    """
+    context = "(pointer: coarse)"
+    rules = sheet["top"] + sheet["media"][context]
+    checked = 0
+    for selector, decls in sheet["media"][context]:
+        if not selector.startswith(":lang(hi)") or "padding-top" not in decls:
+            continue
+        base = selector[len(":lang(hi)"):].strip()
+        shorthand = _decls(sheet["top"], base).get("padding")
+        assert shorthand, f"{selector} refines {base}, which sets no padding to refine"
+        before = sum(_resolve_edges(shorthand))
+        after = _padding_y(rules, [base, selector])
+        checked += 1
+        assert after == before, (
+            f"{context} {selector}: total vertical padding {after}px against {before}px "
+            f"on {base} -- the optical shift is spending target height, not moving ink")
+    assert checked, f"no Devanagari optical shift found in {context} -- nothing was measured"
 
 
 def test_pointer_fine_only_ever_reduces_a_target(sheet, pages):
@@ -525,3 +639,598 @@ def test_no_inline_style_undercuts_the_touch_target_floor():
                 offenders.append(f"{path.name}: {style}")
     assert not offenders, (
         "inline padding/font-size on a link overrides the touch floor: %s" % offenders)
+
+
+# --- 5. The caveat palette --------------------------------------------------
+# Demoting a sentence means making it quieter, and the floor under "quieter" is
+# a measured contrast ratio, not an opinion about how grey is too grey. Every
+# figure below is computed from the tokens in this stylesheet.
+
+def _lum(hex_or_rgb):
+    channels = hex_or_rgb
+    if isinstance(channels, str):
+        h = channels.lstrip("#")
+        channels = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    f = lambda c: (c / 255) / 12.92 if (c / 255) <= 0.03928 else (((c / 255) + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(channels[0]) + 0.7152 * f(channels[1]) + 0.0722 * f(channels[2])
+
+
+def _ratio(a, b):
+    la, lb = _lum(a), _lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def _over(fg, alpha, bg):
+    """Source-over compositing, which is what `opacity` and an `rgba` fill do."""
+    if isinstance(fg, str):
+        h = fg.lstrip("#")
+        fg = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return [fg[i] * alpha + bg[i] * (1 - alpha) for i in range(3)]
+
+
+def _token(css, block, name):
+    chunk = css.split(block, 1)[1]
+    return re.search(rf"{name}:\s*(#[0-9A-Fa-f]{{6}})", chunk).group(1)
+
+
+THEMES = (("light", ":root {"), ("dark", '[data-theme="dark"] {'))
+AA_TEXT = 4.5
+
+
+def test_the_caveat_palette_clears_the_text_floor_in_both_themes(sheet):
+    """`.caveat` is the quietest text on the site, so it is the one most likely
+    to fall under the floor. Its colour token, its link colour and the promoted
+    `.meaning` are all resolved from the stylesheet and measured against the two
+    surfaces a caveat is ever painted on."""
+    css = _strip_comments(sheet["raw"])
+    caveat = _decls(sheet["top"], ".caveat")
+    assert caveat, ".caveat has no rule -- this test would prove nothing"
+    measured = {}
+    for theme, block in THEMES:
+        surface, bg = _token(css, block, "--surface"), _token(css, block, "--bg")
+        for label, decls, backdrop in (
+                ("caveat on --surface", caveat, surface),
+                ("caveat on --bg", caveat, bg),
+                ("caveat link", _decls(sheet["top"], ".caveat a"), surface),
+                ("caveat on a tint", _decls(sheet["top"], ".caveat.on-tint"),
+                 _token(css, block, "--surface-2")),
+                ("meaning", _decls(sheet["top"], ".meaning"), surface)):
+            token = re.fullmatch(r"var\((--[\w-]+)\)", decls["color"]).group(1)
+            ratio = _ratio(_token(css, block, token), backdrop)
+            measured[f"{theme} {label}"] = ratio
+            assert ratio >= AA_TEXT, f"{theme} {label}: {ratio:.2f}:1"
+
+    # The reason .on-tint exists at all, asserted rather than remembered: the
+    # caveat's own colour does NOT clear the floor on a tinted panel in dark.
+    dark = dict(THEMES)["dark"]
+    on_tint_would_be = _ratio(_token(css, dark, "--text-3"), _token(css, dark, "--surface-2"))
+    assert on_tint_would_be < AA_TEXT, (
+        f"--text-3 now measures {on_tint_would_be:.2f}:1 on --surface-2 in dark. If that is "
+        "genuinely above the floor, .on-tint is no longer needed -- but check the token "
+        "change that did it before deleting anything")
+    assert "background" not in caveat, (
+        ".caveat has gained a background; --text-3 does not clear the floor on every "
+        "panel colour this site uses, which is why it had none")
+
+
+def test_no_link_in_running_prose_is_marked_by_colour_alone(sheet):
+    """SC 1.4.1: colour may distinguish a link from the sentence around it only
+    if the two colours differ by 3:1. `--accent` against `--text-3` does not
+    come close, so the underline the UA gives every `a[href]` is the only thing
+    telling a reader there is a link there -- and two rules used to remove it.
+
+    Running prose is identified by the property this stylesheet uses to mark it:
+    `text-wrap: pretty`. That keeps the check off `.nav a` and `.seg a`, which
+    are standalone controls in a bar, not links inside a sentence.
+    """
+    css = _strip_comments(sheet["raw"])
+    prose = {part.strip()[1:] for selector, decls in sheet["top"]
+             for part in selector.split(",")
+             if decls.get("text-wrap") == "pretty"
+             and re.fullmatch(r"\.[A-Za-z0-9_-]+", part.strip())}
+    assert {"caveat", "hint"} <= prose, f"prose classes no longer include the caveat: {prose}"
+
+    base_link = _decls(sheet["top"], "a")["color"]
+    for css_class in sorted(prose):
+        own = _decls(sheet["top"], f".{css_class}").get("color")
+        link = _decls(sheet["top"], f".{css_class} a").get("color", base_link)
+        if not own:
+            continue
+        for theme, block in THEMES:
+            ratio = _ratio(_token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", link).group(1)),
+                           _token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", own).group(1)))
+            if ratio >= AA_NON_TEXT:
+                continue
+            stripped = _decls(sheet["top"], f".{css_class} a").get("text-decoration")
+            assert stripped != "none", (
+                f"{theme} .{css_class} a: link colour is {ratio:.2f}:1 against the prose it "
+                f"sits in, under {AA_NON_TEXT}:1, and the rule removes the underline -- "
+                "nothing is left to identify it as a link")
+
+
+def test_the_hero_caveat_is_readable_over_every_sky_in_both_themes(sheet):
+    """The hero caveat is white-ish text at 65% opacity, on an 85%-opaque panel,
+    over a gradient that changes with the reading. Its worst case is therefore a
+    composite of three layers and cannot be read off a token pair."""
+    css = _strip_comments(sheet["raw"])
+    hero = _decls(sheet["top"], ".hero-window .caveat")
+    window = _decls(sheet["top"], ".hero-window")
+    ink = hero["color"]
+    alpha = float(hero["opacity"])
+    panel = re.search(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", window["background"])
+    panel_rgb = [int(panel.group(i)) for i in (1, 2, 3)]
+    panel_alpha = float(panel.group(4))
+
+    skies = re.findall(r"--sky1:\s*(#[0-9A-Fa-f]{6});\s*--sky2:\s*(#[0-9A-Fa-f]{6})", css)
+    assert len(skies) >= 14, f"only {len(skies)} skies found -- both themes must be covered"
+    worst = min(_ratio(_over(ink, alpha, backdrop), backdrop)
+                for pair in skies for sky in pair
+                for backdrop in [_over(panel_rgb, panel_alpha, [int(sky.lstrip('#')[i:i + 2], 16)
+                                                                for i in (0, 2, 4)])])
+    assert worst >= AA_TEXT, f"hero caveat bottoms out at {worst:.2f}:1 over some sky"
+
+
+def test_hindi_never_renders_a_caveat_below_the_devanagari_floor(sheet):
+    """12.5px was chosen against Latin. Devanagari carries its distinguishing
+    detail above and below the line, so below about 12px the matras stop
+    resolving -- the floor the rest of the Hindi block already applies."""
+    floors = {}
+    for selector, decls in sheet["top"]:
+        for part in [s.strip() for s in selector.split(",")]:
+            if "caveat" in part and "font-size" in decls:
+                floors[part] = _px(decls["font-size"])
+    assert ":lang(hi) .caveat" in floors, "the Devanagari prose floor no longer names .caveat"
+    for part, size in floors.items():
+        if part.startswith(":lang(hi)"):
+            assert size >= 12.5, f"{part} sets {size}px, below where Devanagari resolves"
+    # The hero caveat is the one set below that floor in Latin, so it is the one
+    # that needs its own Hindi rule; the old `.note` never had one.
+    assert floors.get(":lang(hi) .hero-window .caveat", 0) > floors[".hero-window .caveat"]
+
+
+# --- 6. Devanagari never renders below the floor ----------------------------
+# The three defects this section exists for were all invisible to the helpers
+# above, and for the same reason: those helpers read the stylesheet as a flat
+# selector -> declarations map, so they can say what `.seg a` declares but never
+# what a given element on a given page ends up at. The size a reader actually
+# gets is the product of the cascade plus inheritance plus any inline style, and
+# nothing here measured that. What follows resolves it.
+
+DEVANAGARI = re.compile(r"[ऀ-ॿ]")
+
+# Devanagari carries its distinguishing detail above and below the line -- the
+# matras and the shirorekha -- so at a given font-size the glyph body is smaller
+# than Latin's. app.css:481 records where they stop resolving (about 12px); the
+# floor the Hindi block actually applies to its labels is 12.5px, and that is
+# the number asserted, because a floor the stylesheet does not keep is not one.
+DEVANAGARI_FLOOR = 12.5
+
+_SIMPLE = re.compile(r"""
+    (?P<tag>^[a-zA-Z][\w-]*)
+  | \.(?P<cls>[\w-]+)
+  | \#(?P<id>[\w-]+)
+  | \[(?P<attr>[\w-]+)(?:\s*=\s*"?(?P<val>[^"\]]*)"?)?\]
+  | :lang\((?P<lang>[\w-]+)\)
+  | :not\((?P<negated>[^)]*)\)
+  | ::?(?P<pseudo>[\w-]+)(?:\([^)]*\))?
+""", re.X)
+
+# Pseudo-classes describing a state no static render is in. A rule carrying one
+# is not part of the resting page and must not be resolved onto it.
+_STATEFUL = {"hover", "focus", "focus-visible", "active", "visited", "before", "after"}
+
+
+def _parse_compound(text):
+    """One compound selector -> its simple parts, or None if unparseable."""
+    parts, i = [], 0
+    while i < len(text):
+        found = _SIMPLE.match(text, i)
+        if not found or found.end() == i:
+            return None
+        parts.append(found)
+        i = found.end()
+    return parts
+
+
+def _computed_lang(node):
+    while node is not None:
+        if node["attrs"].get("lang"):
+            return node["attrs"]["lang"]
+        node = node["parent"]
+    return None
+
+
+def _matches_compound(node, parts):
+    for found in parts:
+        group = found.groupdict()
+        if group["tag"] and node["tag"] != group["tag"]:
+            return False
+        if group["cls"] and group["cls"] not in _classes(node):
+            return False
+        if group["id"] and node["attrs"].get("id") != group["id"]:
+            return False
+        if group["attr"]:
+            value = node["attrs"].get(group["attr"])
+            if value is None or (group["val"] is not None and value != group["val"]):
+                return False
+        if group["lang"] and (_computed_lang(node) or "").split("-")[0] != group["lang"]:
+            return False
+        if group["negated"] is not None:
+            inner = _parse_compound(group["negated"].strip())
+            if inner and _matches_compound(node, inner):
+                return False
+        if group["pseudo"]:
+            if group["pseudo"] in _STATEFUL:
+                return False
+            if group["pseudo"] == "first-child":
+                siblings = node["parent"]["kids"] if node["parent"] else []
+                if not siblings or siblings[0] is not node:
+                    return False
+    return True
+
+
+def _specificity(selector):
+    ids = len(re.findall(r"#[\w-]+", selector))
+    classes = (len(re.findall(r"\.[\w-]+", selector))
+               + len(re.findall(r"\[[^\]]*\]", selector))
+               + len(re.findall(r":(?!:)(?!not\()[\w-]+", selector)))
+    tags = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][\w-]*)", selector))
+    return (ids, classes, tags)
+
+
+def _matches(node, selector):
+    """Descendant and child combinators only -- this stylesheet uses no other,
+    and a child combinator is treated as a descendant, which can only ever make
+    the resolver claim a rule applies when it does not. That direction is safe
+    here: it would hide a too-small size, never invent one."""
+    sequence = [part for part in re.split(r"\s+", selector.strip())
+                if part not in (">", "+", "~")]
+    compounds = [_parse_compound(part) for part in sequence]
+    if any(compound is None for compound in compounds):
+        return False
+    if not _matches_compound(node, compounds[-1]):
+        return False
+    ancestor = node["parent"]
+    for compound in reversed(compounds[:-1]):
+        while ancestor is not None and not _matches_compound(ancestor, compound):
+            ancestor = ancestor["parent"]
+        if ancestor is None:
+            return False
+        ancestor = ancestor["parent"]
+    return True
+
+
+def _font_size_value(value):
+    """px, or the smallest term of a clamp() -- the size at the narrow end."""
+    value = (value or "").strip()
+    if value.startswith("clamp("):
+        value = value[len("clamp("):].split(",")[0]
+    return _px(value)
+
+
+def _font_size_rules(rules):
+    """Every font-size declaration as (specificity, source order, selector, px)."""
+    flat = []
+    for order, (selector, decls) in enumerate(rules):
+        size = _font_size_value(decls.get("font-size", ""))
+        if size is None:
+            continue
+        for part in [s.strip() for s in selector.split(",") if s.strip()]:
+            flat.append((_specificity(part), order, part, size))
+    return flat
+
+
+def _effective_font_size(node, flat, cache):
+    """(px, what set it) for one element, by cascade then inheritance."""
+    if id(node) in cache:
+        return cache[id(node)]
+    inline = re.search(r"font-size:\s*([\d.]+)px", node["attrs"].get("style", ""))
+    if inline:
+        result = (float(inline.group(1)), "inline style")
+    else:
+        winner = None
+        for spec, order, selector, size in flat:
+            if _matches(node, selector) and (winner is None or (spec, order) > winner[0]):
+                winner = ((spec, order), size, selector)
+        if winner:
+            result = (winner[1], winner[2])
+        elif node["parent"] is None:
+            result = (BODY_FONT_SIZE, "body")
+        else:
+            result = _effective_font_size(node["parent"], flat, cache)
+    cache[id(node)] = result
+    return result
+
+
+@pytest.fixture(scope="module")
+def hindi_pages():
+    """The same disclosure states as `pages`, served in Hindi."""
+    persona = {**PERSONA, "lang": "hi"}
+    rendered = {}
+    with TestClient(app) as client:
+        client.post("/ask", params=persona,
+                    data={"question": "क्या मैं "
+                                      "दौड़ सकता "
+                                      "हूँ?"},
+                    follow_redirects=True)
+        views = {
+            "today": ("/", persona),
+            "today-persona-open": ("/", {**persona, "edit": "1"}),
+            "today-term-open": ("/", {**persona, "term": "PM2.5"}),
+            "city": ("/city", persona),
+            "system": ("/system", persona),
+            "system-security": ("/system", {**persona, "view": "security"}),
+            "guide": ("/guide", persona),
+        }
+        for name, (path, params) in views.items():
+            rendered[name] = client.get(path, params=params).text
+        turn = re.search(r'id="turn-([^"]+)"', rendered["today"])
+        if turn:
+            rendered["today-prov-open"] = client.get(
+                "/", params={**persona, "prov": turn.group(1)}).text
+
+    trees = {}
+    for name, html in rendered.items():
+        parser = _Tree()
+        parser.feed(html)
+        trees[name] = parser.root
+    return trees
+
+
+def _devanagari_sizes(sheet, hindi_pages, context):
+    """Every element on a Hindi page whose own text carries Devanagari, with the
+    font-size it resolves to in the given media context."""
+    flat = _font_size_rules(sheet["top"] + sheet["media"].get(context, []))
+    measured = []
+    for name, root in hindi_pages.items():
+        cache = {}
+        for node in _walk(root):
+            if not DEVANAGARI.search(node["text"]):
+                continue
+            size, why = _effective_font_size(node, flat, cache)
+            measured.append((size, why, name, " ".join(node["text"].split())[:40]))
+    return measured
+
+
+def test_no_devanagari_on_any_page_renders_below_the_floor(sheet, hindi_pages):
+    """The one test that would have caught the toggles and the trend header.
+
+    The Hindi block declares a size floor and then lists the classes it thought
+    of; five that carry translated Devanagari on shipped pages were not on the
+    list, and one more was set inline where no `:lang(hi)` rule can reach it. A
+    list of class names cannot notice its own omissions, so this walks the
+    rendered page instead and resolves what each element actually gets.
+    """
+    small = []
+    for context in ["top"] + sorted(sheet["media"]):
+        for size, why, page, text in _devanagari_sizes(sheet, hindi_pages, context):
+            if why == "inline style":
+                continue            # owned by the assertion below, not this one
+            if size + 0.001 < DEVANAGARI_FLOOR:
+                small.append(f"{context} {page}: {size}px via {why!r} -- {text!r}")
+    assert not small, (
+        "Devanagari below the %spx floor:\n  " % DEVANAGARI_FLOOR + "\n  ".join(sorted(set(small))))
+
+
+def test_the_resolver_can_see_a_size_the_flat_selector_map_cannot(sheet, hindi_pages):
+    """A guard on the guard. If the resolver silently stopped matching, the test
+    above would pass by measuring nothing -- so prove it resolves real elements,
+    and that at least one of them gets its size from a descendant selector that
+    `_decls` (which matches whole selectors only) could never have found."""
+    measured = _devanagari_sizes(sheet, hindi_pages, "top")
+    assert len(measured) > 100, f"only {len(measured)} Devanagari elements resolved"
+    assert any(" " in why for _, why, _, _ in measured), (
+        "no element resolved through a descendant selector -- the resolver is matching "
+        "single classes only and proves less than it appears to")
+
+
+# The debt is now zero. It was two entries in today.html; both moved into
+# app.css as `.reading-meta` and `.ask-sub`, which is what let the Devanagari
+# floor reach them. The empty set is not a formality -- it is what makes this
+# assertion bite on the NEXT inline size anyone writes, anywhere.
+INLINE_FONT_SIZE_DEBT: set = set()
+
+
+def test_no_template_carries_an_inline_font_size():
+    """An inline declaration outranks every selector, `!important` included
+    (app.css has none outside the reduced-motion block). A size written there is
+    therefore permanently out of reach of the Devanagari floor, whatever the
+    stylesheet later says -- which is why the 24-hour trend header could not be
+    fixed in CSS at all and had to move out of the template.
+
+    Recorded as an exact set, not a threshold, so the debt can only shrink. It
+    has now shrunk to nothing; the companion assertion that each entry really
+    did put Devanagari under the floor went with the last entry, because a check
+    that requires a defect to exist cannot survive the defect being fixed.
+    """
+    import pathlib
+    found = set()
+    for path in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")):
+        for match in re.finditer(r'style="([^"]*)"', path.read_text()):
+            if re.search(r"\bfont-size\s*:", match.group(1)):
+                found.add((path.name, match.group(1)))
+    assert found == INLINE_FONT_SIZE_DEBT, (
+        "inline font-size in a template, where no :lang(hi) rule can reach it.\n"
+        f"  added:   {sorted(found - INLINE_FONT_SIZE_DEBT)}\n"
+        f"  removed: {sorted(INLINE_FONT_SIZE_DEBT - found)} (delete it from the debt set)")
+
+
+# --- 7. The band ramp as text, not as a swatch ------------------------------
+# `.dot` paints --ink as a 9px swatch, where SC 1.4.11's 3:1 is the right floor.
+# `.station .bd` paints the SAME token as 11px text, where SC 1.4.3 asks 4.5:1,
+# and no test measured it -- so the ramp was tuned once, for the swatch.
+
+BANDS = ("g1", "g2", "g3", "g4", "g5", "g6")
+AA_NON_TEXT = 3.0
+
+
+def _band_backdrops(sheet, pages):
+    """Every background a `.station .bd` is actually painted on, as tokens.
+
+    Read off the rendered rows rather than assumed: the selected row used to
+    take a fill of its own, and that fill was where the ramp failed worst.
+    """
+    backgrounds = {}
+    for selector, decls in sheet["top"]:
+        if "background" in decls and selector.startswith(".station"):
+            token = re.fullmatch(r"var\((--[\w-]+)\)", decls["background"].strip())
+            if token:
+                backgrounds[selector] = token.group(1)
+    tokens = {"--surface"}          # .station-list itself
+    for root in pages.values():
+        for node in _walk(root):
+            if "station" not in _classes(node):
+                continue
+            for selector, token in backgrounds.items():
+                attr = re.search(r'\[([\w-]+)="([^"]*)"\]', selector)
+                if attr and node["attrs"].get(attr.group(1)) == attr.group(2):
+                    tokens.add(token)
+    return sorted(tokens)
+
+
+def test_every_band_word_on_city_clears_the_text_floor_in_both_themes(sheet, pages):
+    """The six band words on /city are the ramp used as small text. Measure all
+    six, on every background a row is painted on, in both themes -- fixing one
+    band by breaking another is the failure mode this guards."""
+    css = _strip_comments(sheet["raw"])
+    bd = _decls(sheet["top"], ".station .bd")
+    assert bd.get("color") == "var(--ink)", (
+        ".station .bd no longer paints the band ink -- this test measures the wrong thing")
+    size = _px(bd["font-size"])
+    assert size < 18.66, f"{size}px would be large text, where the floor is 3:1 not 4.5:1"
+
+    backdrops = _band_backdrops(sheet, pages)
+    failures = []
+    for theme, block in THEMES:
+        for backdrop in backdrops:
+            behind = _token(css, block, backdrop)
+            for band in BANDS:
+                ratio = _ratio(_token(css, block, f"--{band}"), behind)
+                if ratio < AA_TEXT:
+                    failures.append(f"{theme} .band-{band} .bd on {backdrop}: {ratio:.2f}:1")
+    assert not failures, ("band words below the %s:1 text floor:\n  " % AA_TEXT
+                          + "\n  ".join(failures))
+
+
+def test_the_band_dot_stays_above_the_non_text_floor_in_both_themes(sheet):
+    """The other half of the same token: the 9px swatch is non-text, so 3:1 is
+    the right floor for it -- and raising a band for the text floor must not be
+    read as licence to let the swatch drift."""
+    css = _strip_comments(sheet["raw"])
+    for theme, block in THEMES:
+        surface = _token(css, block, "--surface")
+        for band in BANDS:
+            ratio = _ratio(_token(css, block, f"--{band}"), surface)
+            assert ratio >= AA_NON_TEXT, f"{theme} .band-{band} dot: {ratio:.2f}:1"
+
+
+# --- 8. Every media block is measured ---------------------------------------
+# Each block carries the obligation named here, and the set is exact: a new
+# `@media` block fails this test until somebody writes down what holds inside it.
+MEDIA_OBLIGATIONS = {
+    "(max-width: 560px)": "narrower padding only; sizes unchanged, so section 6 applies",
+    "(pointer: fine)": "shrinks a target back to the designed density (section 3)",
+    "(pointer: coarse)": "raises padding; never lowers it below the top-level value",
+    "(prefers-reduced-motion: reduce)": "kills motion and declares nothing else",
+}
+
+
+# --- 9. The sticky header does not swallow what is scrolled to --------------
+def test_scroll_padding_clears_the_sticky_header(sheet, pages):
+    """`.hdr` is `position: sticky`, so the top of the scrollport is covered.
+    Without `scroll-padding-top` the skip link's own `#main` target, and every
+    focus move the browser has to scroll for, land underneath it.
+
+    The value is checked against the header computed from this stylesheet: its
+    own vertical padding, the tallest control it holds, and its bottom border.
+    That is the unwrapped header; a header that has wrapped onto a second row is
+    taller and needs a rendering engine to measure, so this is a lower bound.
+    """
+    assert any("sticky" in decls.get("position", "") for selector, decls in sheet["top"]
+               if selector == ".hdr"), ".hdr is no longer sticky -- this test measures nothing"
+    anchors = {node["attrs"]["href"] for root in pages.values() for node in _walk(root)
+               if node["tag"] == "a" and node["attrs"].get("href", "").startswith("#")}
+    assert anchors, "no in-page anchor rendered -- nothing would be scrolled under the header"
+
+    inner = _decls(sheet["top"], ".hdr-in")
+    tallest = max(_measured_height(sheet["top"], chain,
+                                   _smallest_inherited_font(sheet, pages, chain))
+                  for chain in ([".wordmark", ".wordmark b"], [".nav a"], [".seg a"]))
+    border = _px((_decls(sheet["top"], ".hdr").get("border-bottom", "").split() or [""])[0]) or 0.0
+    needed = _edges(inner.get("padding"), "y") + tallest + border
+
+    declared = _px(_decls(sheet["top"], "html").get("scroll-padding-top", ""))
+    assert declared is not None, (
+        f"nothing sets scroll-padding-top, and the sticky header covers {needed:.1f}px "
+        f"of the scrollport that {sorted(anchors)} scroll into")
+    assert declared >= needed, (
+        f"scroll-padding-top is {declared}px against a {needed:.1f}px header")
+
+
+# --- 10. No rule paints something the site never renders --------------------
+def test_no_class_in_the_stylesheet_is_unreachable(sheet, pages, hindi_pages):
+    """A rule for markup that no longer exists is a claim about the design that
+    is not true. A class counts as reachable if it appears in a template source
+    (which covers states no fixture happens to render, like the stale-data note)
+    or on a rendered page, or is composed from a variable -- `band-{{ slug }}`
+    reaches `.band-gx`, which only a station with no reading ever renders."""
+    import pathlib
+    declared = set()
+    for selector, _ in sheet["top"] + [r for rules in sheet["media"].values() for r in rules]:
+        declared.update(re.findall(r"\.([A-Za-z][\w-]*)", selector))
+    source = "\n".join(path.read_text() for path
+                       in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")))
+    # Class NAMES out of class attributes, not a substring search over the whole
+    # template text. Searching the raw source let any rule whose name happened
+    # to occur anywhere -- in an id, a Jinja expression, a comment, a word --
+    # count as reached: a dead `.reading { }` was called live because
+    # `reading.aqi` and `#reading` appear in today.html. Verified by adding
+    # exactly that rule and watching this test stay green.
+    attribute_tokens = set()
+    for value in re.findall(r'class="([^"]*)"', source):
+        attribute_tokens.update(re.findall(r"[A-Za-z][\w-]*", value))
+    rendered = {css_class for trees in (pages, hindi_pages) for root in trees.values()
+                for node in _walk(root) for css_class in _classes(node)}
+
+    def composed(css_class):
+        """A template building this name out of a stem plus an expression."""
+        return any(re.search(re.escape(css_class[:cut + 1]) + r"\{\{", source)
+                   for cut, char in enumerate(css_class) if char == "-")
+
+    dead = sorted(c for c in declared
+                  if c not in attribute_tokens and c not in rendered and not composed(c))
+    assert not dead, f"styled but never applied: {dead}"
+
+
+def test_every_media_block_states_what_holds_inside_it(sheet):
+    assert set(sheet["media"]) == set(MEDIA_OBLIGATIONS), (
+        "an @media block no assertion covers:\n"
+        f"  unmeasured: {sorted(set(sheet['media']) - set(MEDIA_OBLIGATIONS))}\n"
+        f"  gone:       {sorted(set(MEDIA_OBLIGATIONS) - set(sheet['media']))}")
+
+
+def test_the_reduced_motion_block_declares_nothing_but_motion(sheet):
+    """It is the one block allowed `!important`. Anything else smuggled in there
+    would outrank the whole stylesheet for a reader who asked for less motion."""
+    for selector, decls in sheet["media"]["(prefers-reduced-motion: reduce)"]:
+        assert set(decls) <= {"transition", "animation"}, (
+            f"{selector} declares {sorted(decls)} inside the reduced-motion block")
+
+
+def test_the_coarse_pointer_block_only_ever_raises_a_target(sheet):
+    """The mirror of `test_pointer_fine_only_ever_reduces_a_target`, for the
+    block that block's own comment points at. It had no assertion at all."""
+    for selector, decls in sheet["media"]["(pointer: coarse)"]:
+        if not any(key.startswith("padding") for key in decls):
+            continue
+        for part in [s.strip() for s in selector.split(",")]:
+            top = _decls(sheet["top"], part)
+            base = (_edges(top.get("padding"), "y")
+                    + (_px(top.get("padding-top", "")) or 0.0)
+                    + (_px(top.get("padding-bottom", "")) or 0.0))
+            coarse = (_edges(decls.get("padding"), "y")
+                      + (_px(decls.get("padding-top", "")) or 0.0)
+                      + (_px(decls.get("padding-bottom", "")) or 0.0))
+            assert coarse >= base, (
+                f"@media (pointer: coarse) gives {part} {coarse}px of vertical padding "
+                f"against {base}px at top level -- coarse is the floor, not the ceiling")

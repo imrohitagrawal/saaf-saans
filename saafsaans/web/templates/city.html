@@ -9,12 +9,14 @@
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"
        aria-current="{{ 'true' if s.selected else 'false' }}">
       <span class="dot" aria-hidden="true"></span>
-      <span class="nm">{{ s.name }}</span>
-      {#- The tags stay in Latin script: they are the same two words used in the
-          caption and in the Guide, and a reader matching one to the other is
-          better served by one spelling than by two. -#}
-      {% if s.source == 'cached' %}<span class="tag">CACHED{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
-      {% elif s.source == 'sample' %}<span class="tag">SAMPLE</span>{% endif %}
+      <span class="nm">{{ place(s.name) }}</span>
+      {#- The tag is the same word in three places -- here, the caption below,
+          and the Guide's data-source answer -- so all three have to move
+          together into whichever language the page is in. A reader who cannot
+          read the tag cannot tell a stored reading from a stand-in, which is
+          the one distinction this page exists to make. -#}
+      {% if s.source == 'cached' %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {% elif s.source == 'sample' %}<span class="tag">{{ T('ui', 'tag_sample', 'SAMPLE') }}</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       <span class="bd">{{ s.band }}</span>
     </a>
@@ -30,24 +32,28 @@
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
-    <div class="row" style="align-items:baseline;gap:8px">
-      <span style="font-weight:600;font-size:15px">{{ selected }}</span>
-      <span class="mono" style="font-size:11px;color:var(--text-3)">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
-      <span class="mono" style="margin-left:auto;font-size:13px;font-weight:600">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
+    {#- Sizes belong in the stylesheet, not here. An inline declaration outranks
+        every selector, so the 11px this header used to carry was out of reach of
+        the Devanagari size floor: on /city?lang=hi it set 'पिछले 24 घंटे' below
+        where matras resolve and no `:lang(hi)` rule could raise it. -#}
+    <div class="row trend-head">
+      <span class="trend-place">{{ place(selected) }}</span>
+      <span class="mono trend-lbl">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
+      <span class="mono trend-val">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
     </div>
     {% if spark %}
       <div class="spark">{{ spark }}</div>
       <div class="spark-x"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>{{ T('ui', 'now', 'NOW') }}</span></div>
       <p class="caption">{{ T('ui', 'spark_caption', 'Delhi pattern: overnight build-up, mid-day relief. Pick a station to see its curve.') }}</p>
     {% else %}
-      <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ selected }}
+      <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ place(selected) }}
         {{ T('ui', 'no_trend_after', 'yet. Run') }}
         <code>python -m saafsaans.seed_demo_history</code>
         {{ T('ui', 'no_trend_tail', 'to backfill, or keep using the app — every live reading is indexed as it arrives.') }}</p>
     {% endif %}
   </section>
 
-  {{ station_list("Delhi", delhi) }}
-  {{ station_list("NCR", ncr) }}
+  {{ station_list(T('ui', 'region_delhi', 'Delhi'), delhi) }}
+  {{ station_list(T('ui', 'region_ncr', 'NCR'), ncr) }}
 </div>
 {% endblock %}

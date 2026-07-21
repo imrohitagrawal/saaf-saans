@@ -7,3 +7,11 @@ venv/
 
 # Local-only notes: drafts, personal write-ups. Never pushed.
 /private/
+
+# macOS Finder metadata. Three of these were tracked before this entry
+# existed, so they are removed from the index in the same commit.
+.DS_Store
+
+# Agent worktrees created by docs/fix-workflow.js. Transient, and each is
+# a git checkout of its own -- committing them embeds repos inside this one.
+.claude/worktrees/

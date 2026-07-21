@@ -10,7 +10,28 @@ reading and never dramatising a mild one. See design_handoff_saafsaans/README.md
 """
 import math
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
+
+from saafsaans.services import clock, i18n
+
+
+def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
+    """``i18n.t`` followed by ``str.format``, falling back on a bad placeholder.
+
+    Every sentence below is a whole format string with named fields, so the
+    Hindi can reorder them -- Hindi puts the place before its postposition and
+    the verb last, and a translation assembled in English order reads as
+    nonsense. The cost is that a translated string with a typo'd or invented
+    field name would raise at render time and take the page down. i18n.t
+    already promises to fall back per string rather than per page, so the same
+    promise is kept here: a malformed translation shows one English sentence.
+    """
+    template = i18n.t(lang, group, key, english)
+    try:
+        return template.format(**fields)
+    except (KeyError, IndexError):
+        return english.format(**fields)
+
 
 # --- Verdict ---------------------------------------------------------------
 # One headline per risk band. risk.py has its own drier `headline` for the API
@@ -61,36 +82,87 @@ _CONDITION_REASON = {
 }
 _AGE_REASON = {"Child": "being a child", "Senior": "being a senior"}
 
+# Translation keys for the parts above. Separate dicts rather than keys derived
+# from the English, because the English is editorial copy that can be reworded
+# and a key derived from it would silently orphan its Hindi. "Fit" and "None"
+# share a key: they are the same phrase, and two keys would invite two
+# different translations of one idea.
+_AGE_KEYS = {"Child": "age_child", "Adult": "age_adult", "Senior": "age_senior"}
+_CONDITION_KEYS = {
+    "Fit": "condition_fit",
+    "None": "condition_fit",
+    "Asthma": "condition_asthma",
+    "Heart condition": "condition_heart",
+    "Pregnancy": "condition_pregnancy",
+    "COPD": "condition_copd",
+}
+_ACTIVITY_KEYS = {
+    "Outdoor exercise": "activity_exercise",
+    "Commute": "activity_commute",
+    "School run": "activity_school_run",
+    "Stay home": "activity_stay_home",
+}
+_CONDITION_REASON_KEYS = {
+    "Asthma": "reason_asthma",
+    "Heart condition": "reason_heart",
+    "Pregnancy": "reason_pregnancy",
+    "COPD": "reason_copd",
+}
+_AGE_REASON_KEYS = {"Child": "reason_child", "Senior": "reason_senior"}
 
-def persona_sentence(persona: dict, with_place: bool = True) -> str:
+
+def persona_sentence(persona: dict, with_place: bool = True, lang: str = "en") -> str:
     """e.g. 'a senior with COPD, planning a school run in Noida'.
 
     Reads as prose so it can be dropped into a sentence anywhere it is needed.
+
+    The four shapes are four whole format strings, not fragments concatenated in
+    English order: Hindi puts the locality before its postposition and the
+    describing phrase last, so ``"..." + " in " + place`` cannot be translated.
+    The locality itself is never translated -- it is a proper noun, and the
+    picker's values are what people say out loud.
     """
     persona = persona or {}
-    who = _AGE_PHRASE.get(persona.get("age"), "an adult")
-    condition = _CONDITION_PHRASE.get(persona.get("condition"), "in good health")
-    activity = _ACTIVITY_PHRASE.get(persona.get("activity"))
-    parts = f"{who} {condition}"
-    if activity:
-        parts += f", {activity}"
-    place = persona.get("locality")
-    if with_place and place:
-        parts += f" in {place}"
-    return parts
+    age = persona.get("age")
+    condition = persona.get("condition")
+    activity = persona.get("activity")
+    who = i18n.t(lang, "persona", _AGE_KEYS.get(age, "age_adult"),
+                 _AGE_PHRASE.get(age, "an adult"))
+    cond = i18n.t(lang, "persona", _CONDITION_KEYS.get(condition, "condition_fit"),
+                  _CONDITION_PHRASE.get(condition, "in good health"))
+    act = (i18n.t(lang, "persona", _ACTIVITY_KEYS[activity], _ACTIVITY_PHRASE[activity])
+           if activity in _ACTIVITY_PHRASE else None)
+    place = i18n.place(lang, persona.get("locality") or "") or None if with_place else None
+    if act and place:
+        return _fmt(lang, "persona", "with_activity_and_place",
+                    "{who} {condition}, {activity} in {place}",
+                    who=who, condition=cond, activity=act, place=place)
+    if act:
+        return _fmt(lang, "persona", "with_activity", "{who} {condition}, {activity}",
+                    who=who, condition=cond, activity=act)
+    if place:
+        return _fmt(lang, "persona", "with_place", "{who} {condition} in {place}",
+                    who=who, condition=cond, place=place)
+    return _fmt(lang, "persona", "plain", "{who} {condition}", who=who, condition=cond)
 
 
-def persona_kicker(persona: dict) -> str:
-    """The hero's small-caps line. Place is omitted -- the hero already shows it."""
-    return "FOR " + persona_sentence(persona, with_place=False).upper()
+def persona_kicker(persona: dict, lang: str = "en") -> str:
+    """The hero's small-caps line. Place is omitted -- the hero already shows it.
+
+    ``.upper()`` is applied to the sentence in every language. Devanagari has no
+    case, so it changes nothing there except any Latin technical term inside the
+    Hindi (COPD, PM2.5), which is already upper-case.
+    """
+    return _fmt(lang, "persona", "kicker", "FOR {persona}",
+                persona=persona_sentence(persona, with_place=False, lang=lang).upper())
 
 
-def persona_line(persona: dict) -> str:
+def persona_line(persona: dict, lang: str = "en") -> str:
     """The persona as a readable phrase, for the card and the transcript."""
-    return persona_sentence(persona)
+    return persona_sentence(persona, lang=lang)
 
 
-def _reasons(persona: dict) -> str:
+def _reasons(persona: dict, lang: str = "en") -> str:
     """The persona factors that actually open the gap, phrased for prose.
 
     The baseline (main.advisor_data) holds the reader's own activity fixed and
@@ -110,14 +182,16 @@ def _reasons(persona: dict) -> str:
     bits = []
     condition = persona.get("condition")
     if condition not in _NEUTRAL_CONDITIONS:
-        bits.append(_CONDITION_REASON.get(condition, "your health condition"))
-    age = _AGE_REASON.get(persona.get("age"))
-    if age:
-        bits.append(age)
-    return " + ".join(bits)
+        bits.append(i18n.t(lang, "compare",
+                           _CONDITION_REASON_KEYS.get(condition, "reason_condition"),
+                           _CONDITION_REASON.get(condition, "your health condition")))
+    age = persona.get("age")
+    if age in _AGE_REASON:
+        bits.append(i18n.t(lang, "compare", _AGE_REASON_KEYS[age], _AGE_REASON[age]))
+    return i18n.t(lang, "compare", "reason_join", " + ").join(bits)
 
 
-def comparison_line(score: int, baseline: int, persona: dict) -> str:
+def comparison_line(score: int, baseline: int, persona: dict, lang: str = "en") -> str:
     """Explain the gap between this persona's risk and a healthy adult's.
 
     The gap *is* the product's reason to exist -- the same air scores
@@ -136,14 +210,27 @@ def comparison_line(score: int, baseline: int, persona: dict) -> str:
     age susceptibility always outweighs, so the case cannot occur; a message
     congratulating the reader on it would be copy for a situation the model
     cannot produce. Equal-or-lower collapses into the same honest sentence.
+
+    Each branch is one whole format string. The Hindi must keep all three
+    commitments the English makes: that the comparison person has the reader's
+    OWN plans, that the gap is attributed to the body, and that the plans are
+    never denied outright.
     """
-    opener = f"A healthy adult with the same plans as you would be at {baseline}"
     if score > baseline:
-        reasons = _reasons(persona)
-        tail = (f" comes from {reasons} — the gap is your body, not the air."
-                if reasons else " is higher than theirs.")
-        return f"{opener}. Your {score}{tail}"
-    return f"{opener} too — that's you today."
+        reasons = _reasons(persona, lang=lang)
+        if reasons:
+            return _fmt(lang, "compare", "gap_with_reasons",
+                        "A healthy adult with the same plans as you would be at "
+                        "{baseline}. Your {score} comes from {reasons} — the gap is "
+                        "your body, not the air.",
+                        baseline=baseline, score=score, reasons=reasons)
+        return _fmt(lang, "compare", "gap_plain",
+                    "A healthy adult with the same plans as you would be at "
+                    "{baseline}. Your {score} is higher than theirs.",
+                    baseline=baseline, score=score)
+    return _fmt(lang, "compare", "same",
+                "A healthy adult with the same plans as you would be at {baseline} "
+                "too — that's you today.", baseline=baseline)
 
 
 # --- The WHO comparison ----------------------------------------------------
@@ -189,7 +276,7 @@ def who_multiple(pm25):
     return round(ratio, -int(magnitude))
 
 
-def who_line(pm25) -> str:
+def who_line(pm25, lang: str = "en") -> str:
     """The WHO comparison as one plain sentence, or "" when it cannot be made.
 
     Deliberately phrased about the air *right now*, not about what the reader
@@ -204,22 +291,34 @@ def who_line(pm25) -> str:
 
     No microgram figure appears here: this sentence sits on the reading card
     where a lay reader meets it, and the unit belongs in the Guide.
+
+    Every branch is a whole sentence under ``who.``, and the multiple keeps its
+    own key per value (``who.multiple_6``) so the translation supplies a Hindi
+    number word rather than a digit. The honesty constraint travels with them:
+    each translated sentence must still say the air *right now* and the
+    guideline *for a whole day*, and must not name a dose or a daily average.
     """
     multiple = who_multiple(pm25)
     if multiple is None:
         return ""
+    if multiple < 1:
+        return i18n.t(lang, "who", "below",
+                      "Right now the air here is cleaner than the World Health "
+                      "Organization's safe level for a whole day.")
     if multiple < 2:
-        if multiple < 1:
-            return ("Right now the air here is cleaner than the World Health "
-                    "Organization's safe level for a whole day.")
-        return ("Right now the air here is about at the World Health "
-                "Organization's safe level for a whole day.")
-    word = _MULTIPLE_WORDS.get(int(multiple))
-    if word is None:
-        return ("Right now the air here holds far more of this pollution than the "
-                "World Health Organization's safe level for a whole day allows.")
-    return (f"Right now the air here holds about {word} of this pollution as the "
-            "World Health Organization's safe level for a whole day.")
+        return i18n.t(lang, "who", "about_at",
+                      "Right now the air here is about at the World Health "
+                      "Organization's safe level for a whole day.")
+    english_word = _MULTIPLE_WORDS.get(int(multiple))
+    if english_word is None:
+        return i18n.t(lang, "who", "far_more",
+                      "Right now the air here holds far more of this pollution than "
+                      "the World Health Organization's safe level for a whole day "
+                      "allows.")
+    word = i18n.t(lang, "who", f"multiple_{int(multiple)}", english_word)
+    return _fmt(lang, "who", "multiple",
+                "Right now the air here holds about {word} of this pollution as the "
+                "World Health Organization's safe level for a whole day.", word=word)
 
 
 # --- Scale geometry --------------------------------------------------------
@@ -255,12 +354,17 @@ def median_aqi(stations) -> int:
     return round((values[mid - 1] + values[mid]) / 2)
 
 
-def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
+def sparkline_svg(points, width: int = 560, height: int = 90,
+                  lang: str = "en") -> Markup:
     """Inline SVG sparkline: area fill, line, and a dot on the newest reading.
 
     Rendered server-side so the chart is present before any JavaScript runs.
     Returns an empty string when there is nothing to draw, letting the caller
     show an empty state instead of an axis with no data.
+
+    The aria-label is translated, not marked lang="en": for a screen-reader
+    user it is not a citation but the entire content of the chart, and it is
+    the only accessible name on the site that carries a reading.
     """
     values = [p.get("aqi") for p in (points or []) if p.get("aqi") is not None]
     if len(values) < 2:
@@ -273,9 +377,11 @@ def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
     line = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
     area = f"M0,{height} L" + " L".join(f"{x:.1f},{y:.1f}" for x, y in coords) + f" L{width},{height} Z"
     nx, ny = coords[-1]
+    label = i18n.t(lang, "a11y", "spark",
+                   "AQI over the last 24 hours, from {lo} to {hi}").format(lo=lo, hi=hi)
     return Markup(
         f'<svg viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="AQI over the last 24 hours, from {lo} to {hi}">'
+        f'aria-label="{escape(label)}">'
         f'<path d="{area}" fill="currentColor" opacity="0.12"/>'
         f'<polyline points="{line}" fill="none" stroke="currentColor" '
         f'stroke-width="2" stroke-linejoin="round"/>'
@@ -284,10 +390,51 @@ def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
 
 
 # --- Provenance ------------------------------------------------------------
-def provenance_chip(waqi_status: str, when: str) -> str:
-    """'● LIVE · 2:00 PM' or '◌ CACHED · 2:00 PM'. Never disguise a fallback."""
-    return f"● LIVE · {when}" if waqi_status == "ok" else f"◌ CACHED · {when}"
+def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
+    """'● LIVE · 2:00 PM' or '◌ SAMPLE — not a reading'. Never disguise a fallback.
 
+    The glyph is part of the string rather than prepended in code: it is the
+    only thing distinguishing the two chips at a glance, and a translation that
+    lost it would make a stand-in look live.
+
+    The fallback chip says SAMPLE, not CACHED, because that is what it is.
+    ``waqi.get_aqi`` returns ``_fallback()`` on every failure, and that is a
+    hardcoded per-locality figure from ``waqi.SAMPLES`` -- no stored prior
+    reading is ever consulted on this path. Calling it CACHED claimed a
+    measurement that was never taken, and City Pulse's own legend defines the
+    two words apart, so the two pages contradicted each other.
+
+    It carries no time either. ``_fallback`` sets ``obs_time`` to None, so the
+    timestamp shown beside it was the current clock -- a fabricated observation
+    time for an observation that does not exist.
+    """
+    if waqi_status == "ok":
+        return _fmt(lang, "prov", "live", "● LIVE · {when}", when=when)
+    return i18n.t(lang, "prov", "sample", "◌ SAMPLE — not a reading")
+
+
+
+# The feed's own pollutant codes, and how each is written for a reader. The
+# codes are lowercase and unpunctuated ("pm25"), so upper-casing them produced
+# "PM25" -- a code that exists nowhere, printed two tokens after a correctly
+# written "PM2.5" on the same line. The names here are the ones the glossary,
+# the reading card and the Guide already use, so a reader can match them.
+POLLUTANT_LABELS = {
+    "pm25": "PM2.5", "pm10": "PM10", "o3": "O3",
+    "no2": "NO2", "so2": "SO2", "co": "CO",
+}
+
+
+def pollutant_label(code) -> str:
+    """How a pollutant code is written for a reader, or ``--`` when absent.
+
+    An unknown code is upper-cased rather than dropped: the feed may add a
+    pollutant this table has not met, and showing the raw code is honest,
+    where hiding it would silently under-report what the reading is based on.
+    """
+    if not code:
+        return "--"
+    return POLLUTANT_LABELS.get(str(code).strip().lower(), str(code).upper())
 
 
 def pct(value, total) -> str:
@@ -300,17 +447,25 @@ def pct(value, total) -> str:
         return "0%"
 
 
-def outlook_rows(outlook, today=None) -> list:
+# Weekday abbreviations by ``date.weekday()`` index, translated rather than
+# formatted. ``strftime("%a")`` returns English whatever the process locale is
+# unless the locale is changed globally, which is a process-wide mutation for a
+# per-request choice and would race between concurrent requests.
+_WEEKDAYS = (("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
+             ("fri", "Fri"), ("sat", "Sat"), ("sun", "Sun"))
+
+
+def outlook_rows(outlook, today=None, lang: str = "en") -> list:
     """Format the five-day PM2.5 outlook for display.
 
     WAQI's forecast includes days already past; those are dropped so the first
     row is always today. Dates become 'Sat 19', and today is flagged so the
     template can weight it.
     """
-    from datetime import date, datetime, timedelta, timezone
+    from datetime import date, datetime, timedelta
     # The audience is in India; a UTC-configured server would otherwise label
     # the wrong row "Today" for five and a half hours of every day.
-    today = today or datetime.now(timezone(timedelta(hours=5, minutes=30))).date()
+    today = today or clock.today_ist()
     rows = []
     for row in outlook or []:
         try:
@@ -319,15 +474,21 @@ def outlook_rows(outlook, today=None) -> list:
             continue
         if day < today:
             continue
+        if day == today:
+            label = i18n.t(lang, "day", "today", "Today")
+        else:
+            key, english = _WEEKDAYS[day.weekday()]
+            label = _fmt(lang, "day", "label", "{weekday} {date}",
+                         weekday=i18n.t(lang, "day", key, english), date=day.day)
         rows.append({
-            "label": "Today" if day == today else day.strftime("%a %-d"),
+            "label": label,
             "avg": row.get("pm25_avg"),
             "is_today": day == today,
         })
     return rows[:5]
 
 
-def answer_sections(sections: dict) -> list:
+def answer_sections(sections: dict, lang: str = "en") -> list:
     """Map llm.parse_advice's contract onto the design's three labelled blocks.
 
     parse_advice returns a fixed-key dict that includes ``raw`` -- the entire
@@ -341,13 +502,16 @@ def answer_sections(sections: dict) -> list:
     blocks = []
     detail = (s.get("verdict_detail") or "").strip()
     if detail:
-        blocks.append({"heading": "Verdict", "text": detail, "lead": True})
+        blocks.append({"heading": i18n.t(lang, "ui", "heading_verdict", "Verdict"),
+                       "text": detail, "lead": True})
     precautions = [p for p in (s.get("precautions") or []) if p]
     if precautions:
-        blocks.append({"heading": "What to do", "bullets": precautions})
+        blocks.append({"heading": i18n.t(lang, "ui", "heading_what_to_do", "What to do"),
+                       "bullets": precautions})
     symptoms = [x for x in (s.get("symptoms") or []) if x]
     if symptoms:
-        blocks.append({"heading": "When to seek help", "bullets": symptoms})
+        blocks.append({"heading": i18n.t(lang, "ui", "heading_seek_help",
+                                         "When to seek help"), "bullets": symptoms})
     return blocks
 
 

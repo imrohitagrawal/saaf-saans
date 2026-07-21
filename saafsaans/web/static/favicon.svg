@@ -1,0 +1,25 @@
+<!-- The sky hero at 16 pixels.
+
+     The design's concept is that the hero renders the air you are being told
+     about, so the mark is that reduced to the three shapes that survive a
+     browser tab: a sky, a sun in it, and the ground under it. No letterform,
+     deliberately -- an "S" would belong to SaafSaans and not to साफ़ साँस, and
+     the wordmark is bilingual.
+
+     Colours are the light-theme sky tokens from app.css (--sky1/--sky2/--sun)
+     over the body ink, so the mark and the page are the same palette. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img"
+     aria-label="SaafSaans">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5C86B2"/>
+      <stop offset="1" stop-color="#C3B189"/>
+    </linearGradient>
+    <clipPath id="corner"><rect width="32" height="32" rx="7"/></clipPath>
+  </defs>
+  <g clip-path="url(#corner)">
+    <rect width="32" height="32" fill="url(#sky)"/>
+    <circle cx="21" cy="11" r="5.6" fill="#FFF1CE"/>
+    <rect y="23" width="32" height="9" fill="#211E19"/>
+  </g>
+</svg>

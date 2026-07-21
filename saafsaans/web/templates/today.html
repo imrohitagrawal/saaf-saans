@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}SaafSaans — {{ persona.locality }}{% endblock %}
+{% block title %}SaafSaans — {{ place(persona.locality) }}{% endblock %}
 
 {% block content %}
 <div class="grid">
@@ -13,7 +13,10 @@
 
     <div class="hero-body">
       <div class="hero-meta">
-        <span>{{ persona.locality | upper }}</span>
+        {#- Upper-cased in CSS, not by a filter: `| upper` turns the locality
+            into ANAND VIHAR, which is neither the spelling the picker uses nor
+            a proper noun a reader can match to the map. -#}
+        <span class="place">{{ place(persona.locality) }}</span>
         <span class="prov">{{ prov_chip }}</span>
         <span class="hero-pill">AQI {{ reading.aqi if reading.aqi is not none else '--' }} · {{ band_label | upper }}</span>
       </div>
@@ -29,17 +32,16 @@
     <div class="hero-window">
       <span class="lbl">{{ T('ui', 'window_label', 'IF YOU MUST GO OUT') }}</span>
       <span class="val">{{ window.window }}</span>
-      <span class="note">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
+      <span class="caveat">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
     </div>
   </section>
 
   {# Never disguise a cached reading as live. #}
   {% if waqi_status != 'ok' %}
   <p class="stale-note wide">
-    {#- Split in two so the clock time keeps its place in a Hindi sentence
-        without any string formatting at request time. -#}
-    {{ T('ui', 'stale_before', 'Live feed is down — this sky and advice use the last good reading, from') }}
-    {{ obs_time }}{{ T('ui', 'stale_after', ', and will refresh when the feed returns.') }}
+    {#- One string, no timestamp: the fallback has no observation time, and the
+        clock that used to be printed here was simply "now" dressed as one. -#}
+    {{ T('ui', 'stale_note', 'The live feed is not answering for this area, so this sky and this advice use a typical figure for the place — a stand-in, not a measurement of the air right now. It will refresh when the feed returns.') }}
   </p>
   {% endif %}
 
@@ -55,7 +57,7 @@
     </div>
 
     {% if not persona_open and condition_help %}
-      <p class="hint">{{ persona.condition }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
+      <p class="caveat">{{ option_label[persona.condition] }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
     {% endif %}
 
     {% if persona_open %}
@@ -66,28 +68,32 @@
       <input type="hidden" name="lang" value="{{ lang }}">
       <label>
         <span class="lbl">{{ T('ui', 'lbl_age', 'AGE') }}</span>
+        {#- The value stays English on every option: it is what the form
+            submits, what read_persona validates and what the query string
+            carries, so translating it would break the shareable link. Only the
+            text between the tags is the reader's. -#}
         <select name="age">
-          {% for a in ages %}<option {% if a == persona.age %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          {% for a in ages %}<option value="{{ a }}" {% if a == persona.age %}selected{% endif %}>{{ option_label[a] }}</option>{% endfor %}
         </select>
       </label>
       <label>
         <span class="lbl">{{ T('ui', 'lbl_condition', 'HEALTH CONDITION') }}</span>
         <select name="condition">
-          {% for c in conditions %}<option {% if c == persona.condition %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          {% for c in conditions %}<option value="{{ c }}" {% if c == persona.condition %}selected{% endif %}>{{ option_label[c] }}</option>{% endfor %}
         </select>
       </label>
       <label>
         <span class="lbl">{{ T('ui', 'lbl_activity', 'WHAT YOU ARE PLANNING') }}</span>
         <select name="activity">
-          {% for a in activities %}<option {% if a == persona.activity %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          {% for a in activities %}<option value="{{ a }}" {% if a == persona.activity %}selected{% endif %}>{{ option_label[a] }}</option>{% endfor %}
         </select>
       </label>
       <label>
         <span class="lbl">{{ T('ui', 'lbl_locality', 'WHERE YOU ARE') }}</span>
         <select name="locality">
           {% for region, locs in regions.items() %}
-          <optgroup label="{{ region }}">
-            {% for loc in locs %}<option {% if loc == persona.locality %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+          <optgroup label="{{ place(region) }}">
+            {% for loc in locs %}<option value="{{ loc }}" {% if loc == persona.locality %}selected{% endif %}>{{ place(loc) }}</option>{% endfor %}
           </optgroup>
           {% endfor %}
         </select>
@@ -98,10 +104,10 @@
          explained where it is offered, not only in the Guide. #}
       <dl class="opt-help">
         {% for name, text in conditions_help.items() %}
-        <div><dt>{{ name }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
+        <div><dt>{{ option_label[name] }}</dt><dd>{{ T('condition_help', name, text) }}</dd></div>
         {% endfor %}
       </dl>
-      <p class="hint">{{ T('ui', 'hint_session', 'Stays in this session only — never logged.') }}</p>
+      <p class="caveat">{{ T('ui', 'hint_session', 'Stays in this session only — never logged.') }}</p>
     </form>
     {% endif %}
 
@@ -111,23 +117,36 @@
     </div>
     {# Half this number is a published figure and half is our judgement. The
        reader is told which, here, not only in the repository's documentation. #}
-    <p class="hint">{{ risk_notice }}
+    <p class="caveat">{{ risk_notice }}
       <a href="/guide?{{ q }}#risk">{{ T('ui', 'link_score', 'See how the score is worked out ›') }}</a></p>
   </section>
 
   {# --- Reading ------------------------------------------------------------ #}
-  <section class="card band-{{ band }}" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
+  <section class="card band-{{ band }}" id="reading" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
     <div class="row" style="align-items:baseline;gap:12px">
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
       <span class="band-chip">{{ band_label | upper }}</span>
-      <span class="mono" style="font-size:11px;color:var(--text-3)">
-        <a class="term" href="/?{{ q_term_aqi }}" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
+      {#- A class, not an inline size: an inline declaration outranks every
+          selector, so a size written here is permanently out of reach of the
+          Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
+      <span class="mono reading-meta">
+        <a class="term" href="/?{{ q_term_aqi }}#reading" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
         · {{ T('ui', 'cpcb_scale', "India's CPCB scale, from PM2.5 and PM10") }} · {{ obs_time }}
       </span>
     </div>
 
     <div class="scale-wrap">
-      <div class="scale-mark" style="left:{{ scale_pos }}%">{{ reading.aqi }} ▾</div>
+      {#- No marker when there is no index. A feed can report ozone and no
+          particulate at all, which this app refuses to convert -- so the
+          headline renders "--" while this line printed Python's "None ▾", and
+          printed it at scale_position(None) = 0.0, parking the caret at the
+          Good end of the bar. A placeholder would still assert that position,
+          so the marker goes away entirely rather than pointing somewhere.
+          aria-hidden because it duplicates the .aqi-num heading above and its
+          caret is decoration: the bar it indexes is itself aria-hidden. -#}
+      {% if reading.aqi is not none %}
+      <div class="scale-mark" style="left:{{ scale_pos }}%" aria-hidden="true">{{ reading.aqi }} ▾</div>
+      {% endif %}
       <div class="scale" aria-hidden="true">
         <span style="width:10%;background:var(--g1)"></span><span style="width:10%;background:var(--g2)"></span>
         <span style="width:20%;background:var(--g3)"></span><span style="width:20%;background:var(--g4)"></span>
@@ -139,15 +158,15 @@
     <div class="pollutants">
       <div>
         <span class="lbl">
-          <a class="term" href="/?{{ q_term_pm25 }}" aria-expanded="{{ 'true' if term == 'PM2.5' else 'false' }}">PM2.5</a>
+          <a class="term" href="/?{{ q_term_pm25 }}#reading" aria-expanded="{{ 'true' if term == 'PM2.5' else 'false' }}">PM2.5</a>
         </span>
         <span class="val">{{ reading.pm25 | round | int if reading.pm25 is not none else '--' }}
           <span class="unit">µg/m³</span></span>
       </div>
       <div>
         <span class="lbl">
-          <a class="term" href="/?{{ q_term_pm10 }}" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
-          {% if reading.dominant_pollutant == 'pm10' %} · DOMINANT{% endif %}
+          <a class="term" href="/?{{ q_term_pm10 }}#reading" aria-expanded="{{ 'true' if term == 'PM10' else 'false' }}">PM10</a>
+          {% if reading.dominant_pollutant == 'pm10' %} · {{ T('ui', 'dominant_tag', 'DOMINANT') }}{% endif %}
         </span>
         <span class="val">{{ reading.pm10 | round | int if reading.pm10 is not none else '--' }}
           <span class="unit">µg/m³</span></span>
@@ -162,8 +181,12 @@
     <p class="meaning">{{ meaning }}</p>
     {# Rendered only when there is a PM2.5 reading to compare. A wrong multiple
        would be worse than no line at all. #}
-    {% if who_line %}<p class="meaning">{{ who_line }}</p>{% endif %}
-    <p class="hint"><a href="/guide?{{ q }}">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
+    {#- A caveat, not a second finding: it qualifies the band meaning above it
+       rather than adding to it. Demoted text still needs a route to its
+       explanation, so it carries one to the Guide section that gives it. -#}
+    {% if who_line %}<p class="caveat">{{ who_line }}
+      <a href="/guide?{{ q }}#who">{{ T('ui', 'link_who', 'How this compares ›') }}</a></p>{% endif %}
+    <p class="caveat"><a href="/guide?{{ q }}">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
   </section>
 
   {# --- Five-day outlook --------------------------------------------------- #}
@@ -179,15 +202,24 @@
       </div>
       {% endfor %}
     </div>
-    <p class="caption">{{ T('ui', 'outlook_caption', 'Daily averages, µg/m³, converted from the WAQI forecast — a coarse outlook, not an hourly promise.') }}</p>
+    <p class="caveat">{{ T('ui', 'outlook_caption', 'Daily averages, µg/m³, converted from the WAQI forecast — a coarse outlook, not an hourly promise.') }}</p>
   </section>
   {% endif %}
 
   {# --- Ask. Full history, newest first, so a decision can be retraced. ---- #}
   <section class="card wide" aria-label="{{ T('ui', 'sec_ask', 'Ask SaafSaans') }}" id="ask">
     <div class="row" style="align-items:baseline;gap:10px">
-      <h2 style="font-size:20px;font-weight:600">{{ T('ui', 'ask_heading', 'Ask SaafSaans') }}</h2>
-      <span style="font-size:12.5px;color:var(--text-3)">{{ T('ui', 'ask_sub', 'grounded in the reading above · written for your persona') }}</span>
+      {#- A new key, not the old ask_heading: the owner asked for the product
+          name in Devanagari here ("साफ़ साँस से पूछिए"), and Hindi puts the name
+          before the verb where English puts it after, so the string cannot be
+          composed from a shared name fragment -- it has to be written whole.
+          The class replaces an inline style so the Hindi weight bump in
+          app.css can reach it. -#}
+      <h2 class="ask-h2">{{ T('ui', 'ask_title', 'Ask SaafSaans') }}</h2>
+      {#- The claim is about the sources, not the sentence. The model writes the
+          answer; what this app controls is which published guidance reaches it,
+          and that is now filtered to the reader's persona. -#}
+      <span class="ask-sub">{{ T('ui', 'ask_sub', 'grounded in the reading above · guidance matched to your persona') }}</span>
     </div>
 
     <form class="ask-form" method="post" action="/ask?{{ q }}">
@@ -196,21 +228,21 @@
              aria-label="{{ T('ui', 'ask_label', 'Your question') }}">
       <button class="btn" type="submit">{{ T('ui', 'btn_ask', 'Ask') }}</button>
     </form>
-    <p class="hint">{{ T('ui', 'ask_hint', 'Press Enter to ask. Every answer is written for the persona above — change it to get advice for someone else.') }}</p>
+    <p class="caveat">{{ T('ui', 'ask_hint', 'Press Enter to ask. The published guidance behind each answer is chosen for the persona above — change it to get the guidance for someone else.') }}</p>
 
     {% if transcript %}
     <ol class="thread">
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
-        <div class="q"><span class="mark">Q ·</span><p>{{ t.question }}</p></div>
-        <p class="answered-for">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
+        <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
+        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
 
         {% if t.kind == 'refusal' %}
           {# Flat, no red, no icon: a blocked prompt is routine, not an accusation. #}
           <div class="refusal">
             <b>{{ T('ui', 'refusal_title', 'Not processed.') }}</b>
             <p>{{ T('ui', 'refusal_body', 'That looked like an attempt to change how the assistant works, so it was stopped before reaching the model. Air, precautions, masks, timing — all fair game.') }}</p>
-            <p class="audit mono">blocked pre-model · audited in security-events</p>
+            <p class="caveat on-tint mono">{{ T('ui', 'refusal_audit', 'blocked pre-model · audited in security-events') }}</p>
           </div>
         {% else %}
           <div class="answer">
@@ -222,7 +254,7 @@
                 {% if b.bullets %}<ul>{% for item in b.bullets %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
               </div>
               {% endfor %}
-              <p class="disclaimer">{{ t.disclaimer or T('ui', 'disclaimer', 'General guidance, not medical advice.') }}</p>
+              <p class="caveat">{{ t.disclaimer or T('ui', 'disclaimer', 'General guidance, not medical advice.') }}</p>
             </div>
 
             {# The collapsed label carries the count, so there is a reason to open it. #}
@@ -231,28 +263,56 @@
                  aria-expanded="{{ 'true' if open_prov == t.id else 'false' }}">
                 <span aria-hidden="true">{{ '▾' if open_prov == t.id else '▸' }}</span>
                 {{ T('ui', 'prov_label', 'What this answer is based on') }}
-                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
+                {#- The collapsed label must branch on the feed status exactly as
+                    the expanded line at the bottom of this panel already does.
+                    It used to say "1 live reading" unconditionally, so a page
+                    that said SAMPLE in three other places still promised a live
+                    reading in the one line most readers see without clicking --
+                    and the Guide promises specifically that a stand-in is never
+                    dressed as live. -#}
+                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') if t.waqi_status == 'ok' else T('ui', 'prov_count_before_sample', '1 sample reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
               </a>
               {% if open_prov == t.id %}
               <div class="prov-body">
                 <div>
                   <div class="kicker">{{ T('ui', 'prov_measured', 'Measured at the time') }}</div>
+                  {#- Every figure keeps its own place between two translated
+                      labels, so no translation can be edited into disagreeing
+                      with the number it describes. AQI, PM2.5, PM10, WAQI and
+                      EPA stay Latin: they are what the reading is called. -#}
                   <div class="prov-ground">
-                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} (CPCB scale, from PM2.5 and PM10)
+                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} {{ T('ui', 'prov_our_scale', '(CPCB scale, from PM2.5 and PM10)') }}
                     · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }} µg/m³
-                    · dominant {{ t.reading.dominant_pollutant | upper if t.reading.dominant_pollutant else '--' }}
-                    · WAQI's own figure {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} (US EPA scale)
-                    · {{ 'live reading' if t.waqi_status == 'ok' else 'cached sample (feed missed)' }}
+                    {#- `| upper` turned the feed's "pm25" into "PM25", a code
+                        that exists nowhere, two tokens after the correctly
+                        written PM2.5 on this same line. -#}
+                    · {{ T('ui', 'prov_dominant', 'dominant') }} {{ pollutant(t.reading.dominant_pollutant) }}
+                    · {{ T('ui', 'prov_feed_figure', "WAQI's own figure") }} {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} {{ T('ui', 'prov_feed_scale', '(US EPA scale)') }}
+                    · {{ T('ui', 'prov_live', 'live reading') if t.waqi_status == 'ok' else T('ui', 'prov_cached', 'cached sample (feed missed)') }}
                   </div>
                 </div>
                 {% if t.sources %}
+                {#- Two groups, not one list. Retrieval matches some rows to the
+                    reader's own condition, activity or age and some to the air
+                    alone, and one heading over both claimed the second kind was
+                    chosen for them. Turns stored before relevance existed carry
+                    no such key, so rejectattr keeps them in the general group
+                    rather than raising on the missing one. -#}
+                {% set persona_sources = t.sources | selectattr('relevance', 'equalto', 'persona') | list %}
+                {% set general_sources = t.sources | rejectattr('relevance', 'equalto', 'persona') | list %}
                 <div>
                   <div class="kicker">{{ T('ui', 'prov_published', 'Published guidance used') }}</div>
-                  {% for s in t.sources %}
-                  <div class="src-row">
-                    <span class="src-tag">{{ s.source }}</span>
-                    <span>{{ advisory_text(s) }}</span>
-                  </div>
+                  {% for group, kicker in [(persona_sources, T('ui', 'prov_group_persona', 'Written for your persona')),
+                                           (general_sources, T('ui', 'prov_group_general', 'General guidance for this air quality'))] %}
+                    {% if group %}
+                    <div class="kicker">{{ kicker }}</div>
+                    {% for s in group %}
+                    <div class="src-row">
+                      <span class="src-tag">{{ s.source }}</span>
+                      <span>{{ advisory_text(s) }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
                   {% endfor %}
                 </div>
                 {% endif %}

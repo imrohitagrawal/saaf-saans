@@ -1,11 +1,15 @@
 <!doctype html>
-{#- doc_lang, not lang: the System views stay English by design, and declaring
-    a document Hindi while its prose is English tells a screen reader to read
-    English with Hindi phonetics. The chrome links still carry lang. -#}
-<html lang="{{ doc_lang or lang }}" data-theme="{{ theme }}">
+<html lang="{{ lang }}" data-theme="{{ theme }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+{#- The persona rides in the query string, and this page makes cross-origin
+    requests for its fonts. Every current browser defaults to
+    strict-origin-when-cross-origin, which sends only the origin -- but a
+    default is not a guarantee, and the one thing that must never leak is the
+    reader's health condition. Declared, so it does not depend on the visitor's
+    browser choosing well. -#}
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>{% block title %}SaafSaans{% endblock %}</title>
 {#- Forwarding is how this site travels, so a pasted link has to be readable
     before it is opened. `share` is built in main.py from the same values the
@@ -26,8 +30,13 @@
     never see a glyph from it, so it is requested only when Hindi is active.
     The stylesheet switches --disp on html[lang="hi"] to match. -#}
 {% if lang == 'hi' %}
-<link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 {% endif %}
+{#- SVG first for anything modern, .ico as the fallback, and a square PNG for
+    an iOS home screen, which masks its own corners. -#}
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>

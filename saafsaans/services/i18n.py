@@ -27,21 +27,24 @@ served with ``?lang=hi`` carries a banner saying so. A mistranslated
 instruction about an inhaler is worse than English, which is why the banner is
 a condition of shipping rather than a nicety.
 
-What is NOT translated yet, and a Hindi reviewer will see it
-------------------------------------------------------------
-Three surfaces still render in English under the Hindi banner, because they are
-assembled in Python rather than looked up as whole strings:
+What stays in English on a Hindi page, and why
+----------------------------------------------
+Three kinds of Latin text remain, and all three are deliberate:
 
-* the persona sentence ("an adult with asthma, planning outdoor exercise in
-  Anand Vihar"), built piece by piece in ``presenters.persona_sentence``;
-* the comparison line that explains the gap to a healthy adult;
-* the risk driver chips.
+* **Technical terms a Delhi reader says out loud in English** -- AQI, PM2.5,
+  PM10, N95, FFP2, COPD, CPCB, WHO, WAQI, HEPA, SpO2, NO2, O3. Transliterating
+  them makes them harder to recognise, not easier.
+* **Citations.** The WHO guideline reference and the EPA Exposure Factors
+  Handbook reference on the Guide are identifiers of published documents, not
+  copy; they are printed by ``guide.html`` and ``risk.SOURCE_EPA``, not from
+  this file, and translating them would make them harder to look up.
+* **The initials of the bodies the advice comes from** -- GINA, GOLD, AHA,
+  ACOG, EPA -- in the footer and in the Guide's "is this medical advice?"
+  answer. These are how the organisations are named in India, in Hindi as well
+  as in English.
 
-Translating them needs those functions restructured to compose from translated
-parts, which is a change to ``presenters.py`` rather than to this file. It is
-listed here rather than left to be discovered, because the reviewer reading
-this file is exactly the person who will notice and wonder whether it was
-missed or decided.
+Everything a reader is told to *do* is Hindi. Localities are never translated:
+they are proper nouns, and the picker's values are what people say out loud.
 
 Register: Hindi as a Delhi resident actually speaks it, not literal
 translation. Where the English term is the one people use out loud -- AQI,
@@ -74,6 +77,17 @@ def normalise(value: str) -> str:
     return value if value in LANGUAGES else DEFAULT_LANG
 
 
+def place(lang: str, name: str) -> str:
+    """A locality or region name for display. Falls back to the English.
+
+    Separate from ``t`` because the caller almost always needs the untranslated
+    string too -- it is the form value, the query parameter and the key into
+    ``waqi.FEED_MAP``. Translating the label while keeping the value is the
+    whole point; translating both would break the picker.
+    """
+    return t(lang, "locality", name, name)
+
+
 def t(lang: str, group: str, key: str, english: str) -> str:
     """Hindi for ``group``/``key`` when asked for and present, else the English.
 
@@ -96,7 +110,7 @@ HI: dict = {
         "Low": "साँस लेने के लिए आज अच्छा दिन है — बाहर घूम आइए।",
         "Moderate": "आज आपके लिए ठीक-ठाक है — बस ज़्यादा भागदौड़ मत कीजिए।",
         "High": "आज की हवा आपके फेफड़ों के लिए ठीक नहीं है — अंदर ही रहिए।",
-        "Very High": "आज आपके फेफड़ों को घर के अंदर रहने की ज़रूरत है।",
+        "Very High": "आज की हवा आपके फेफड़ों पर भारी पड़ेगी — घर के अंदर ही रहिए।",
         "Extreme": "बहुत ज़रूरी न हो तो बाहर मत निकलिए — यह हवा आपके लिए ख़तरनाक है।",
     },
     # risk.BAND_ADVICE -- the "what to do" line under the verdict.
@@ -146,14 +160,14 @@ HI: dict = {
     },
     # normalize.GLOSSARY -- the term definitions.
     "glossary": {
-        "AQI": "Air Quality Index — हवा की गुणवत्ता का 0-500+ का स्कोर, जो कई प्रदूषकों को "
+        "AQI": "हवा की गुणवत्ता का सूचकांक — 0-500+ का स्कोर, जो कई प्रदूषकों को "
                "मिलाकर बनता है। नंबर जितना बड़ा, हवा उतनी ख़राब; भारत में CPCB का पैमाना "
                "चलता है (अच्छी से गंभीर तक)।",
         "PM2.5": "2.5 माइक्रोमीटर से छोटे बारीक कण — इतने छोटे कि फेफड़ों की गहराई और ख़ून "
                  "तक पहुँच जाते हैं। दिल्ली में सेहत की सबसे बड़ी चिंता यही है।",
         "PM10": "10 माइक्रोमीटर से छोटे मोटे धूल कण — साँस की नली और आँखों में जलन करते हैं; "
                 "इनमें सड़क और निर्माण की धूल शामिल है।",
-        "CPCB": "Central Pollution Control Board — भारत सरकार की वह संस्था जो पूरे देश में "
+        "CPCB": "केंद्रीय प्रदूषण नियंत्रण बोर्ड — भारत सरकार की वह संस्था जो पूरे देश में "
                 "प्रदूषण की निगरानी करती है। किसी रीडिंग के साथ इसका नाम यह बताने के लिए "
                 "आता है कि वह रीडिंग किस निगरानी नेटवर्क की है।",
         "µg/m³": "माइक्रोग्राम प्रति घन मीटर — यह बताने का तरीक़ा कि तय मात्रा की हवा में कोई "
@@ -165,20 +179,24 @@ HI: dict = {
         "Dominant pollutant": "वह प्रदूषक जो आज के AQI को सबसे ज़्यादा बढ़ा रहा है (जैसे "
                               "pm25 = बारीक कण, pm10 = धूल, o3 = ओज़ोन, no2 = गाड़ियों की गैस)।",
         "Risk score": "आज आपके लिए ख़तरे का 0-100 का अंदाज़ा, जो हवा की गुणवत्ता को आपकी "
-                      "उम्र, बीमारी और आपकी योजना के साथ मिलाकर निकाला जाता है।",
+                      "उम्र, बीमारी और आप जो करने वाले हैं, उसे मिलाकर निकाला जाता है।",
     },
     # normalize.CONDITION_HELP -- what each health condition in the picker is.
     "condition_help": {
         "Fit": "ऐसी कोई बीमारी नहीं जिसकी वजह से प्रदूषित हवा आपके लिए एक आम बड़े व्यक्ति से "
                "ज़्यादा ख़तरनाक हो।",
-        "Asthma": "अस्थमा — एक लंबी चलने वाली बीमारी जिसमें साँस की नलियाँ सिकुड़ जाती हैं और "
-                  "उनमें सूजन आ जाती है। बारीक कण और गाड़ियों का धुआँ इसके आम कारण हैं।",
+        # No leading term name. The template composes "{label} — {help}", so a
+        # value that opens with its own name renders it twice ("अस्थमा — अस्थमा
+        # — ..."). The English values never did this; two of the Hindi ones did,
+        # and it was visible only on the rendered Hindi page.
+        "Asthma": "एक लंबी चलने वाली बीमारी जिसमें साँस की नलियाँ सिकुड़ जाती हैं और "
+                  "उनमें सूजन आ जाती है। बारीक कण और गाड़ियों से निकलने वाली गैसें इसे भड़काने वाली आम चीज़ें हैं।",
         "Heart condition": "दिल या ख़ून की नलियों की कोई भी बीमारी जिसका डॉक्टर ने पता लगाया "
                            "हो। बारीक कण थोड़े ही समय में सीने के दर्द और धड़कन की गड़बड़ी का "
                            "ख़तरा बढ़ा देते हैं।",
         "Pregnancy": "गर्भावस्था में बारीक कणों के प्रति संवेदनशीलता बढ़ जाती है, और ये कण "
                      "बच्चे के कम वज़न और समय से पहले जन्म से जुड़े हैं।",
-        "COPD": "COPD (Chronic Obstructive Pulmonary Disease) — फेफड़ों को होने वाला लंबे "
+        "COPD": "फेफड़ों को होने वाला लंबे "
                 "समय का नुक़सान, जो अक्सर धूम्रपान या सालों तक धुएँ और धूल में रहने से होता "
                 "है; इससे साँस की नलियाँ सँकरी हो जाती हैं और साँस लेना मुश्किल होता है। "
                 "प्रदूषित हवा से यह अचानक बिगड़ सकती है।",
@@ -190,12 +208,12 @@ HI: dict = {
     # ``web/templates/*.html`` or of an ``i18n.t(lang, "ui", ...)`` in
     # ``web/main.py``. They are not derived from the English -- template chrome
     # has no source dict to key off -- so they are only correct by matching the
-    # call site, and ``test_ui_and_guide_carry_the_keys_the_templates_request``
+    # call site, and ``test_the_corpus_carries_every_key_the_code_requests``
     # parses the templates rather than trusting a list written here.
     #
     # Several strings arrive as fragments, not as a sentence with a ``{field}``:
     # the template prints a time, a count or a place name between two separate
-    # calls (``stale_before``/``stale_after``, ``prov_count_*``, ``no_trend_*``).
+    # calls (``prov_count_*``, ``no_trend_*``).
     # The Hindi is written so the pieces read as one natural sentence once the
     # template concatenates them, which sometimes means it is not a literal
     # split of the English fragments -- Hindi puts the noun before the
@@ -213,22 +231,35 @@ HI: dict = {
         "theme_night": "रात",
         "lang_group": "भाषा",
         "banner_label": "अनुवाद की स्थिति",
-        "footer": "आपकी उम्र, बीमारी और आपकी योजना इसी सेशन में रहती है — कहीं दर्ज नहीं "
+        "footer": "आपकी उम्र, बीमारी और आपके काम इसी सेशन में रहते हैं — कहीं दर्ज नहीं "
                   "की जाती। टेलीमेट्री में सिर्फ़ हैश किया हुआ सेशन आईडी और आपका चुना हुआ "
-                  "इलाक़ा रहता है, ताकि System व्यू इलाक़े के हिसाब से रिक्वेस्ट दिखा सके।",
+                  "इलाक़ा रहता है, ताकि सिस्टम व्यू इलाक़े के हिसाब से रिक्वेस्ट दिखा सके।",
         "footer_sources": "डेटा: WAQI/CPCB · सलाह के स्रोत: CPCB, WHO, GINA, GOLD, AHA, "
                           "ACOG, EPA।",
 
         # --- city.html ---
+        # ``tag_cached`` is printed immediately before ``tag_old``, so the two
+        # cannot both be "पुरानी" or the chip reads "पुरानी · 5 घंटे पुरानी".
+        "tag_cached": "सहेजी हुई",
+        "tag_sample": "नमूना",
         "tag_old": "पुरानी",
+        "region_delhi": "दिल्ली",
+        "region_ncr": "एनसीआर",
+        # Station-age units, printed after a Latin digit ("5 घंटे").
+        "age_unit_min": "मिनट",
+        "age_unit_hours": "घंटे",
+        "age_unit_days": "दिन",
         "stations": "स्टेशन",
         # Follows the count and precedes the clock time, so it is phrased as a
         # label ("the time the page loaded") rather than as a verb.
         "page_loaded": "पेज लोड होने का समय",
-        "median_aqi": "बीच का (median) AQI",
+        "median_aqi": "बीच का (मध्यक) AQI",
         "worst_first": "सबसे ख़राब पहले",
-        "tag_legend": "CACHED का मतलब है कि उस जगह की रीडिंग हमारे पास है पर वह तीन घंटे से "
-                      "पुरानी है, और टैग बताता है कि कितनी पुरानी। SAMPLE का मतलब है कि उस "
+        # Names the two chips by the words they now carry in Hindi, not by
+        # their English originals -- a legend that names a tag the page does
+        # not print is a legend for a different page.
+        "tag_legend": "‘सहेजी हुई’ का मतलब है कि उस जगह की रीडिंग हमारे पास है पर वह तीन घंटे "
+                      "से पुरानी है, और टैग बताता है कि कितनी पुरानी। ‘नमूना’ का मतलब है कि उस "
                       "जगह की कोई रीडिंग हमारे पास है ही नहीं, इसलिए वहाँ का एक आम आँकड़ा "
                       "दिखाया जा रहा है — उसे अभी की हवा नहीं, सिर्फ़ एक अंदाज़ा मानिए।",
         "sec_trend": "24 घंटे का रुझान",
@@ -253,15 +284,9 @@ HI: dict = {
         "risk_band_High": "ज़्यादा",
         "risk_band_Very High": "बहुत ज़्यादा",
         "risk_band_Extreme": "अत्यधिक",
-        "baseline_chip": "सेहतमंद बड़ा व्यक्ति, वही योजना",
+        "baseline_chip": "सेहतमंद बड़ा व्यक्ति, वही काम",
         "window_label": "अगर बाहर जाना ही पड़े",
         "window_note": "यह एक सामान्य पैटर्न है, हर घंटे का पूर्वानुमान नहीं",
-        # The clock time is printed between the two. ``stale_after`` follows the
-        # time with no separator in the template, so it carries its own leading
-        # space.
-        "stale_before": "लाइव फ़ीड बंद है — यह आसमान और यह सलाह पिछली अच्छी रीडिंग पर आधारित "
-                        "है, जो",
-        "stale_after": " की है, और फ़ीड लौटते ही अपने आप ताज़ा हो जाएगी।",
 
         # --- today.html: persona card ---
         "sec_persona": "आपका ब्यौरा",
@@ -274,6 +299,21 @@ HI: dict = {
         "lbl_condition": "स्वास्थ्य / बीमारी",
         "lbl_activity": "आप क्या करने वाले हैं",
         "lbl_locality": "आप कहाँ हैं",
+        # The picker's option labels. Only the label is translated: the value
+        # the form submits stays English, because normalize and the query
+        # string are keyed on it (see main._option_labels).
+        "age_child": "बच्चा",
+        "age_adult": "बड़ा व्यक्ति",
+        "age_senior": "बुज़ुर्ग",
+        "cond_fit": "सेहतमंद",
+        "cond_asthma": "अस्थमा",
+        "cond_heart": "दिल की बीमारी",
+        "cond_pregnancy": "गर्भावस्था",
+        "cond_copd": "COPD",
+        "act_outdoor_exercise": "बाहर कसरत",
+        "act_commute": "आना-जाना",
+        "act_school_run": "स्कूल छोड़ना-लाना",
+        "act_stay_home": "घर पर रहना",
         "btn_update": "सलाह अपडेट करें",
         "hint_session": "यह सिर्फ़ इसी सेशन में रहता है — कहीं दर्ज नहीं होता।",
         "link_score": "स्कोर कैसे निकाला जाता है, देखिए ›",
@@ -287,6 +327,23 @@ HI: dict = {
         "scale_low": "0 अच्छी",
         "scale_high": "गंभीर 500",
         "link_numbers": "इन नंबरों का मतलब क्या है? ›",
+        # Under the WHO comparison, which is a caveat on the band meaning:
+        # the route from a demoted line to the section that explains it.
+        "link_who": "यह तुलना कैसे की जाती है ›",
+        "dominant_tag": "मुख्य",
+        # Printed after "<day> " in the page-loaded clock line.
+        "month_1": "जन",
+        "month_2": "फ़र",
+        "month_3": "मार्च",
+        "month_4": "अप्रैल",
+        "month_5": "मई",
+        "month_6": "जून",
+        "month_7": "जुल",
+        "month_8": "अग",
+        "month_9": "सित",
+        "month_10": "अक्तू",
+        "month_11": "नव",
+        "month_12": "दिस",
 
         # --- today.html: outlook ---
         "sec_outlook": "पाँच दिन का अनुमान",
@@ -295,21 +352,52 @@ HI: dict = {
                            "अनुमान है, हर घंटे का वादा नहीं।",
 
         # --- today.html: ask and answers ---
-        "sec_ask": "SaafSaans से पूछिए",
-        # The heading and the section's accessible name say the same thing; the
-        # product name stays in Latin because that is how it is written.
-        "ask_heading": "SaafSaans से पूछिए",
-        "ask_sub": "ऊपर दी गई रीडिंग पर आधारित · आपकी अपनी स्थिति के लिए लिखा गया",
+        "sec_ask": "साफ़ साँस से पूछिए",
+        # The heading and the section's accessible name say the same thing. The
+        # wordmark is written in Devanagari here, not as "SaafSaans": this is a
+        # sentence a Hindi reader reads, not the logo.
+        "ask_title": "साफ़ साँस से पूछिए",
+        # Both of these said the answer itself was written for the reader. What
+        # is actually chosen for them is the published guidance behind it, so
+        # the Hindi says that too -- neither more nor less than the English.
+        "ask_sub": "ऊपर दी गई रीडिंग पर आधारित · आपकी स्थिति के हिसाब से चुनी गई गाइडेंस",
         "ask_placeholder": "बाहर जाने, मास्क, समय या लक्षणों के बारे में पूछिए…",
         "ask_label": "आपका सवाल",
         "btn_ask": "पूछें",
-        "ask_hint": "पूछने के लिए Enter दबाइए। हर जवाब ऊपर दी गई जानकारी के हिसाब से लिखा "
-                    "जाता है — किसी और के लिए सलाह चाहिए तो जानकारी बदल दीजिए।",
+        "ask_hint": "पूछने के लिए एंटर दबाइए। हर जवाब के पीछे की प्रकाशित गाइडेंस ऊपर दी गई "
+                    "जानकारी के हिसाब से चुनी जाती है — किसी और के लिए गाइडेंस चाहिए तो "
+                    "जानकारी बदल दीजिए।",
         "answered_for": "जवाब इनके लिए:",
+        # Marks the reader's own question in the transcript. "प्र" is the
+        # standard Hindi abbreviation for प्रश्न, matching the English "Q".
+        "q_mark": "प्र ·",
+        # The heading on the first block of an answer, and on the block the
+        # error path renders. One key, because it is one word on one card.
+        "stale_note": "इस इलाक़े के लिए लाइव फ़ीड जवाब नहीं दे रही, इसलिए यह आसमान और यह "
+                      "सलाह इस जगह के एक आम अनुमान पर आधारित है — यह अभी की हवा की माप "
+                      "नहीं है। फ़ीड लौटते ही यह अपने आप बदल जाएगा।",
+        # The forwarded-link preview. Placeholders are substituted with
+        # str.replace, not .format, so a stray brace cannot raise on a path
+        # that runs on every page render.
+        "share_site_title": "साफ़ साँस — दिल्ली की हवा, आपके शरीर के हिसाब से",
+        "share_site_desc": "देखिए कि आज आपके इलाक़े की हवा आपके लिए क्या मायने रखती है, "
+                           "आसान भाषा में।",
+        "no_obs_time": "रीडिंग का समय नहीं है",
+        "share_title": "{place} की हवा अभी: {band}",
+        "share_title_sample": "{place} की हवा (नमूना): {band}",
+        "share_sample_note": "यह लाइव माप नहीं, इस जगह का एक आम अनुमान है।",
+        "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
+        "share_for": "यह सलाह {who} के लिए है।",
+        "heading_verdict": "फ़ैसला",
+        "heading_what_to_do": "क्या करें",
+        "heading_seek_help": "डॉक्टर को कब दिखाएँ",
         "refusal_title": "इस पर कार्रवाई नहीं की गई।",
         "refusal_body": "यह सहायक के काम करने का तरीक़ा बदलने की कोशिश जैसा लगा, इसलिए इसे "
                         "मॉडल तक पहुँचने से पहले ही रोक दिया गया। हवा, बचाव, मास्क, समय — "
                         "इन सब पर बेझिझक पूछिए।",
+        # Names the same log the Guide's privacy answer names ("सुरक्षा लॉग"),
+        # so a reader who follows one to the other finds the same thing.
+        "refusal_audit": "मॉडल तक पहुँचने से पहले रोका गया · सुरक्षा लॉग में दर्ज",
         "disclaimer": "यह सामान्य जानकारी है, डॉक्टरी सलाह नहीं।",
         # main.py, when an answer cannot be built. Carries a safe default
         # instruction, so it must not be shortened to an apology.
@@ -320,9 +408,93 @@ HI: dict = {
         "prov_label": "यह जवाब किस पर आधारित है",
         # The source count is printed between the two.
         "prov_count_before": "1 लाइव रीडिंग +",
+        "prov_count_before_sample": "1 नमूना रीडिंग +",
         "prov_count_after": "गाइडेंस स्रोत",
         "prov_measured": "उस समय मापा गया",
         "prov_published": "इस्तेमाल की गई प्रकाशित गाइडेंस",
+        # The two groups inside that list: chosen for the reader's own
+        # condition, activity or age, and chosen for the air alone.
+        "prov_group_persona": "आपकी स्थिति के लिए लिखी गई",
+        "prov_group_general": "इस हवा के लिए आम गाइडेंस",
+        # The reading's own provenance line, printed as fragments around the
+        # numbers: "AQI 250 (CPCB पैमाना ...) · मुख्य प्रदूषक PM25 · ...".
+        # US EPA keeps its Latin initials: it is the agency that publishes the
+        # scale, and a reader checking the figure needs the name it is filed
+        # under.
+        "prov_our_scale": "(CPCB पैमाना, PM2.5 और PM10 से)",
+        "prov_dominant": "मुख्य प्रदूषक",
+        "prov_feed_figure": "WAQI का अपना आँकड़ा",
+        "prov_feed_scale": "(US EPA पैमाना)",
+        "prov_live": "लाइव रीडिंग",
+        "prov_cached": "सहेजा हुआ नमूना (फ़ीड नहीं मिली)",
+
+        # --- system.html ---
+        # This view was left in English on the grounds that it is
+        # developer-facing. The nav link that reaches it says सिस्टम and the
+        # review banner renders on it, so a Hindi reader is invited in and then
+        # met with a wall of English; the decision is reversed here.
+        #
+        # Register: flat and factual, not the Today page's warm voice. The page
+        # is an audit surface, so it states what happened and nothing more.
+        #
+        # What stays Latin on this page is not listed here at all: event names,
+        # guard pattern names and status values are the literal strings stored
+        # in the telemetry and security indices, and this view exists to show
+        # what is in them. A translated index value would be a description of
+        # the data rather than a view of it.
+        "sys_sub": "ऐप ख़ुद की जाँच करता है — आँकड़ों पर टिका, गड़बड़ी को छिपाता नहीं, और "
+                   "पहरे में। यहीं देखिए।",
+        "sys_view_label": "सिस्टम व्यू",
+        "sys_view_obs": "निगरानी",
+        "sys_view_sec": "सुरक्षा",
+        # KPI labels. Each sits under a Latin numeral, so it is a noun phrase,
+        # not a sentence.
+        "sys_kpi_answered": "सवालों के जवाब दिए गए",
+        "sys_kpi_events": "दर्ज घटनाएँ",
+        "sys_kpi_p50": "बीच का (मध्यक) जवाब समय",
+        # Spelled out rather than left as "p95": a Latin token of that shape is
+        # jargon in either language, and the Hindi names the thing it measures.
+        "sys_kpi_p95": "95वाँ प्रतिशतक जवाब समय",
+        "sys_kpi_feed_fallback": "फ़ीड नहीं मिली → सहेजी हुई",
+        "sys_kpi_rule_fallback": "नियम-आधारित जवाब",
+        "sys_kpi_tokens": "ख़र्च हुए टोकन",
+        "sys_kpi_blocked_7d": "रोकी गईं, पिछले 7 दिन",
+        "sys_kpi_premodel": "मॉडल से पहले रुकीं",
+        "sys_kpi_patterns": "अलग-अलग पैटर्न",
+        # --- observability ---
+        "sys_h_events": "प्रकार के हिसाब से घटनाएँ",
+        "sys_events_caption": "फ़ॉलबैक दर्ज होते हैं, छिपाए नहीं जाते — सहेजी हुई रीडिंग या "
+                              "नियम-आधारित जवाब जिस समय दिया जाता है, उसी समय वैसा ही "
+                              "बताया जाता है।",
+        # The shell command is printed after this fragment, so the Hindi ends
+        # where the command begins.
+        "sys_empty_telemetry": "अभी तक कोई टेलीमेट्री नहीं है। ‘आज’ पर कोई सवाल पूछिए, या "
+                               "पुराना डेटा भरने के लिए यह चलाइए:",
+        "sys_empty_no_index": "यह हिस्सा एक डेटाबेस इंडेक्स से डेटा पढ़ता है, और अभी "
+                              "कोई इंडेक्स सेट नहीं है, इसलिए कुछ भी दर्ज नहीं हो रहा। "
+                              "ऐप इसके बिना भी चलता है; बस ये पैनल नहीं चलते।",
+        "sys_h_localities": "इलाक़े के हिसाब से रिक्वेस्ट",
+        "sys_empty_localities": "अभी तक इलाक़े का कोई डेटा नहीं है।",
+        # --- security ---
+        "sys_h_blocked_7d": "रोकी गईं · पिछले 7 दिन",
+        "sys_empty_blocked_7d": "पिछले 7 दिनों में रोकी गई कोई कोशिश दर्ज नहीं है।",
+        "sys_h_attempts": "हाल में रोकी गई कोशिशें",
+        "sys_btn_simulate": "रेड-टीम सिमुलेशन चलाइए",
+        # The attack count is printed between these two.
+        "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
+        "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
+                              "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # Follows the count of blocked prompts in one pattern group.
+        "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
+        # Sits under the list of blocked attempts and explains why the text
+        # above it is not in Hindi. It must not say the attempt is shown
+        # "जैसा आया था" -- normalize.excerpt cuts at 120 characters, and the
+        # simulation button on this page fires a ~1,250-character attack.
+        "sys_excerpt_caption": "जिस भी भाषा में यह लिखा गया था, उसी में दिखाया गया है, "
+                               "और इसका अनुवाद कभी नहीं किया जाता। लंबी कोशिशें काटकर "
+                               "दिखाई जाती हैं।",
+        "sys_empty_attempts": "अभी तक कुछ रोका नहीं गया है। ऊपर सिमुलेशन चलाइए, या ‘आज’ से "
+                              "कोई इंजेक्शन कोशिश भेजिए — दोनों ही सूरत में वह यहाँ दर्ज होगी।",
     },
     # The Guide's own prose. Keys are the strings guide.html asks for, in page
     # order: ``h_*`` headings, ``th_*`` table headers, ``q_*``/``a_*`` FAQ pairs
@@ -331,6 +503,10 @@ HI: dict = {
         "sub": "इस साइट का हर नंबर और हर शब्द, आसान भाषा में।",
         "h_numbers": "नंबर",
         "h_conditions": "पिकर में दी गई बीमारियाँ",
+        # The two glossary terms the Guide's number table names in its own
+        # words. The definitions live in the ``glossary`` group.
+        "term_dominant": "मुख्य प्रदूषक",
+        "term_risk_score": "जोखिम स्कोर",
 
         "h_bands": "CPCB की हवा-गुणवत्ता श्रेणियाँ",
         "bands_intro": "भारत का राष्ट्रीय पैमाना 0–500 तक चलता है। श्रेणी ही तय करती है कि ऊपर "
@@ -355,10 +531,10 @@ HI: dict = {
         "q_data_source": "हवा का डेटा कहाँ से आता है?",
         "a_data_source": "भारत के CPCB नेटवर्क के ज़मीनी निगरानी स्टेशनों से, जिन्हें WAQI फ़ीड "
                          "के ज़रिए पढ़ा जाता है। जब वह फ़ीड नहीं चलती, साइट पिछली अच्छी रीडिंग "
-                         "दिखाती है और उस पर साफ़-साफ़ CACHED लिखा होता है, और सलाह के ऊपर यह "
-                         "बात कही भी जाती है। शहर की नब्ज़ पर CACHED टैग यह भी बताता है कि "
-                         "रीडिंग कितनी पुरानी है, और जिस जगह की कोई रीडिंग हमारे पास है ही नहीं "
-                         "उसे SAMPLE लिखा जाता है — यानी एक अंदाज़न आँकड़ा, कोई माप नहीं। पुरानी "
+                         "दिखाती है और उस पर साफ़-साफ़ ‘सहेजी हुई’ लिखा होता है, और सलाह के ऊपर "
+                         "यह बात कही भी जाती है। शहर की नब्ज़ पर ‘सहेजी हुई’ टैग यह भी बताता है "
+                         "कि रीडिंग कितनी पुरानी है, और जिस जगह की कोई रीडिंग हमारे पास है ही "
+                         "नहीं उसे ‘नमूना’ लिखा जाता है — यानी एक अंदाज़न आँकड़ा, कोई माप नहीं। पुरानी "
                          "या अंदाज़न चीज़ को कभी लाइव बनाकर नहीं दिखाया जाता।",
         "q_ignores": "जवाब कभी-कभी मेरे सवाल को अनदेखा क्यों कर देता है?",
         "a_ignores": "जवाब उसी व्यक्ति के लिए लिखे जाते हैं जो ‘आज’ वाले पेज पर दिखाया गया है, "
@@ -367,9 +543,9 @@ HI: dict = {
                      "पूछिए — पूरा पेज, जवाब समेत, आपके चुने हुए व्यक्ति के लिए फिर से लिखा "
                      "जाता है।",
         "q_privacy": "मैं जो टाइप करता हूँ उसका क्या होता है?",
-        "a_privacy": "आपकी उम्र, बीमारी और आपकी योजना पेज के पते और आपके सेशन में रहती है — ये "
+        "a_privacy": "आपकी उम्र, बीमारी और आपके काम पेज के पते और आपके सेशन में रहते हैं — ये "
                      "कभी किसी डेटाबेस में नहीं लिखी जातीं। आपका चुना हुआ इलाक़ा इसका एक अपवाद "
-                     "है और उसे जानबूझकर रखा जाता है, ताकि System व्यू दिखा सके कि किन इलाक़ों "
+                     "है और उसे जानबूझकर रखा जाता है, ताकि सिस्टम व्यू दिखा सके कि किन इलाक़ों "
                      "से रिक्वेस्ट आती हैं; उसे कभी आपकी बीमारी के साथ नहीं रखा जाता। सवालों की "
                      "जाँच होती है कि कहीं वे मॉडल को बरगलाने की कोशिश तो नहीं, उसके बाद ही वे "
                      "मॉडल तक जाते हैं। लॉग में एकतरफ़ा हैश किया हुआ सेशन आईडी और स्टेटस रहते "
@@ -384,10 +560,11 @@ HI: dict = {
         "scale_1": "रीडिंग भारत के CPCB निगरानी स्टेशनों से आती हैं, जो WAQI फ़ीड के ज़रिए "
                    "मिलती हैं। WAQI अपने नंबर अमेरिका के EPA सूचकांक पर छापता है, भारत के "
                    "नहीं — उसने जनवरी 2016 में हर भारतीय स्टेशन को अमेरिकी पैमाने पर कर दिया "
-                   "था, और वह ख़ुद कहता है कि इसीलिए उसके आँकड़े भारत के अपने National AQI "
+                   "था, और वह ख़ुद कहता है कि इसीलिए उसके आँकड़े भारत के अपने राष्ट्रीय AQI "
                    "पोर्टल से अलग होंगे।",
         "scale_2": "दोनों पैमानों में बड़ा फ़र्क़ है। 60 µg/m³ PM2.5 भारत के पैमाने पर 100 "
-                   "यानी ‘संतोषजनक’ है, और अमेरिकी पैमाने पर क़रीब 154 यानी ‘Unhealthy’। "
+                   "यानी ‘संतोषजनक’ है, और अमेरिकी पैमाने पर क़रीब 154 यानी वहाँ की "
+                   "‘सेहत के लिए हानिकारक’ श्रेणी। "
                    "इसीलिए यह साइट बदलाव करती है: वह फ़ीड के अमेरिकी सूचकांक को वापस सांद्रता "
                    "में बदलती है, फिर उससे भारतीय आँकड़ा निकालती है। इस तरह यहाँ दिखने वाला "
                    "नंबर वैसा ही होता है जैसा दिल्ली में बाक़ी हर जगह दिखता है।",
@@ -437,7 +614,18 @@ HI: dict = {
         "th_light": "हल्का",
         "th_moderate": "मध्यम",
         "th_hard": "ज़्यादा",
-        "mapping_ours": "आपकी किस योजना को कितनी मेहनत माना जाए, यह हमारा अपना आकलन है, स्रोत "
+        # The age bands the source's table is published for. "<11" is written
+        # out as "11 साल से कम" because Hindi puts the comparison after the
+        # number, and a bare "<" before a numeral reads as a stray glyph.
+        "age_band_child": "6 से 11 साल से कम",
+        "age_band_adult": "21 से 31 साल से कम",
+        "age_band_senior": "61 से 71 साल से कम",
+        # The four exertion levels, printed inside "बाहर कसरत = ज़्यादा".
+        "level_sedentary": "बैठे-बैठे",
+        "level_light": "हल्का",
+        "level_moderate": "मध्यम",
+        "level_high": "ज़्यादा",
+        "mapping_ours": "आपके किस काम को कितनी मेहनत माना जाए, यह हमारा अपना आकलन है, स्रोत "
                         "का नहीं:",
 
         "h_judgement": "वह हिस्सा जो हमारा अपना आकलन है",
@@ -451,11 +639,270 @@ HI: dict = {
                           "फेफड़े, शरीर के हर किलो पर ज़्यादा हवा, और कम बचाव।",
         "th_factor": "कारण",
         "th_points": "जुड़ने वाले अंक",
+        # The disclaimer printed as the "source" of the judgement table. It
+        # denies three separate things -- validation, derivation, and any
+        # published model -- and the Hindi keeps all three, because a reader
+        # who loses one of them reads the table as evidence.
+        "source_unvalidated": "बिना जाँचा-परखा क्लिनिकल अनुमान। सिर्फ़ आपसी क्रम बताने के लिए, "
+                              "जिसे लेखक ने सामान्य सार्वजनिक-स्वास्थ्य गाइडेंस से चुना है; यह "
+                              "किसी प्रकाशित जोखिम मॉडल से न तो निकाला गया है, न उसके सामने "
+                              "परखा गया है।",
         "open_code": "अगर आपको लगता है कि यहाँ का संतुलन ग़लत है, तो आप हर आँकड़ा देख भी "
                      "सकते हैं और बदल भी सकते हैं — पूरा हिसाब सौ पंक्तियों के पढ़े जा सकने "
                      "वाले कोड में है, और उसमें आपसे कुछ भी छिपाया नहीं गया।",
     },
-    # data.advisories -- the 34 seeded health advisories.
+    # presenters.persona_sentence -- the reader described back to themselves.
+    #
+    # The pieces compose as "{who}, {condition}, {place} में {activity}", so the
+    # condition is a relative clause ("जिसे अस्थमा है") and the activity a
+    # predicate that closes the sentence ("बाहर कसरत करने वाले हैं"). It was a
+    # noun phrase built on "योजना", which left the sentence without a verb and
+    # used a word that reads as a scheme rather than an intention. English puts
+    # the place last; Hindi puts it before the activity, which is why the frames
+    # below are whole strings with reordered fields, not fragments joined in code.
+    "persona": {
+        "age_child": "एक बच्चा",
+        "age_adult": "एक बड़ा व्यक्ति",
+        "age_senior": "एक बुज़ुर्ग",
+        "condition_fit": "जो सेहतमंद है",
+        "condition_asthma": "जिसे अस्थमा है",
+        "condition_heart": "जिसे दिल की बीमारी है",
+        "condition_pregnancy": "जो गर्भवती है",
+        "condition_copd": "जिसे COPD है",
+        "activity_exercise": "बाहर कसरत करने वाले हैं",
+        "activity_commute": "बाहर आने-जाने वाले हैं",
+        "activity_school_run": "बच्चे को स्कूल छोड़ने-लाने वाले हैं",
+        "activity_stay_home": "घर पर ही रहने वाले हैं",
+        "with_activity_and_place": "{who}, {condition}, {place} में {activity}",
+        "with_activity": "{who}, {condition}, {activity}",
+        "with_place": "{who}, {condition}, {place} में",
+        "plain": "{who}, {condition}",
+        # The hero's kicker. ``.upper()`` runs over this in every language and
+        # leaves Devanagari untouched.
+        "kicker": "इनके लिए: {persona}",
+    },
+    # presenters.comparison_line -- the gap to a healthy adult.
+    #
+    # The three commitments the English makes are kept: the comparison person
+    # has the reader's OWN plans, the gap is attributed to the body, and the
+    # plans are never denied outright.
+    "compare": {
+        "reason_asthma": "आपके अस्थमा",
+        "reason_heart": "आपके दिल की बीमारी",
+        "reason_pregnancy": "आपकी गर्भावस्था",
+        "reason_copd": "आपके COPD",
+        "reason_condition": "आपकी बीमारी",
+        "reason_child": "आपके बच्चा होने",
+        "reason_senior": "आपके बुज़ुर्ग होने",
+        # Joins the reasons, which the sentence then follows with "की वजह से",
+        # so the last item must not carry its own postposition.
+        "reason_join": " और ",
+        "gap_with_reasons": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। "
+                            "आपका {score} {reasons} की वजह से है — यह फ़र्क़ आपके शरीर का है, "
+                            "हवा का नहीं।",
+        "gap_plain": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति {baseline} पर होता। आपका "
+                     "{score} उससे ज़्यादा है।",
+        "same": "आपके जैसे ही काम करने वाला एक सेहतमंद बड़ा व्यक्ति भी {baseline} पर ही होता — आज आप "
+                "वही हैं।",
+    },
+    # risk.compute_risk -- the driver chips under the score.
+    "driver": {
+        # ``{band}`` is filled from band_label, whose values are adjectives
+        # ("ख़राब"), so the chip is phrased "हवा {band}" rather than putting the
+        # word in brackets the way English does.
+        "aqi": "AQI {aqi} — हवा {band}",
+        "no_reading": "कोई रीडिंग नहीं — हवा ख़राब मानी गई",
+        "cond_asthma": "अस्थमा से ख़तरा बढ़ता है",
+        "cond_heart": "दिल की बीमारी से ख़तरा बढ़ता है",
+        "cond_pregnancy": "गर्भावस्था से ख़तरा बढ़ता है",
+        "cond_copd": "COPD से ख़तरा बढ़ता है",
+        "act_outdoor_exercise": "बाहर की मेहनत से हवा कई गुना अंदर जाती है",
+        "act_commute": "आने-जाने में बाहर की हवा ज़्यादा लगती है",
+        "act_school_run": "स्कूल छोड़ने-लाने में बाहर की हवा ज़्यादा लगती है",
+        "age_child": "बच्चों पर असर ज़्यादा होता है",
+        "age_senior": "बुज़ुर्गों पर असर ज़्यादा होता है",
+    },
+    # forecast.best_window -- the "if you must go out" bar and its reasoning.
+    #
+    # Clock times are written as Hindi phrases with Latin digits ("सुबह 6 से 9
+    # बजे") rather than as "6-9 AM": the page prints no AM/PM anywhere else in
+    # Hindi, and the 12-hour marker is not what a Delhi reader says out loud.
+    "window": {
+        "none": "आज बाहर के लिए कोई सुरक्षित समय नहीं",
+        "none_rationale": "अभी AQI बहुत ख़राब/गंभीर श्रेणी में है, इसलिए प्रदूषण पूरे दिन "
+                          "ख़तरनाक बना रहेगा। सबसे अच्छा यही है कि घर के अंदर रहें और "
+                          "खिड़कियाँ बंद रखें। यह एक मोटा नियम है, हर घंटे का स्टेशन "
+                          "पूर्वानुमान नहीं।",
+        "o3": "सुबह जल्दी (क़रीब सुबह 6 से 9 बजे तक)",
+        "o3_rationale": "आज की हवा में मुख्य चीज़ ओज़ोन है, जो दोपहर की धूप में बनती जाती है — "
+                        "इसलिए सुबह-सुबह का समय ज़्यादा साफ़ रहता है और दोपहर सबसे ख़राब।",
+        "no2": "दोपहर (क़रीब सुबह 11 से दोपहर 3 बजे तक)",
+        "no2_rationale": "आज की हवा में मुख्य चीज़ गाड़ियों की गैसें (जैसे NO2) हैं, जो सुबह "
+                         "और शाम की भीड़ के समय एकदम बढ़ जाती हैं — इसलिए इनके बीच का दोपहर "
+                         "वाला ठहराव ज़्यादा शांत रहता है।",
+        "winter": "दोपहर की शुरुआत (क़रीब दोपहर 1 से शाम 4 बजे तक)",
+        "winter_rationale": "मुख्य चीज़ बारीक कण हैं। दिल्ली की सर्दी में रात भर का तापमान "
+                            "उलटाव धुंध को ज़मीन के पास दबा देता है, इसलिए क़रीब 6 से 10 बजे "
+                            "सुबह सबसे ख़राब रहती है और मिश्रण परत ऊपर उठते ही, दोपहर शुरू "
+                            "होते-होते, हवा कुछ हल्की हो जाती है।",
+        "default": "देर सुबह (क़रीब सुबह 9 से दोपहर 12 बजे तक)",
+        "default_rationale": "मुख्य चीज़ बारीक कण हैं। सर्दी के अलावा दोपहर की धूप ओज़ोन भी "
+                             "बढ़ा देती है, इसलिए दोपहर के चढ़ाव से पहले देर सुबह का समय "
+                             "ज़्यादा शांत रहता है।",
+        "general_note": "यह एक सामान्य पैटर्न है, हर घंटे का स्टेशन पूर्वानुमान नहीं।",
+        "note_poor": "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 "
+                     "पहनें।",
+        "note_moderate": "हवा मध्यम है, इसलिए ज़ोर वाली मेहनत कम कर दें।",
+    },
+    # llm._rule_based -- the answer a reader actually gets, sentence by
+    # sentence. This is the copy the whole feature exists to deliver, so the
+    # instructions here are translated for force, not for elegance: the mask,
+    # the purifier and the stop-and-seek-help lines say exactly what the
+    # English says, nothing added and nothing dropped.
+    "answer": {
+        "activity_swimming": "तैराकी",
+        "activity_cycling": "साइकिल चलाना",
+        "activity_running": "दौड़ना",
+        "activity_walking": "टहलना",
+        "activity_sport": "बाहर का खेल",
+        "activity_generic": "बाहर की गतिविधि",
+        "precaution_swimming": "घर के अंदर वाला पूल चुनें; खुले में तैरने का मतलब है सीधे "
+                               "प्रदूषित हवा में गहरी साँस लेना, इसलिए पूल बाहर हो तो समय कम "
+                               "रखें।",
+        "precaution_cycling": "कम ट्रैफ़िक वाले हरे रास्ते चुनें और मुख्य सड़कों से बचें, जहाँ "
+                              "साइकिल चलाने वालों के अंदर गाड़ियों का धुआँ सबसे ज़्यादा जाता "
+                              "है।",
+        "precaution_running": "रफ़्तार धीमी करें और दूरी कम करें; दौड़ते समय की तेज़ साँस बारीक "
+                              "कणों को फेफड़ों की गहराई तक खींच लेती है।",
+        "precaution_walking": "छाँव वाली, कम ट्रैफ़िक की गलियों से चलें और आराम से चलें।",
+        "precaution_sport": "कम समय के सत्र रखें और जहाँ हो सके, घर के अंदर आकर आराम करें।",
+        # {activity} is one of the activity_* labels above; {aqi} is a Latin
+        # numeral. Hindi puts the activity before the verb, so the fields sit
+        # in a different order from the English.
+        "why_unknown": "AQI की रीडिंग उपलब्ध नहीं है; पक्का पता चलने तक {activity} को "
+                       "असुरक्षित मानें।",
+        "why_severe": "AQI {aqi} बहुत ख़राब से गंभीर है; {activity} न करें।",
+        "why_unhealthy": "AQI {aqi} सेहत के लिए हानिकारक है; {activity} कम करें और बचाव के "
+                         "साथ करें।",
+        "why_ok": "AQI {aqi} ठीक-ठाक है; {activity} किया जा सकता है।",
+        "generic_advisory": "अभी हवा की गुणवत्ता का डेटा सीमित है; शक हो तो बाहर कम से कम "
+                            "निकलें और बाहर N95 पहनें।",
+        # Appended straight onto the advisory sentence, so it keeps the leading
+        # space the English has.
+        "stale_suffix": " (सहेजा हुआ नमूना डेटा इस्तेमाल किया गया है)",
+        "precaution_mask_high": "बाहर अच्छी तरह फ़िट होने वाला N95/FFP2 मास्क पहनें और घर के "
+                                "अंदर एयर प्यूरीफ़ायर चलाएँ।",
+        "precaution_mask_low": "N95 पास रखें और हवा की गुणवत्ता में बदलाव पर नज़र रखें।",
+        "window_none": "आज बाहर के लिए कोई सुरक्षित समय नहीं है; खिड़कियाँ बंद करके और "
+                       "प्यूरीफ़ायर चलाकर घर के अंदर रहें।",
+        "window_default": "सुबह जल्दी (6 से 9 बजे) और देर शाम आमतौर पर ज़्यादा साफ़ रहती है; "
+                          "दोपहर और भीड़ के समय से बचें।",
+        "symptom_stop": "सीने में जकड़न, घरघराहट या साँस फूलने लगे तो रुक जाएँ और किसी ढकी हुई "
+                        "जगह के अंदर चले जाएँ।",
+        "symptom_urgent": "लगातार खाँसी, चक्कर या धड़कन का तेज़ होना भी मतलब है कि तुरंत रुक "
+                          "जाएँ।",
+    },
+    # presenters.who_line -- the comparison with the WHO guideline.
+    #
+    # Two things must survive translation, because the Guide explains them and
+    # the sentence would otherwise overstate: it is the air *right now*, and
+    # the guideline is *for a whole day*. No dose and no daily average is
+    # claimed, and "गुना" means "times as much", not "times more than".
+    "who": {
+        "below": "अभी यहाँ की हवा विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित स्तर से साफ़ "
+                 "है।",
+        "about_at": "अभी यहाँ की हवा क़रीब-क़रीब विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित "
+                    "स्तर पर है।",
+        "far_more": "अभी यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
+                    "सुरक्षित स्तर से कहीं ज़्यादा है।",
+        "multiple": "अभी यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
+                    "सुरक्षित स्तर से क़रीब {word} है।",
+        # Spelled out, as in the English, so the sentence reads rather than
+        # being scanned.
+        "multiple_2": "दोगुना",
+        "multiple_3": "तीन गुना",
+        "multiple_4": "चार गुना",
+        "multiple_5": "पाँच गुना",
+        "multiple_6": "छह गुना",
+        "multiple_7": "सात गुना",
+        "multiple_8": "आठ गुना",
+        "multiple_9": "नौ गुना",
+        "multiple_10": "दस गुना",
+        "multiple_20": "बीस गुना",
+        "multiple_30": "तीस गुना",
+        "multiple_40": "चालीस गुना",
+        "multiple_50": "पचास गुना",
+        "multiple_60": "साठ गुना",
+        "multiple_70": "सत्तर गुना",
+        "multiple_80": "अस्सी गुना",
+        "multiple_90": "नब्बे गुना",
+        "multiple_100": "सौ गुना",
+        "multiple_200": "दो सौ गुना",
+        "multiple_300": "तीन सौ गुना",
+        "multiple_400": "चार सौ गुना",
+        "multiple_500": "पाँच सौ गुना",
+    },
+    # presenters.provenance_chip. The glyph is part of the string: it is the
+    # only thing telling the two chips apart at a glance.
+    # Delhi locality and region names. These are Hindi place names; a reader who
+    # reads only Devanagari cannot read "Anand Vihar" at all, and the metro
+    # signs and the newspapers write them this way. The picker's VALUE stays the
+    # English string -- it is the key into waqi.FEED_MAP and the query
+    # parameter -- and only the label is translated.
+    "locality": {
+        "Anand Vihar": "आनंद विहार",
+        "ITO": "आईटीओ",
+        "Rohini": "रोहिणी",
+        "RK Puram": "आर.के. पुरम",
+        "Punjabi Bagh": "पंजाबी बाग",
+        "Mandir Marg": "मंदिर मार्ग",
+        "Dwarka": "द्वारका",
+        "Najafgarh": "नजफगढ़",
+        "Wazirpur": "वज़ीरपुर",
+        "Jahangirpuri": "जहांगीरपुरी",
+        "Okhla": "ओखला",
+        "Ashok Vihar": "अशोक विहार",
+        "Nehru Nagar": "नेहरू नगर",
+        "Patparganj": "पटपड़गंज",
+        "DTU": "डीटीयू",
+        "Delhi (city)": "दिल्ली (शहर)",
+        "Noida": "नोएडा",
+        "Greater Noida": "ग्रेटर नोएडा",
+        "Gurugram": "गुरुग्राम",
+        "Ghaziabad": "गाज़ियाबाद",
+        "Faridabad": "फ़रीदाबाद",
+        "Delhi": "दिल्ली",
+        "NCR": "एनसीआर",
+    },
+    "prov": {
+        "sample": "◌ नमूना — यह माप नहीं है",
+        "live": "● लाइव · {when}",
+    },
+    # presenters.sparkline_svg -- the accessible name of the 24-hour chart.
+    #
+    # This is the only accessible name on the site that carries data rather
+    # than naming a control, and it is the whole chart for a screen-reader
+    # user: the SVG's shape says nothing aloud. Left in English it was read to
+    # a Hindi reader with Devanagari phonetics. It is not caught by
+    # test_hindi_completeness's page scan, which strips attributes wholesale
+    # before looking for Latin, so it has its own test.
+    "a11y": {
+        "spark": "पिछले 24 घंटों का AQI, {lo} से {hi} तक",
+    },
+    # presenters.outlook_rows -- the five-day strip's row labels.
+    "day": {
+        "today": "आज",
+        # Weekday then date, the same order Hindi uses.
+        "label": "{weekday} {date}",
+        "mon": "सोम",
+        "tue": "मंगल",
+        "wed": "बुध",
+        "thu": "गुरु",
+        "fri": "शुक्र",
+        "sat": "शनि",
+        "sun": "रवि",
+    },
+    # data.advisories -- the 43 seeded health advisories.
     #
     # Key rule, exact and deterministic, to be computed identically at lookup:
     #
@@ -480,13 +927,13 @@ HI: dict = {
             "AQI 101-200 (मध्यम): सेहतमंद बड़े लोग बाहर कसरत कर सकते हैं, पर तेज़ कसरत का समय "
             "कम रखें। फेफड़े या दिल की बीमारी वाले लोग लंबी मेहनत कम करें।",
         "GINA-guidance:101-200:asthma:any:any":
-            "AQI 101-200 और अस्थमा: अपना राहत वाला inhaler साथ रखें, कसरत घर के अंदर करें, और "
+            "AQI 101-200 और अस्थमा: अपना राहत वाला inhaler साथ रखें, कसरत घर के अंदर करना बेहतर है, और "
             "ज़्यादा ट्रैफ़िक वाली सड़कों से बचें जहाँ NO2 अचानक बढ़ जाती है।",
         "CPCB-AQI-scale:201-300:any:outdoor_exercise:any":
             "AQI 201-300 (ख़राब): बाहर कसरत मत करें। बाहर जाना ज़रूरी हो तो कम समय के लिए और "
             "बिना ज़ोर लगाए जाएँ, और अच्छी तरह फ़िट होने वाला N95/FFP2 मास्क पहनें।",
         "WHO-AQG-2021:201-300:any:commute:any":
-            "AQI 201-300 में आना-जाना: गाड़ी के शीशे बंद रखें और हवा को recirculation पर रखें; "
+            "AQI 201-300 में आना-जाना: गाड़ी के शीशे बंद रखें और हवा को रीसर्कुलेशन पर रखें; "
             "दोपहिया पर N95 पहनें। मेट्रो में आमतौर पर सड़क के मुक़ाबले कम प्रदूषण लगता है।",
         "GINA-guidance:201-300:asthma:any:any":
             "AQI 201-300 और अस्थमा: खिड़कियाँ बंद करके घर के अंदर रहें, हो सके तो एयर "
@@ -494,7 +941,7 @@ HI: dict = {
             "का इस्तेमाल बढ़ जाए तो डॉक्टर को दिखाएँ।",
         "AHA-airpollution:201-300:heart:any:any":
             "AQI 201-300 और दिल की बीमारी: बाहर मेहनत वाला काम न करें; बारीक कण थोड़े ही समय "
-            "में सीने के दर्द (angina) और धड़कन की गड़बड़ी का ख़तरा बढ़ा देते हैं। सीने में "
+            "में सीने के दर्द (एनजाइना) और धड़कन की गड़बड़ी का ख़तरा बढ़ा देते हैं। सीने में "
             "जकड़न, धड़कन तेज़ होना या असामान्य रूप से साँस फूलने पर ध्यान दें।",
         "WHO-children-air:201-300:any:school_run:child":
             "AQI 201-300 और बच्चे: बच्चे तेज़ साँस लेते हैं, इसलिए उन पर असर ज़्यादा पड़ता है। "
@@ -511,7 +958,7 @@ HI: dict = {
         "ACOG-airquality:301-400:pregnancy:any:any":
             "AQI 301-400 और गर्भावस्था: PM2.5 का असर बच्चे के कम वज़न और समय से पहले जन्म से "
             "जुड़ा है। फ़िल्टर की हुई हवा में घर के अंदर रहें, ज़रूरी काम से बाहर जाना ही पड़े "
-            "तो N95 पहनें, और कोई तकलीफ़ बनी रहे तो अपनी डॉक्टर से बात करें।",
+            "तो N95 पहनें, और कोई तकलीफ़ बनी रहे तो अपने प्रसूति विशेषज्ञ (obstetrician) से बात करें।",
         "GOLD-guidance:301-400:copd:any:any":
             "AQI 301-400 और COPD: बीमारी बिगड़ने का ख़तरा बहुत ज़्यादा है। साफ़ की हुई हवा में "
             "घर के अंदर रहें, आपातकालीन दवा पास रखें, ऑक्सीमीटर हो तो SpO2 देखते रहें, और आराम "
@@ -554,7 +1001,7 @@ HI: dict = {
             "O3 का असर कम रहेगा।",
         "AHA-airpollution:101-200:heart:commute:any":
             "AQI 101-200 में दिल की बीमारी के साथ आना-जाना: दोपहिया के बजाय मेट्रो या "
-            "recirculation पर चल रही बंद गाड़ी चुनें, क्योंकि सड़क किनारे PM2.5 और NO2 सबसे "
+            "रीसर्कुलेशन पर चल रही बंद गाड़ी चुनें, क्योंकि सड़क किनारे PM2.5 और NO2 सबसे "
             "ज़्यादा होते हैं। जल्दबाज़ी न करें; प्रदूषित हवा में अचानक ज़ोर लगाना दिल पर भारी "
             "पड़ सकता है।",
         "GOLD-guidance:101-200:copd:any:any":
@@ -563,7 +1010,7 @@ HI: dict = {
             "या राहत वाले inhaler का इस्तेमाल बढ़ते ही तुरंत क़दम उठाएँ।",
         "ACOG-airquality:101-200:pregnancy:commute:any":
             "AQI 101-200 में गर्भावस्था के दौरान आना-जाना: PM2.5 कम अंदर जाए, इसके लिए मेट्रो "
-            "या recirculation पर चल रही बंद गाड़ी चुनें। दोपहिया पर हों या सड़क किनारे इंतज़ार "
+            "या रीसर्कुलेशन पर चल रही बंद गाड़ी चुनें। दोपहिया पर हों या सड़क किनारे इंतज़ार "
             "कर रही हों तो अच्छी तरह फ़िट होने वाला N95 पहनें।",
         "WHO-children-air:101-200:any:school_run:child":
             "AQI 101-200 में बच्चों का स्कूल आना-जाना: तेज़ चलें पर रास्ता छोटा रखें, मुख्य "
@@ -582,14 +1029,14 @@ HI: dict = {
         "ACOG-airquality:201-300:pregnancy:any:any":
             "AQI 201-300 और गर्भावस्था: बाहर निकलना कम से कम करें और घर के अंदर हवा फ़िल्टर "
             "करें। इस स्तर पर लगातार PM2.5 का असर बच्चे की बढ़त कम होने से जुड़ा है; ज़रूरी काम "
-            "से बाहर जाना ही पड़े तो N95 पहनें और कोई तकलीफ़ बनी रहे तो अपनी डॉक्टर को बताएँ।",
+            "से बाहर जाना ही पड़े तो N95 पहनें और कोई तकलीफ़ बनी रहे तो अपने प्रसूति विशेषज्ञ (obstetrician) को बताएँ।",
         "AHA-airpollution:201-300:heart:commute:any":
             "AQI 201-300 में दिल की बीमारी के साथ आना-जाना: दोपहिया और खुले ऑटो से बचें, वहाँ "
-            "PM2.5 बहुत बढ़ जाता है; recirculation पर चल रही बंद गाड़ी या मेट्रो लें, और N95 "
+            "PM2.5 बहुत बढ़ जाता है; रीसर्कुलेशन पर चल रही बंद गाड़ी या मेट्रो लें, और N95 "
             "पहने रहें। सीने में दर्द या धड़कन तेज़ होने को आपात स्थिति मानें।",
         "WHO-AQG-2021:201-300:any:commute:senior":
             "AQI 201-300 में बुज़ुर्गों का आना-जाना: ग़ैर-ज़रूरी यात्रा टाल दें। जाना ही पड़े "
-            "तो मेट्रो या recirculation पर चल रही बंद गाड़ी लें, N95 पहनें, और सड़क किनारे "
+            "तो मेट्रो या रीसर्कुलेशन पर चल रही बंद गाड़ी लें, N95 पहनें, और सड़क किनारे "
             "स्टॉप पर खड़े होने से बचें जहाँ PM2.5 और NO2 सबसे ख़राब होते हैं।",
         "EPA-indoor-air:201-300:any:stay_home:any":
             "AQI 201-300 में घर पर रहना: खिड़कियाँ बंद करें, जिन कमरों में लोग हैं वहाँ HEPA "
@@ -609,7 +1056,61 @@ HI: dict = {
         "AHA-airpollution:301-999:heart:any:senior":
             "AQI 300 से ऊपर, दिल की बीमारी वाले बुज़ुर्ग: दिल का दौरा और धड़कन की गड़बड़ी का "
             "सबसे ज़्यादा ख़तरा। बाहर बिल्कुल न निकलें, घर के अंदर हवा साफ़ रखें, डॉक्टर की "
-            "बताई दवाइयाँ (जैसे nitrate) पास रखें, और सीने में दर्द या साँस फूलने को आपात "
+            "बताई दवाइयाँ (जैसे नाइट्रेट) पास रखें, और सीने में दर्द या साँस फूलने को आपात "
             "स्थिति मानें।",
+        # The rows added when persona filtering replaced persona scoring. Same
+        # rule as above: identical force in both languages, nothing softened.
+        "CPCB-AQI-scale:101-200:any:any:any":
+            "AQI 101-200 (मध्यम): ज़्यादातर सेहतमंद लोगों पर असर नहीं पड़ता, पर इस स्तर पर "
+            "अस्थमा जैसी फेफड़ों की बीमारी वालों को साँस लेने में तकलीफ़ होती है, और दिल की "
+            "बीमारी वालों, बच्चों तथा बुज़ुर्गों को बेचैनी होती है। आप इनमें से किसी समूह में "
+            "हैं तो बाहर कम समय बिताएँ और बिना जल्दबाज़ी के काम करें।",
+        "CPCB-AQI-scale:201-300:any:any:any":
+            "AQI 201-300 (ख़राब): ज़्यादा देर इस हवा में रहने पर ज़्यादातर लोगों को साँस लेने "
+            "में तकलीफ़ होती है, और दिल की बीमारी वालों को बेचैनी होती है। बाहर उतना ही समय "
+            "बिताएँ जितना ज़रूरी हो, खिड़कियाँ बंद रखें, और लंबे समय बाहर रहना पड़े तो अच्छी "
+            "तरह फ़िट होने वाला N95 पहनें।",
+        "GINA-guidance:301-999:asthma:any:any":
+            "AQI 300 से ऊपर और अस्थमा: खिड़कियाँ बंद करके, फ़िल्टर की हुई हवा में घर के अंदर "
+            "रहें और बाहर की सारी गतिविधि रद्द कर दें। रोज़ चलने वाली (controller) दवा लेते "
+            "रहें, राहत वाला inhaler साथ रखें, और डॉक्टर की लिखी हुई हिदायतें मानें। राहत "
+            "वाले inhaler की ज़रूरत लगातार बढ़ती जाए, उससे आराम न मिले, या साँस इतनी फूले कि "
+            "पूरा वाक्य न बोल पाएँ, तो तुरंत डॉक्टर के पास जाएँ।",
+        "GOLD-guidance:401-999:copd:any:any":
+            "AQI 400 से ऊपर और COPD: इतनी ख़राब हवा से बीमारी अक्सर बिगड़ जाती है। बाहर "
+            "बिल्कुल न निकलें, जिस कमरे में सबसे ज़्यादा रहते हैं वहाँ हवा साफ़ रखें, "
+            "आपातकालीन दवा और डॉक्टर की लिखी हुई हिदायतें पास रखें, और ऑक्सीमीटर हो तो SpO2 "
+            "देखते रहें। "
+            "आराम करते हुए साँस फूलना, बलगम के रंग या मात्रा में बदलाव, या उलझन और नींद जैसी "
+            "सुस्ती दिखे तो उसे आपात स्थिति मानकर तुरंत डॉक्टर के पास जाएँ।",
+        "ACOG-airquality:401-999:pregnancy:any:any":
+            "AQI 400 से ऊपर और गर्भावस्था: बाहर की हवा से पूरी तरह बचें और घर के अंदर हवा "
+            "फ़िल्टर लगातार चलाएँ; PM2.5 का असर बच्चे के कम वज़न और समय से पहले जन्म से जुड़ा "
+            "है। जो सफ़र टाला न जा सके उसके लिए अच्छी तरह फ़िट होने वाला N95 पहनें। आराम करते "
+            "हुए साँस फूलना, सीने में दर्द, या बच्चे की हलचल में कोई बदलाव लगे तो उसी दिन अपने "
+            "प्रसूति विशेषज्ञ (obstetrician) से संपर्क करें।",
+        "AHA-airpollution:301-999:heart:any:any":
+            "AQI 300 से ऊपर और दिल की बीमारी: इस स्तर पर बारीक कण थोड़े ही समय में दिल का "
+            "दौरा, धड़कन की गड़बड़ी और स्ट्रोक का ख़तरा बढ़ा देते हैं। साफ़ की हुई हवा में घर "
+            "के अंदर रहें, किसी तरह की मेहनत न करें, और डॉक्टर की बताई दवाइयाँ पास रखें। सीने "
+            "में दर्द, धड़कन तेज़ होना, अचानक साँस फूलना या शरीर के एक तरफ़ कमज़ोरी को आपात "
+            "स्थिति मानें और तुरंत मदद बुलाएँ।",
+        "WHO-children-air:401-999:any:any:child":
+            "AQI 400 से ऊपर और बच्चे: बच्चे बड़ों से तेज़ साँस लेते हैं और उनके फेफड़े अभी बन "
+            "रहे होते हैं, इसलिए इतनी ख़राब हवा उन पर ज़्यादा असर करती है। उन्हें खिड़कियाँ बंद "
+            "करके और प्यूरीफ़ायर चलाकर घर के अंदर रखें, बाहर खेलना और खेलकूद पूरी तरह बंद कर "
+            "दें, और स्कूल से कहें कि बाहर की कक्षाएँ हटा दें या बंद रखें। घरघराहट, तेज़ या "
+            "मुश्किल से चलती साँस, या बच्चा इतना हाँफ रहा हो कि खेल या दूध न ले पाए, तो डॉक्टर "
+            "को दिखाएँ।",
+        "AHA-airpollution:101-200:heart:any:any":
+            "AQI 101-200 और दिल की बीमारी: इस स्तर पर भी बेचैनी हो सकती है, इसलिए बाहर लंबी या "
+            "ज़्यादा मेहनत वाली गतिविधि कम कर दें और व्यस्त सड़कों से दूर रहें जहाँ PM2.5 और "
+            "NO2 सबसे ज़्यादा होते हैं। सीने में जकड़न, धड़कन तेज़ होना या असामान्य रूप से साँस "
+            "फूलने पर रुककर आराम करें, और आराम न मिले तो डॉक्टर को दिखाएँ।",
+        "ACOG-airquality:151-200:pregnancy:any:any":
+            "AQI 151-200 और गर्भावस्था: बाहर कम समय बिताएँ और बिना जल्दबाज़ी के चलें, तथा "
+            "मुख्य सड़कों के बजाय पार्क और शांत गलियाँ चुनें। हो सके तो घर के अंदर हवा फ़िल्टर "
+            "करें, क्योंकि पूरी गर्भावस्था में जुड़ता PM2.5 बच्चे के कम वज़न से जुड़ा है। साँस "
+            "फूलने या लगातार खाँसी की बात अपने प्रसूति विशेषज्ञ (obstetrician) को बताएँ।",
     },
 }

@@ -144,8 +144,9 @@ You know why these are the way they are. On the day, they are findings.
 
 - Roughly half the localities show `SAMPLE` rather than a live reading. That is the real
   state of the WAQI feeds. If someone is confused or annoyed, that is data.
-- Under `?lang=hi` the persona sentence and the comparison line are still English. Known,
-  documented, and still worth watching someone hit.
+- Under `?lang=hi` everything a reader reads is now Hindi, including the persona sentence and
+  the comparison line. This note used to say they were still English; that stopped being true
+  and the note did not.
 - The Hindi carries an "unreviewed translation" banner. If a Hindi speaker reads it and
   stops, note it. That is the banner working.
 

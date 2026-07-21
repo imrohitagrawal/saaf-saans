@@ -183,6 +183,74 @@ def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
         assert "SAMPLE" in row, name
 
 
+def test_sample_stations_show_the_sample_figure(monkeypatch):
+    """The legend promises "a typical figure for that place is shown instead",
+    so a sample row must carry a number and a band, not "--" and Unknown.
+
+    The fallback used to read a key `waqi.SAMPLES` has never had, so it
+    evaluated to None on all 21 rows and the promise was never kept.
+    """
+    from saafsaans.services import aqi_scale, waqi
+    rows = _city_rows(monkeypatch, [])
+    for name, row in rows.items():
+        expected = aqi_scale.cpcb_aqi(waqi.SAMPLES[name].get("pm25"),
+                                      waqi.SAMPLES[name].get("pm10"))[0]
+        assert f'>{expected}<' in row, (name, row)
+        assert "Unknown" not in row, name
+
+
+def test_city_counts_and_median_use_the_sample_figures(monkeypatch):
+    """With no stored reading the header used to read "0 stations - median 0"
+    on a page listing 21 of them."""
+    from saafsaans.services import waqi
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: [])
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    assert f"{len(waqi.LOCALITIES)} stations" in body
+    assert "median AQI 0" not in body
+
+
+def test_a_stored_row_with_no_aqi_falls_back_to_the_sample(monkeypatch):
+    """A row we hold but which carries no aqi is worth no more than no row.
+
+    The fallback used to key off the row's EXISTENCE, so a station whose stored
+    document had aqi=None rendered "--" and Unknown while its labelled sample
+    figure sat unused -- and the legend says a typical figure is shown instead.
+    The timestamp here is fresh on purpose: the bug was worst for a row that
+    was recent and empty.
+    """
+    from datetime import datetime, timezone
+
+    from saafsaans.services import aqi_scale, waqi
+    now = datetime.now(timezone.utc).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": None, "ts": now}])
+    expected = aqi_scale.cpcb_aqi(waqi.SAMPLES["Rohini"].get("pm25"),
+                                  waqi.SAMPLES["Rohini"].get("pm10"))[0]
+    assert f">{expected}<" in rows["Rohini"], rows["Rohini"]
+    assert "Unknown" not in rows["Rohini"]
+    # And it is tagged for what it is. Calling a stand-in LIVE because the
+    # empty row happened to be recent would be the worse half of the same bug.
+    assert "SAMPLE" in rows["Rohini"]
+    assert "CACHED" not in rows["Rohini"]
+
+
+def test_the_guide_labels_every_age_in_the_rate_table():
+    """The EPA age brackets are rendered from web.main._epa_rows alone; the
+    second copy that used to sit in risk.EPA_AGE_BANDS is gone. This is the
+    check that went with it: every age in INHALATION_RATES gets a bracket, in
+    both languages, and no age is invented."""
+    from saafsaans.services import risk
+    from saafsaans.web import main as web_main
+    for lang in ("en", "hi"):
+        rows = web_main._epa_rows(lang)
+        assert len(rows) == len(risk.INHALATION_RATES), lang
+        assert set(web_main._EPA_AGE_ORDER) == set(risk.INHALATION_RATES), lang
+        for row in rows:
+            assert row["band"], (lang, row)
+
+
 def test_fresh_stored_reading_carries_no_tag(monkeypatch):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
@@ -234,11 +302,31 @@ def test_provenance_opens_per_turn_independently(client):
     assert body.count('class="prov-body"') == 1     # only the requested turn opens
 
 
-def test_provenance_label_states_what_it_contains(client):
+@pytest.mark.parametrize("status, says, not_says", [
+    ("ok", "live reading +", "sample reading +"),
+    ("fallback", "sample reading +", "live reading +"),
+])
+def test_provenance_label_states_what_it_contains(client, monkeypatch,
+                                                  status, says, not_says):
+    """The collapsed summary must name the feed status it actually got.
+
+    This test used to assert "live reading +" unconditionally, on a fixture
+    with no WAQI token -- where every reading is a labelled sample. It was
+    pinning a false claim under the name "states what it contains", which is
+    precisely the thing it was not checking. Both branches are covered here so
+    the assertion cannot pass on whichever one the environment happens to
+    produce.
+    """
+    from saafsaans.services import waqi
+
+    real = waqi.get_aqi
+    monkeypatch.setattr(waqi, "get_aqi",
+                        lambda loc, es_client=None: (real(loc, es_client)[0], status))
     client.post("/ask", params=PERSONA, data={"question": "Should I cycle?"})
     body = client.get("/", params=PERSONA).text
     assert "What this answer is based on" in body
-    assert "live reading +" in body and "guidance sources" in body
+    assert says in body and "guidance sources" in body
+    assert not_says not in body
 
 
 # --- Guide ------------------------------------------------------------------
@@ -374,7 +462,10 @@ def test_guide_publishes_every_risk_weight_and_its_source(client):
     assert "Exposure Factors Handbook" in html
     # And the weights that are not evidenced, named as such.
     assert "Unvalidated clinical heuristic" in html
-    for cond in ("Copd", "Heart", "Asthma", "Pregnancy"):
+    # Named as the persona picker names them. The table used to print the
+    # scoring keyword capitalised -- "Copd", "Heart" -- which is neither the
+    # word the reader chose nor anything they could translate.
+    for cond in ("COPD", "Heart condition", "Asthma", "Pregnancy"):
         assert cond in html, cond
 
 
@@ -396,7 +487,9 @@ def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
     ours. The Guide has to say which is which."""
     html = client.get("/guide").text
     assert "our reading, not" in html
-    assert "outdoor exercise = high" in html
+    # The picker's own wording, so the row can be matched to the option that
+    # produced it -- and so it has something to translate.
+    assert "Outdoor exercise = high" in html
 
 
 # --- The corrected scale, on the page --------------------------------------
@@ -595,12 +688,9 @@ def test_an_unrecognised_language_falls_back_to_english(bad):
 
 
 def test_the_root_element_declares_the_language():
-    """The System view is excluded deliberately -- it is not translated, so it
-    keeps lang="en" whatever the toggle says. See
-    test_the_system_view_does_not_claim_to_be_in_hindi."""
+    """Every page, System included. It used to be excluded because it was not
+    translated; it is now, so an exclusion here would hide a regression."""
     for path in HINDI_PAGES:
-        if path.startswith("/system"):
-            continue
         assert '<html lang="hi"' in _lang(path, "hi"), path
         assert '<html lang="en"' in _lang(path, "en"), path
 
@@ -729,14 +819,64 @@ def test_pages_render_when_no_particulate_is_available(client, monkeypatch):
 
 
 def test_the_system_view_does_not_claim_to_be_in_hindi(client):
-    """System is developer-facing and stays English by design. Declaring the
-    document Hindi would tell a screen reader to pronounce English prose with
-    Hindi phonetics -- a lie about the content, told to the readers least able
-    to detect it."""
+    """System now declares Hindi, because it is now written in Hindi.
+
+    This test asserted the opposite. The reasoning was sound for what the page
+    then was -- declaring an English document Hindi tells a screen reader to
+    pronounce English prose with Hindi phonetics, a lie told to the readers
+    least able to detect it -- but it rested on the page staying English, and
+    that premise was wrong: the nav link to this view reads सिस्टम and the
+    unreviewed-translation banner renders on it, so a Hindi reader is invited
+    in by the chrome and then met with a wall of English. The copy was
+    translated rather than the invitation withdrawn, so the honest declaration
+    is now lang="hi".
+
+    The name is kept so the history of the decision stays findable.
+    """
     import re
-    assert re.search(r'<html lang="en"', client.get("/system?lang=hi").text)
-    # ...while a translated view does follow the language.
+    assert re.search(r'<html lang="hi"', client.get("/system?lang=hi").text)
+    assert re.search(r'<html lang="hi"', client.get("/system?view=security&lang=hi").text)
+    # ...and English is still English, on both segments.
+    assert re.search(r'<html lang="en"', client.get("/system?lang=en").text)
     assert re.search(r'<html lang="hi"', client.get("/?lang=hi").text)
+
+
+def test_the_system_view_keeps_index_values_untranslated(client):
+    """The page shows what is in the indices, so an index value is not copy.
+
+    Event names, guard pattern names and status values are the literal stored
+    strings; translating one would make the view a description of the data
+    instead of a view of it. The shell command in the backfill hint is not
+    prose either. Both must survive the Hindi render unchanged.
+
+    The hint renders only when an index IS configured -- without one the
+    command could not backfill anything, and telling a reader to run it would
+    be a wrong remedy for a misdiagnosed fault. So the client is pinned here
+    rather than the assertion being dropped: the command still must not be
+    translated, on the page where it still appears.
+    """
+    from saafsaans.web import main as web_main
+    real = web_main.get_client
+    web_main.get_client = lambda: object()
+    try:
+        body = client.get("/system?lang=hi").text
+    finally:
+        web_main.get_client = real
+    assert "python -m saafsaans.seed_demo_history" in body
+    from saafsaans.web.main import _day_label
+    assert _day_label("2026-07-20") == "Mon"      # what the Hindi lookup is keyed on
+
+
+def test_the_system_kpi_labels_are_translated(client):
+    """The KPI label is built in the view, not the template, so it is the one
+    piece of System copy the template scan cannot see."""
+    from saafsaans.services import i18n
+    body = client.get("/system?lang=hi").text
+    assert i18n.HI["ui"]["sys_kpi_answered"] in body
+    assert "questions answered" not in body
+    sec = client.get("/system?view=security&lang=hi").text
+    assert i18n.HI["ui"]["sys_kpi_patterns"] in sec
+    assert "distinct patterns" not in sec
 
 
 def test_every_seeded_advisory_can_be_served_in_hindi(client):
@@ -757,3 +897,241 @@ def test_every_seeded_advisory_can_be_served_in_hindi(client):
         hindi = translate(advisory)
         assert hindi != advisory["advice"], advisory["source"]
         assert any("ऀ" <= ch <= "ॿ" for ch in hindi), advisory["source"]
+
+
+# --- Language reaches the strings the templates hold themselves -------------
+# These do not depend on any particular Hindi being written yet: each one
+# installs a marker string into the corpus for the key the page asks for, and
+# checks the page renders the marker instead of its English. That is the whole
+# claim -- the string goes through i18n rather than being printed raw -- and it
+# stays true whatever the reviewed Hindi turns out to say.
+@pytest.fixture
+def hindi(monkeypatch):
+    """Install marker translations for ui/guide keys, and yield a putter."""
+    from saafsaans.services import i18n
+
+    def put(group, key, value):
+        monkeypatch.setitem(i18n.HI[group], key, value)
+    return put
+
+
+def test_persona_options_submit_english_whatever_the_label_says(client, hindi):
+    """The option text is the reader's; the option value is the wire format.
+
+    Translating the value would break the shareable link, because read_persona
+    validates against the English CONDITIONS list and would silently fall back
+    to the default persona -- giving a Hindi reader advice for somebody else.
+    """
+    hindi("ui", "cond_asthma", "MARKER-ASTHMA")
+    html = client.get("/", params={**PERSONA, "lang": "hi", "edit": "1"}).text
+    assert 'value="Asthma"' in html
+    assert "MARKER-ASTHMA" in html
+    # And the round trip still lands on the persona that was picked.
+    again = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert 'value="Asthma" selected' not in again  # editor closed
+    assert client.get("/", params={**PERSONA, "lang": "hi"}).status_code == 200
+
+
+def test_the_provenance_ground_line_is_not_raw_english(client, hindi):
+    """The "Measured at the time" block was assembled from English literals in
+    the template, so a Hindi reader opening the provenance panel met a line of
+    English under a Hindi heading."""
+    hindi("ui", "prov_feed_figure", "MARKER-FEED")
+    hindi("ui", "prov_our_scale", "MARKER-SCALE")
+    client.post("/ask", params={**PERSONA, "lang": "hi"},
+                data={"question": "Can I go out?"})
+    html = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
+    assert "MARKER-FEED" in html and "MARKER-SCALE" in html
+    assert "WAQI&#39;s own figure" not in html
+    # The figures themselves are not translatable text and must survive.
+    assert "AQI " in html and "µg/m³" in html
+
+
+def test_the_page_load_stamp_does_not_hand_a_hindi_page_an_english_month(client, hindi):
+    """strftime('%b') is English (or the server locale's), never the reader's."""
+    from datetime import datetime
+    from saafsaans.web.main import IST
+    month = datetime.now(IST).month
+    hindi("ui", f"month_{month}", "MARKER-MONTH")
+    html = client.get("/city", params={**PERSONA, "lang": "hi"}).text
+    assert "MARKER-MONTH" in html
+    assert datetime.now(IST).strftime("%b") not in html
+
+
+def test_the_cached_and_sample_tags_translate(client, hindi):
+    """A reader who cannot read the tag cannot tell a stored reading from a
+    stand-in figure, which is the distinction City Pulse exists to make."""
+    hindi("ui", "tag_sample", "MARKER-SAMPLE")
+    html = client.get("/city", params={**PERSONA, "lang": "hi"}).text
+    assert "MARKER-SAMPLE" in html
+    assert ">SAMPLE" not in html
+
+
+def test_the_age_tag_unit_translates():
+    """'40 MIN' is three Latin letters printed by Python, not by a template."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    from saafsaans.web.main import _age_label
+    ts = (datetime.now(timezone.utc) - timedelta(minutes=40)).isoformat()
+    assert _age_label(ts) == "40 " + i18n.t("en", "ui", "age_unit_min", "MIN")
+    assert _age_label(ts, "hi") == "40 " + i18n.t("hi", "ui", "age_unit_min", "MIN")
+
+
+def test_the_english_page_keeps_its_english(client):
+    """Everything above is a translation path; this is the guard on it. None of
+    it may change what an English reader sees."""
+    html = client.get("/", params={**PERSONA, "edit": "1"}).text
+    for phrase in ("Anand Vihar", "Asthma", "Outdoor exercise", "Ask SaafSaans"):
+        assert phrase in html, phrase
+    assert "ANAND VIHAR" not in html      # upper-cased in CSS, not in the markup
+
+
+def test_hindi_headings_are_a_step_heavier_and_english_is_untouched():
+    """Devanagari at 600 reads lighter than Latin at 600, so the Hindi page
+    looked de-emphasised rather than translated. The remedy must be scoped:
+    an English reader's weights cannot move."""
+    from pathlib import Path
+    css = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
+    text = css.read_text(encoding="utf-8")
+    for rule in ('html[lang="hi"] .page-h1 { font-weight: 800; }',
+                 'html[lang="hi"] .ask-h2 { font-weight: 700; }',
+                 'html[lang="hi"] .hero-window .val { font-weight: 700; }'):
+        assert rule in text, rule
+    # The English values these override, still where they were.
+    assert ".page-h1 { font-size: 26px; font-weight: 700;" in text
+    assert ".ask-h2 { font-size: 20px; font-weight: 600; }" in text
+    assert ".hero-window .val { font-family: var(--disp); font-weight: 600;" in text
+
+
+def test_a_normal_question_never_takes_the_error_path(client):
+    """The /ask handler wraps everything in `except Exception` so a failure
+    still renders something. That safety net turned a real defect into a
+    plausible-looking page: a signature mismatch raised TypeError, was
+    swallowed, and the reader got a generic answer with NO sources -- the
+    provenance panel silently lost the guidance it exists to show.
+
+    A net that catches bugs and hides them is worse than no net, so the happy
+    path is now asserted directly: sources present, and not the error copy."""
+    from saafsaans.web import main as web_main
+
+    took_error_path = []
+    original = web_main.add_turn
+
+    def watch(sid, turn):
+        if turn.get("kind") == "answer" and not turn.get("sources"):
+            took_error_path.append(turn)
+        return original(sid, turn)
+
+    web_main.add_turn = watch
+    try:
+        client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    finally:
+        web_main.add_turn = original
+
+    assert not took_error_path, "the answer path raised and was swallowed by the net"
+    body = client.get("/", params={**PERSONA, "prov": "0"}).text
+    assert "src-tag" in body and "Published guidance used" in body
+
+
+def test_the_answer_headings_follow_the_language(client):
+    from saafsaans.web import presenters as pr
+    english = pr.answer_sections({"verdict_detail": "x", "precautions": ["y"],
+                                  "symptoms": ["z"]})
+    hindi = pr.answer_sections({"verdict_detail": "x", "precautions": ["y"],
+                                "symptoms": ["z"]}, lang="hi")
+    assert [b["heading"] for b in english] == ["Verdict", "What to do", "When to seek help"]
+    for block in hindi:
+        assert any("ऀ" <= ch <= "ॿ" for ch in block["heading"]), block["heading"]
+
+
+def test_a_stand_in_figure_is_never_called_a_reading(client, monkeypatch):
+    """waqi.get_aqi returns a hardcoded per-locality figure on every failure --
+    no stored prior reading is consulted on this path. The page used to call
+    that "the last good reading, from 2:00 PM", where 2:00 PM was the current
+    clock, because the fallback carries no observation time. Both halves false,
+    and City Pulse's own legend defined the two words apart, so the two pages
+    contradicted each other about the same data."""
+    from saafsaans.services import waqi
+    from saafsaans.web import main as web_main
+
+    monkeypatch.setattr(web_main.waqi, "get_aqi",
+                        lambda locality, es_client=None: (waqi._fallback(locality), "fallback"))
+    body = client.get("/", params=PERSONA).text
+    assert "SAMPLE" in body
+    assert "CACHED" not in body
+    assert "last good reading" not in body
+    assert "stand-in, not a measurement" in body
+
+
+def test_every_disclosure_link_returns_the_reader_to_what_it_opened(client):
+    """This app ships no JavaScript, so opening a disclosure is a real page
+    load. That is fine only if the reader lands back where they were: without a
+    fragment the browser jumps to the top, and the thing they just opened is
+    below the fold, so the page appears to reload and do nothing.
+
+    The persona editor and the provenance panel always carried anchors; the
+    three term links did not, which made them the one control on the page that
+    looked broken when it was working."""
+    import re
+    body = client.get("/", params=PERSONA).text
+    links = re.findall(r'<a[^>]+href="(/\?[^"]*\b(?:term|edit|prov)=[^"]*)"', body)
+    assert links, "no disclosure links found"
+    missing = [href for href in links if "#" not in href]
+    assert not missing, f"disclosure links with no anchor to return to: {missing}"
+
+
+def test_opening_a_term_lands_on_the_card_that_holds_the_definition(client):
+    body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
+    assert 'id="reading"' in body
+    assert 'class="def-slot"' in body
+
+
+def test_the_scale_marker_never_prints_a_missing_reading():
+    """A WAQI feed can report ozone and no particulate at all. This app refuses
+    to convert a US EPA figure into Indian band names, so `reading["aqi"]` is
+    None on that path -- see test_missing_pm25_no_crash, which pins it -- and
+    the headline duly renders "--". The scale marker did not: it printed
+    Python's "None ▾", and printed it at scale_position(None) = 0.0, which
+    parks the caret at the Good end of the bar. So the one line that says where
+    on the scale you are said "Good" for a reading the app had just declined to
+    compute.
+
+    Found by review against master, where this path does not exist, and wrongly
+    dismissed as unreachable there. It is reachable here.
+    """
+    from unittest import mock
+
+    from saafsaans.services import waqi
+
+    reading = {"aqi": None, "pm25": None, "pm10": None, "dominant_pollutant": None,
+               "feed_aqi": 150, "feed_dominant": "o3", "stale": False}
+    with mock.patch.object(waqi, "get_aqi", return_value=(reading, "ok")):
+        with TestClient(app) as client:
+            body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                           "condition": "None", "activity": "Walking"}).text
+
+    assert "None ▾" not in body, "the scale marker printed Python's None"
+    assert "scale-mark" not in body, (
+        "the marker rendered for a reading with no index; any value it shows "
+        "asserts a position on the bar that this reading does not have"
+    )
+
+
+def test_the_scale_marker_is_hidden_from_assistive_technology():
+    """It duplicates the .aqi-num heading, and its caret is decoration: the bar
+    it indexes is itself aria-hidden, so the position means nothing without
+    sight of it."""
+    with TestClient(app) as client:
+        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                       "condition": "None", "activity": "Walking"}).text
+    start = body.find('class="scale-mark"')
+    assert start != -1, "no marker rendered to check"
+    # Its OWN tag, not a window of surrounding markup: the very next element is
+    # `<div class="scale" aria-hidden="true">`, so a fixed-width slice passes
+    # whether or not the marker carries the attribute. Caught by mutating the
+    # template and watching this test stay green.
+    marker = body[start:body.index(">", start)]
+    assert 'aria-hidden="true"' in marker, (
+        "the scale marker is announced to a screen reader, which reads the "
+        "AQI number twice and then a bare caret"
+    )

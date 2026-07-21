@@ -26,7 +26,7 @@ Hindi is drafted and gated behind a banner saying no Hindi speaker has checked i
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                      # optional: blank = mock mode
-python saafsaans/setup_indices.py         # create 4 indices + seed 34 advisories
+python saafsaans/setup_indices.py         # create 4 indices + seed 43 advisories
 python -m saafsaans.seed_demo_history     # optional: backfill so System has data
 uvicorn saafsaans.web.main:app --reload --port 8010
 ```
@@ -35,9 +35,12 @@ Runs with **zero keys**: every external call is timeout-bounded with a determini
 Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
 and the dashboards.
 
-To put it on the internet, see [`docs/DEPLOY.md`](docs/DEPLOY.md) — a `Dockerfile` that has been
-built and run, and the current free-tier terms of five hosts with the URL each claim was read
-from. Nothing has been deployed; that needs an account this repository does not have.
+It is deployed at **https://saafsaans.fly.dev** — one 256 MB Fly.io machine in Mumbai, scaled to
+zero when idle, so the first request after a quiet spell is slow. `WAQI_TOKEN` is set;
+`OPENROUTER_API_KEY` deliberately is not, so the public instance answers from the rule-based
+fallback rather than a model. `/health` reports which of each is live. See
+[`docs/DEPLOY.md`](docs/DEPLOY.md) for the `Dockerfile` and the free-tier terms of five hosts,
+with the URL each claim was read from.
 
 ## Four views
 
@@ -79,7 +82,8 @@ white, and in dark mode maroon `#7E0023` falls to ~1.4:1 — making the *most se
 ramp inverts its lightness direction between themes. The US EPA publishes its own accessible
 alternate ("ColorVision Assist") for the same reason.
 
-**Degradation is visible, never disguised.** A cached reading says `◌ CACHED`, a dead feed shows
+**Degradation is visible, never disguised.** On City Pulse a cached reading is tagged `CACHED`
+with its age beside it, a place held with no reading at all is tagged `SAMPLE`, a dead feed shows
 a notice, and a rule-based answer is logged as one. The Observability view exists to make that
 checkable rather than claimed.
 
@@ -99,11 +103,18 @@ grep -rnE "multi_match|query_string|fuzzy|match_phrase|\"match\"" saafsaans --in
 `terms`, `percentiles`, `date_histogram` and `top_hits` over the telemetry and security
 indices (`services/metrics.py`). And it retrieves advisories with `range` filters on the AQI
 band plus `term` clauses on the persona keywords (`services/es.py`) — exact matching on
-keyword fields, with the score coming from how many persona terms hit, not from relevance
-over prose.
+keyword fields, never relevance over prose.
+
+**Elasticsearch does not decide what you are shown.** Its result set is ranked in Python by
+`es.rank_advisories`, which drops every advisory whose condition, activity or age group
+contradicts the persona, orders what is left by how specifically it names that persona, and
+tags each row `persona` or `general` so the page can say which is which. The same function
+ranks the in-process path, so the two cannot drift apart. It was added because the ES `should`
+boost only ever *added* points: a row written for someone else scored zero and was returned
+anyway, and a senior with COPD was shown pregnancy and paediatric sources.
 
 **The app runs without it.** `search_advisories` falls back to an in-process filter over the
-same 34 seeded advisories, every metrics call is guarded, and the System views render their
+same 43 seeded advisories, every metrics call is guarded, and the System views render their
 designed empty states. Verified rather than asserted: the container in
 [`docs/DEPLOY.md`](docs/DEPLOY.md) runs with no Elasticsearch at all and `/health` returns
 `{"ok":true,"es":"none",...}` while every view serves 200.
@@ -127,6 +138,24 @@ fixed constant and the question is framed as *data, not instructions*; every att
 **Exposed edges.** Secrets live only in `.env` (git-ignored). Every outbound call is
 timeout-bounded (WAQI 5s, LLM 30s, ES 10s) with a graceful fallback.
 
+**Third parties in the page.** The type families are loaded from Google Fonts — three Latin
+faces on every page, plus a Devanagari display face requested only when Hindi is active — so a
+visitor's IP address reaches Google on every page view. The persona does not: it travels in
+the query string, and the page declares
+`<meta name="referrer" content="strict-origin-when-cross-origin">`, so a cross-origin request
+carries the origin alone and never the age, condition or activity. That is asserted by
+`test_no_page_can_leak_the_persona_in_a_referer_header`, and
+`test_the_only_third_party_origin_is_the_font_host` fails if a third origin is ever added.
+The IP exposure is real and is not fixed: self-hosting the faces would remove it, and
+that is a change to the deploy artifact whose rendering cannot be checked without a person
+looking at it. It is recorded here rather than done quietly.
+
+**What the server records.** Telemetry and security events go through the field whitelists in
+`services/es.py`. The shipped container also runs uvicorn with `--no-access-log`, because the
+default access line prints the full request path — and therefore the persona — beside the
+client IP. `test_the_shipped_server_does_not_log_the_persona` asserts the flag is on the
+shipped command.
+
 ## Layout
 
 ```
@@ -137,22 +166,23 @@ saafsaans/
     templates/          base · today · city · system · guide
     static/app.css      design tokens, per-band sky, severity ramp
   services/
-    config · normalize · guard · waqi · forecast · risk · es · metrics · llm
-  data/advisories.py    34 seed advisories
+    aqi_scale · clock · config · normalize · guard · waqi · forecast · risk · es
+    metrics · llm · i18n
+  data/advisories.py    43 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  363 tests
+tests/                  773 tests, 25 files
 docs/                   design brief, screenshots, specs
 ```
 
 ## Known limitations
 
 - **The Hindi is drafted, not reviewed.** `?lang=hi` serves a committed Hindi translation of
-  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 34
+  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 43
   advisories. **No Hindi speaker has checked it**, so every Hindi page carries a banner saying
   so, and that banner is a condition of the feature shipping rather than a nicety — a
   mistranslated instruction about an inhaler is worse than English. The persona sentence, the
-  comparison line and the driver chips are still English: they are composed in Python rather
-  than looked up, and translating them needs `presenters.py` restructured.
+  comparison line and the driver chips are translated too — an earlier version of this file said
+  they were not, which stayed written down after the code moved on.
 - **Roughly half the station feeds do not work.** An audit of all 21 on 20 July 2026 found 11
   slugs returning 404 and several serving month-old readings as current. The app now checks
   the feed's own station name against the locality on every fetch and refuses readings older

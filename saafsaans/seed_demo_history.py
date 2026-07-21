@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 from elasticsearch.helpers import bulk
 
-from .services import es
+from .services import clock, es
 
 # Per-station baseline AQI and its rough amplitude for the diurnal swing.
 STATIONS = {
@@ -47,7 +47,13 @@ def _iso(dt: datetime) -> str:
 
 
 def _diurnal_factor(hour: int) -> float:
-    """Multiplier in ~[0.7, 1.3]: peaks around 06:00, dips mid-afternoon."""
+    """Multiplier in ~[0.7, 1.3]: peaks around 06:00 IST, dips mid-afternoon.
+
+    ``hour`` must be an IST hour. It used to be read straight off a UTC
+    timestamp, which shifted the whole curve by five and a half hours and put
+    the seeded "worst air" peak at 11:30 IST -- late morning, on the way down
+    towards the afternoon trough this same docstring describes.
+    """
     # Shift so the cosine peak lands near early morning (hour 6).
     return 1.0 + 0.3 * math.cos((hour - 6) / 24.0 * 2 * math.pi)
 
@@ -57,7 +63,7 @@ def _reading_docs(now: datetime):
     for station, base in STATIONS.items():
         for i in range(steps):
             ts = now - timedelta(minutes=i * READING_INTERVAL_MIN)
-            factor = _diurnal_factor(ts.hour)
+            factor = _diurnal_factor(clock.to_ist(ts).hour)
             aqi = int(max(20, base * factor + random.uniform(-25, 25)))
             pm25 = round(aqi * random.uniform(0.7, 0.9), 1)
             pm10 = round(aqi * random.uniform(1.1, 1.5), 1)

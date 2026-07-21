@@ -7,8 +7,12 @@ Dual-mode + mock-first:
                 and every index/log call is a silent no-op.
 
 Every write helper swallows exceptions: logging and indexing must never crash
-a chat turn. Search always returns at least one advisory when any seed matches
-the AQI band, and degrades to in-process filtering on any ES error.
+a chat turn. Search never returns empty while the corpus is non-empty, and
+degrades to in-process ranking on any ES error.
+
+Retrieval is ranked, not merely filtered by AQI band: an advisory written for a
+different persona is excluded rather than returned with a score of zero. See
+``rank_advisories``.
 """
 from datetime import datetime, timezone
 
@@ -93,6 +97,15 @@ def log_security(client, doc: dict) -> None:
 
 
 # --- Advisory search ------------------------------------------------------
+# Tag on a *returned* advisory saying why it was chosen. Never stored in
+# data/advisories.py, never indexed, and not part of the five-field i18n key.
+RELEVANCE_PERSONA = "persona"
+RELEVANCE_GENERAL = "general"
+# ES is asked for more rows than the caller wants because the persona filter
+# runs after retrieval: a page of 4 band-matching hits can contain 0 that apply.
+FETCH_K = 25
+
+
 def build_query(aqi: int, condition: str, activity: str, age_group: str, k: int, with_should: bool):
     """Build the bool query. ``with_should=False`` is the filter-only retry."""
     query = {
@@ -119,65 +132,123 @@ def build_query(aqi: int, condition: str, activity: str, age_group: str, k: int,
     return {"query": query, "size": k}
 
 
-def _in_process_search(aqi, condition, activity, age_group, k):
-    """Filter + score the seed advisories in pure Python (no ES).
+def applies_to(advisory: dict, condition: str, activity: str, age_group: str) -> bool:
+    """True when every persona field of ``advisory`` fits this reader.
 
-    Score = number of persona keyword matches (condition/activity/age).
-    Guarantees a non-empty result: if nothing sits in the AQI band, returns the
-    advisories whose band is nearest to ``aqi``.
+    A field matches when the advisory's value is ``"any"`` or equals the
+    reader's. A reader value of ``"any"`` therefore matches only advisories
+    whose field is ``"any"``: an unstated condition does not entitle the reader
+    to asthma advice, and scoring a mismatch zero is not the same as excluding
+    it. Missing keys default to ``"any"`` because ES documents are external
+    data and may be shaped by whatever last seeded the index.
     """
-    def score(a):
-        s = 0
-        if condition != "any" and a["condition"] == condition:
-            s += 1
-        if activity != "any" and a["activity"] == activity:
-            s += 1
-        if age_group != "any" and a["age_group"] == age_group:
-            s += 1
-        return s
+    return all(advisory.get(field, "any") in ("any", value)
+               for field, value in (("condition", condition),
+                                    ("activity", activity),
+                                    ("age_group", age_group)))
 
-    in_band = [a for a in ADVISORIES if a["aqi_min"] <= aqi <= a["aqi_max"]]
-    if in_band:
-        in_band.sort(key=score, reverse=True)
-        return in_band[:k]
 
-    # Nearest-band fallback so the UI always has content.
-    def distance(a):
-        if aqi < a["aqi_min"]:
-            return a["aqi_min"] - aqi
-        if aqi > a["aqi_max"]:
-            return aqi - a["aqi_max"]
-        return 0
+def specificity(advisory: dict, condition: str, activity: str, age_group: str) -> int:
+    """0-3: how many of the advisory's non-``"any"`` fields name this persona."""
+    return sum(1 for field, value in (("condition", condition),
+                                      ("activity", activity),
+                                      ("age_group", age_group))
+               if advisory.get(field, "any") == value != "any")
 
-    nearest = sorted(ADVISORIES, key=distance)
-    return nearest[:k]
+
+def _band_distance(advisory: dict, aqi: int) -> int:
+    low = advisory.get("aqi_min", 0)
+    high = advisory.get("aqi_max", 999)
+    if aqi < low:
+        return low - aqi
+    if aqi > high:
+        return aqi - high
+    return 0
+
+
+def rank_advisories(docs: list, aqi, condition: str, activity: str,
+                    age_group: str, k: int) -> list:
+    """Up to ``k`` of ``docs``, applicable to this persona and tagged.
+
+    ``aqi`` may be ``None``, meaning the feed yielded no usable particulate. In
+    that case the result is ``[]``: no band applies, because no band is known.
+    No band is substituted, no nearby band is used, and the never-empty rule
+    below does NOT apply — that rule exists so a *known* reading always has
+    guidance, not so an unknown one gets guidance invented for it. Coercing the
+    missing value to 0 retrieves the 0-100 "outdoor activity is fine for
+    everyone" row, which is the cleanest air in the corpus and the opposite of
+    what the rest of the page says about a missing reading.
+
+    For a known ``aqi``, never returns empty for a non-empty input: if nothing
+    applies to the persona the input is used unchanged, and if nothing sits in
+    the AQI band the nearest band is used. That is the only empty-fallback rule
+    in this module, so callers need no second one.
+
+    Returns new dicts carrying ``relevance``. The input is never mutated:
+    ``ADVISORIES`` is a module constant and a stray key on it would be indexed.
+    """
+    if aqi is None:
+        return []
+
+    candidates = [d for d in docs if applies_to(d, condition, activity, age_group)]
+    if not candidates:
+        candidates = docs
+
+    nearest = min((_band_distance(d, aqi) for d in candidates), default=0)
+    in_band = [d for d in candidates if _band_distance(d, aqi) == nearest]
+
+    ranked = sorted(in_band,
+                    key=lambda d: specificity(d, condition, activity, age_group),
+                    reverse=True)[:k]
+    return [dict(d, relevance=(RELEVANCE_PERSONA
+                               if specificity(d, condition, activity, age_group)
+                               else RELEVANCE_GENERAL))
+            for d in ranked]
+
+
+def _in_process_search(aqi, condition, activity, age_group, k):
+    """Rank the seed advisories in pure Python (no ES)."""
+    return rank_advisories(ADVISORIES, aqi, condition, activity, age_group, k)
 
 
 def _hits_to_docs(resp):
     return [h["_source"] for h in resp.get("hits", {}).get("hits", [])]
 
 
-def search_advisories(aqi: int, condition: str, activity: str, age_group: str, k: int = 4,
+def search_advisories(aqi, condition: str, activity: str, age_group: str, k: int = 4,
                       client="__auto__"):
     """Return up to ``k`` advisories most relevant to persona + AQI.
 
-    Always returns a non-empty list when any advisory can apply. Uses ES when a
-    client is available, else (or on any ES error) an in-process search.
+    ``aqi=None`` means there is no reading, and returns ``[]`` — no query is
+    issued, because there is no band to query for. Callers must be able to
+    render an answer with no advisory; ``llm._rule_based`` falls back to its
+    generic sentence and ``llm.build_user_message`` tells the model none were
+    found. See ``rank_advisories`` for why no band is substituted.
+
+    For a known ``aqi``, always returns a non-empty list when any advisory can
+    apply. Uses ES when a client is available, else (or on any ES error) an
+    in-process search.
     """
+    if aqi is None:
+        return []
     if client == "__auto__":
         client = get_client()
     if client is None:
         return _in_process_search(aqi, condition, activity, age_group, k)
     try:
         resp = client.search(index=INDEX_ADVISORIES,
-                             **build_query(aqi, condition, activity, age_group, k, with_should=True))
+                             **build_query(aqi, condition, activity, age_group,
+                                           FETCH_K, with_should=True))
         docs = _hits_to_docs(resp)
         if not docs:
             resp = client.search(index=INDEX_ADVISORIES,
-                                 **build_query(aqi, condition, activity, age_group, k, with_should=False))
+                                 **build_query(aqi, condition, activity, age_group,
+                                               FETCH_K, with_should=False))
             docs = _hits_to_docs(resp)
         if not docs:
             return _in_process_search(aqi, condition, activity, age_group, k)
-        return docs
+        # rank_advisories never returns empty for a non-empty input, so zero
+        # hits above is the only empty case and it is already handled.
+        return rank_advisories(docs, aqi, condition, activity, age_group, k)
     except Exception:
         return _in_process_search(aqi, condition, activity, age_group, k)

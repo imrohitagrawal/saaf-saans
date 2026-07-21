@@ -64,6 +64,29 @@ def test_zero_hits_triggers_filter_only_retry():
     assert "should" not in client.search_calls[1]["query"]["bool"]
 
 
+def test_connected_hits_are_filtered_to_the_persona_too():
+    """The band filter is in the query; the persona filter cannot be, because a
+    `should` clause boosts and never excludes. So the ranking that protects the
+    in-process path has to run over ES hits as well."""
+    client = FakeESClient([_hits([
+        {"advice": "senior", "condition": "any", "activity": "any",
+         "age_group": "senior", "aqi_min": 401, "aqi_max": 999},
+        {"advice": "asthma", "condition": "asthma", "activity": "any",
+         "age_group": "any", "aqi_min": 301, "aqi_max": 999},
+    ])])
+    docs = es.search_advisories(450, "asthma", "any", "child", client=client)
+    assert [d["advice"] for d in docs] == ["asthma"]
+    assert docs[0]["relevance"] == es.RELEVANCE_PERSONA
+
+
+def test_connected_search_asks_for_more_rows_than_it_returns():
+    """Ranking happens after retrieval, so a page of k band-matching hits can
+    contain zero that apply to the reader."""
+    client = FakeESClient([_hits([{"advice": "a"}])])
+    es.search_advisories(250, "asthma", "any", "any", k=4, client=client)
+    assert client.search_calls[0]["size"] == es.FETCH_K > 4
+
+
 def test_double_zero_falls_back_in_process():
     client = FakeESClient([_hits([]), _hits([])])
     docs = es.search_advisories(250, "asthma", "any", "any", client=client)
