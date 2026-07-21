@@ -126,7 +126,10 @@
     <div class="row" style="align-items:baseline;gap:12px">
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
       <span class="band-chip">{{ band_label | upper }}</span>
-      <span class="mono" style="font-size:11px;color:var(--text-3)">
+      {#- A class, not an inline size: an inline declaration outranks every
+          selector, so a size written here is permanently out of reach of the
+          Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
+      <span class="mono reading-meta">
         <a class="term" href="/?{{ q_term_aqi }}#reading" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
         · {{ T('ui', 'cpcb_scale', "India's CPCB scale, from PM2.5 and PM10") }} · {{ obs_time }}
       </span>
@@ -206,7 +209,7 @@
       {#- The claim is about the sources, not the sentence. The model writes the
           answer; what this app controls is which published guidance reaches it,
           and that is now filtered to the reader's persona. -#}
-      <span style="font-size:12.5px;color:var(--text-3)">{{ T('ui', 'ask_sub', 'grounded in the reading above · guidance matched to your persona') }}</span>
+      <span class="ask-sub">{{ T('ui', 'ask_sub', 'grounded in the reading above · guidance matched to your persona') }}</span>
     </div>
 
     <form class="ask-form" method="post" action="/ask?{{ q }}">

@@ -275,6 +275,12 @@ select, input[type="text"] {
 .refusal b { display: block; font-size: 13.5px; }
 .refusal p:not(.caveat) { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .ask-h2 { font-size: 20px; font-weight: 600; }
+/* Both of these were inline `style="font-size:..."` in today.html. An inline
+   declaration outranks every selector, so the Devanagari floor below could not
+   reach them and both rendered under it on the Hindi page. They are classes so
+   that the floor applies, not for tidiness. */
+.reading-meta { font-size: 11px; color: var(--text-3); }
+.ask-sub { font-size: 12.5px; color: var(--text-3); }
 .ask-form { margin-top: 16px; display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; font-size: 14px; }
 .btn { border: none; cursor: pointer; padding: 11px 20px; border-radius: 10px;
@@ -592,7 +598,9 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .station .bd,
 :lang(hi) .scale-ends,
 :lang(hi) .bar-row,
-:lang(hi) .sysbar { font-size: 12.5px; }
+:lang(hi) .sysbar,
+:lang(hi) .reading-meta,
+:lang(hi) .ask-sub { font-size: 12.5px; }
 /* The provenance line is the densest text on the site and was entirely mono. */
 :lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
 :lang(hi) .hint,

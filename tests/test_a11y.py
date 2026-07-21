@@ -890,23 +890,24 @@ def test_the_resolver_can_see_a_size_the_flat_selector_map_cannot(sheet, hindi_p
         "single classes only and proves less than it appears to")
 
 
-# Inline `style` attributes outrank every selector, so no `:lang(hi)` rule can
-# raise them. These two are the remaining ones, both in today.html, which is not
-# this change's file to edit; they are recorded rather than waived so the set can
-# only shrink -- an exact match means adding one anywhere fails this suite.
-INLINE_FONT_SIZE_DEBT = {
-    ("today.html", "font-size:11px;color:var(--text-3)"),
-    ("today.html", "font-size:12.5px;color:var(--text-3)"),
-}
+# The debt is now zero. It was two entries in today.html; both moved into
+# app.css as `.reading-meta` and `.ask-sub`, which is what let the Devanagari
+# floor reach them. The empty set is not a formality -- it is what makes this
+# assertion bite on the NEXT inline size anyone writes, anywhere.
+INLINE_FONT_SIZE_DEBT: set = set()
 
-def test_no_template_carries_an_inline_font_size(sheet, hindi_pages):
+
+def test_no_template_carries_an_inline_font_size():
     """An inline declaration outranks every selector, `!important` included
     (app.css has none outside the reduced-motion block). A size written there is
     therefore permanently out of reach of the Devanagari floor, whatever the
     stylesheet later says -- which is why the 24-hour trend header could not be
     fixed in CSS at all and had to move out of the template.
 
-    Recorded as an exact set, not a threshold: the debt can only shrink.
+    Recorded as an exact set, not a threshold, so the debt can only shrink. It
+    has now shrunk to nothing; the companion assertion that each entry really
+    did put Devanagari under the floor went with the last entry, because a check
+    that requires a defect to exist cannot survive the defect being fixed.
     """
     import pathlib
     found = set()
@@ -918,12 +919,6 @@ def test_no_template_carries_an_inline_font_size(sheet, hindi_pages):
         "inline font-size in a template, where no :lang(hi) rule can reach it.\n"
         f"  added:   {sorted(found - INLINE_FONT_SIZE_DEBT)}\n"
         f"  removed: {sorted(INLINE_FONT_SIZE_DEBT - found)} (delete it from the debt set)")
-    # And the debt is not academic: each entry really does put Devanagari under
-    # the floor on a shipped page, which is the reason it is being tracked.
-    under = [(size, text) for size, why, _, text in _devanagari_sizes(sheet, hindi_pages, "top")
-             if why == "inline style" and size + 0.001 < DEVANAGARI_FLOOR]
-    assert under, ("no inline font-size puts Devanagari under the floor any more -- clear "
-                   "INLINE_FONT_SIZE_DEBT rather than leaving a dead exemption")
 
 
 # --- 7. The band ramp as text, not as a swatch ------------------------------
