@@ -56,7 +56,14 @@
       </div>
       <div>
         <dt>{{ T('guide', 'q_data_source', 'Where does the air data come from?') }}</dt>
-        <dd>{{ T('guide', 'a_data_source', "Ground monitoring stations run under India's CPCB network, read through the WAQI feed. When that feed does not answer for a place, the site shows a typical stand-in figure for it, says so above the advice, and marks it SAMPLE — it is not a measurement. On City Pulse a CACHED tag also carries the reading's age, and a place we hold no reading for at all is tagged SAMPLE instead — a stand-in figure, not a measurement. Nothing old or stood-in is ever presented as live.") }}</dd>
+        {#- This answer describes the data policy, so it is the one paragraph on
+            the site that must be re-read every time the policy moves. It spent
+            a release describing the deleted SAMPLE behaviour -- promising the
+            reader a "typical stand-in figure" and a tag word that no page
+            emitted any more -- while the pages themselves printed NO READING.
+            test_guide_describes_the_tags_the_app_actually_prints holds the two
+            together now. -#}
+        <dd>{{ T('guide', 'a_data_source', "Ground monitoring stations run under India's CPCB network, read through the WAQI feed. When that feed does not answer for a place, no number is shown for it: we do not have one, and we will not invent one. If we already hold an earlier measurement for that place, we tell you what it was and what day it was taken, and nothing else is worked out from it — no band, no colour, no advice. On City Pulse a CACHED tag marks a reading we hold that is more than three hours old and says how old it is, and NO READING marks a place we hold nothing for. Nothing old is ever presented as live.") }}</dd>
       </div>
       <div>
         <dt>{{ T('guide', 'q_ignores', 'Why does the answer sometimes ignore my question?') }}</dt>
