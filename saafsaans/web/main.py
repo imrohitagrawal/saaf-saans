@@ -352,6 +352,9 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         "advisory_text": _advisory_translator(lang),
         "pct": pr.pct,
         "pollutant": pr.pollutant_label,
+        # The footer names the primary source on every page, so the host comes
+        # from the module that owns it rather than from a template literal.
+        "cpcb_host": cpcb.SOURCE_HOST,
     }
 
 
@@ -477,9 +480,6 @@ def today(request: Request):
         # The templates call this per stored turn, so a turn indexed before the
         # field existed answers "live"/"none" exactly as it did before.
         "freshness": pr.freshness,
-        # The domain the provenance panel prints, from the module that owns it
-        # rather than written out in the template.
-        "cpcb_host": cpcb.SOURCE_HOST,
         # Says which particulates the index was actually worked out from. The
         # caption used to claim both, unconditionally, over a reading that can
         # be built from one.

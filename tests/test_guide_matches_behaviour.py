@@ -93,3 +93,97 @@ def test_the_system_view_does_not_call_a_feed_miss_a_cache_hit(lang):
     assert label in body, (lang, label)
     cached = i18n.t(lang, "ui", "tag_cached", "CACHED")
     assert cached.lower() not in label.lower(), (lang, label, cached)
+
+
+# --------------------------------------------------- which source it reads first
+#
+# The Guide said readings are "read through the WAQI feed" and described
+# converting WAQI's US EPA index back into concentrations -- neither of which
+# happens on a CPCB reading, and CPCB is the source the code tries FIRST.
+# Nothing anywhere named data.gov.in. Rule 5, shipped, in two languages.
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_guide_names_the_source_the_code_actually_reads_first(lang):
+    """The host token is derived from the module, not typed here, so changing
+    the endpoint moves this test with it.
+
+    The SOURCE_NAME half ("CPCB") was already satisfied before this run; the
+    host is the half that bites.
+    """
+    from urllib.parse import urlparse
+
+    from saafsaans.services import cpcb
+
+    hostname = urlparse(cpcb.ENDPOINT).hostname
+    assert hostname.endswith(cpcb.SOURCE_HOST), (
+        "SOURCE_HOST no longer describes the endpoint this module calls")
+
+    with TestClient(app) as c:
+        body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
+    assert cpcb.SOURCE_NAME in body, lang
+    assert cpcb.SOURCE_HOST in body, lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_guide_still_names_the_fallback(lang):
+    """The rewrite must not delete the fallback's existence: WAQI really is
+    consulted when CPCB has nothing, and Wazirpur is the case where it wins."""
+    with TestClient(app) as c:
+        body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
+    assert "WAQI" in body, lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_conversion_claim_is_scoped_to_the_feed_it_applies_to(lang):
+    """A paragraph-level property, not a spelling.
+
+    The US-EPA inversion happens only to a reading that came through WAQI --
+    tests/test_cpcb.py::test_a_cpcb_concentration_is_not_put_through_the_waqi_
+    inversion forbids it on the other path. So the paragraph making that claim
+    must name WAQI, and the sentence naming CPCB as the source read first must
+    not make it.
+    """
+    import re
+
+    from saafsaans.services import cpcb
+
+    with TestClient(app) as c:
+        body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
+    # Scoped to the section that explains the scale. "US EPA" also appears in
+    # the risk-score provenance, where it cites published breathing rates and
+    # has nothing to do with any conversion.
+    section = body[body.find('id="numbers"'):]
+    section = section[:section.find("</section>")]
+    assert len(section) > 200, (lang, "the scale section did not render")
+    paragraphs = [re.sub(r"<[^>]+>", " ", p)
+                  for p in re.findall(r"<p[^>]*>(.*?)</p>", section, re.S)]
+    epa = [p for p in paragraphs if "EPA" in p]
+    assert epa, (lang, "no paragraph mentions the EPA scale at all")
+    for para in epa:
+        assert "WAQI" in para, (lang, para)
+
+    # The answer that names the primary source must not be the one claiming a
+    # conversion: that answer is about a path where no conversion happens.
+    answers = [re.sub(r"<[^>]+>", " ", a)
+               for a in re.findall(r"<dd[^>]*>(.*?)</dd>", body, re.S)]
+    primary = [a for a in answers if cpcb.SOURCE_HOST in a]
+    assert primary, (lang, "no answer names the primary source")
+    for para in primary:
+        assert "EPA" not in para, (lang, para)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("path", ["/", "/guide", "/city"])
+def test_every_page_footer_names_the_primary_source(lang, path):
+    """The only source list on EVERY page. It said "Data: WAQI/CPCB" --
+    fallback first, primary second, and no host at all."""
+    from saafsaans.services import cpcb
+
+    with TestClient(app) as c:
+        body = htmllib.unescape(c.get(path, params={"lang": lang}).text)
+    footer = body[body.find('class="foot"'):]
+    footer = footer[:footer.find("</footer>")]
+    assert len(footer) > 50, (lang, path, "no footer rendered")
+    assert cpcb.SOURCE_NAME in footer, (lang, path)
+    assert cpcb.SOURCE_HOST in footer, (lang, path)
+    assert footer.index(cpcb.SOURCE_NAME) < footer.index("WAQI"), (
+        lang, path, "the fallback is named before the primary source")

@@ -135,6 +135,11 @@ def _open_panel(client, lang):
     turn_id = body.split('id="turn-')[1].split('"')[0]
     opened = client.get("/", params={**PERSONA, "lang": lang, "prov": turn_id}).text
     panel = opened[opened.find('class="prov-bar"'):]
+    # Cut the page chrome off the tail. The footer names the primary source on
+    # EVERY page, so an expanded slice running to </html> would find the host
+    # whatever the panel said and every absence assertion below would be
+    # unfailable.
+    panel = panel[:panel.find("<footer")] if "<footer" in panel else panel
     split = panel.find('class="prov-body"')
     assert split > 0, "the expanded panel did not render; the split is meaningless"
     return panel[:split], panel[split:]

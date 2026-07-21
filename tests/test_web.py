@@ -1072,11 +1072,16 @@ def test_a_turn_with_no_reading_claims_no_source_at_all(client, hindi):
     hindi("ui", "prov_source_cpcb_before", "MARKER-CPCB")
     client.post("/ask", params={**PERSONA, "lang": "hi"},
                 data={"question": "Can I go out?"})
-    html = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
-    assert "MARKER-FEED" not in html
-    assert "MARKER-CPCB" not in html
+    page = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
+    # Scoped to the panel: the footer names the primary source on every page,
+    # so a whole-page assertion here could never fail.
+    panel = page[page.find('class="prov-body"'):]
+    panel = panel[:panel.find("<footer")]
+    assert len(panel) > 100, "the panel did not render; the slice is meaningless"
+    assert "MARKER-FEED" not in panel
+    assert "MARKER-CPCB" not in panel
     from saafsaans.services import cpcb
-    assert cpcb.SOURCE_HOST not in html
+    assert cpcb.SOURCE_HOST not in panel
 
 
 def test_the_page_load_stamp_does_not_hand_a_hindi_page_an_english_month(client, hindi):

@@ -347,12 +347,19 @@ def who_line(pm25, lang: str = "en", *, has_index: bool = False) -> str:
     Deliberately phrased about the air *right now*, not about what the reader
     has breathed today. WHO's 15 µg/m3 figure is a 24-hour mean, and is itself
     defined as the 99th percentile of the annual distribution of those means --
-    not a ceiling for any one day. The app holds a single near-instantaneous
-    station reading. Saying "today you breathed in ten times more than is safe
-    in a day" would assert both a daily average the app does not have and an
-    inhaled dose it has no basis to compute. The mismatch is kept visible in
-    the sentence -- "right now" against "for a whole day" -- and explained in
-    full in the Guide.
+    not a ceiling for any one day. Saying "today you breathed in ten times more
+    than is safe in a day" would assert an inhaled dose the app has no basis to
+    compute. The mismatch is kept visible in the sentence -- "right now"
+    against "for a whole day" -- and explained in full in the Guide.
+
+    What the app holds depends on which source answered, and this docstring
+    used to state one of the two as though it were both: "a single
+    near-instantaneous station reading". By measurement
+    (docs/decisions/0005-averaging-window.md) CPCB's avg_value is a rolling
+    24-hour mean and WAQI's iaqi is the latest hour, so the sentence's "right
+    now" is true of a WAQI reading and understates what a CPCB reading is. The
+    Guide now says that in the copy a reader sees; wording the line itself per
+    source is a separate change and is NOT made here.
 
     No microgram figure appears here: this sentence sits on the reading card
     where a lay reader meets it, and the unit belongs in the Guide.
