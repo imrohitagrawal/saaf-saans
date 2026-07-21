@@ -448,6 +448,13 @@ def test_no_comment_here_cites_a_source_line_number():
     thing they describe. This test is what stops the next one being written.
     """
     source = pathlib.Path(__file__).read_text(encoding="utf-8")
-    cited = re.findall(r"[A-Za-z_]+\.(?:py|html|css|md):[0-9]+", source)
+    # The stem allows digits, hyphens and directory separators, so a filename
+    # carrying a digit or a hyphen, and a citation written as a path rather
+    # than a bare basename, are all caught. The first spelling of this guard
+    # was [A-Za-z_]+ for the stem and would have missed every one of them: a
+    # guard against rot with a hole in it the shape of the next filename
+    # someone happens to cite. Examples are described rather than written out
+    # because this guard reads its own source and would flag them.
+    cited = re.findall(r"[\w./-]*[A-Za-z0-9]\.(?:py|html|css|md|js|toml):[0-9]+", source)
     # This test's own regex literal is written so it cannot match itself.
     assert not cited, f"line-number citations rot; quote the text instead: {cited}"

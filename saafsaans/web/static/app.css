@@ -650,12 +650,14 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .band-chip { padding-top: 5px; padding-bottom: 1px; }
 :lang(hi) .driver    { padding-top: 6px; padding-bottom: 2px; }
 :lang(hi) .hero-pill { padding-top: 5px; padding-bottom: 1px; }
-/* The same 2px shift, re-derived on the touch padding rather than the mouse
-   padding. It used to read 13/9 against a 15/15 floor, which quietly spent 6px
-   of the target to buy a 4px optical move and left the Hindi persona toggle a
-   39px control. The shift is what is wanted; the subtraction was not. Total
-   preserved at 30px, so the box is the height the floor asks for and the ink
-   still sits where the eye expects it. */
+/* The same 2px shift as the two rules above -- 4px of padding moved from the
+   bottom edge to the top, so the ink sits 2px lower -- re-derived on the touch
+   padding rather than the mouse padding. It used to read 13/9 while the
+   generic coarse .pill-btn was 14/14, so it quietly spent 6px of the target to
+   buy the shift and left the Hindi persona toggle a 39px control. The shift is
+   what is wanted; the subtraction was not. Against the 15/15 this rule now
+   sits under, 17/13 keeps the total at 30px, so the box is the height the
+   floor asks for and the ink still sits where the eye expects it. */
 @media (pointer: coarse) {
   :lang(hi) .pill-btn { padding-top: 17px; padding-bottom: 13px; }
 }

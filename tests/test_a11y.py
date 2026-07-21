@@ -1178,18 +1178,27 @@ def test_no_class_in_the_stylesheet_is_unreachable(sheet, pages, hindi_pages):
     declared = set()
     for selector, _ in sheet["top"] + [r for rules in sheet["media"].values() for r in rules]:
         declared.update(re.findall(r"\.([A-Za-z][\w-]*)", selector))
-    reachable = "\n".join(path.read_text() for path
-                          in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")))
+    source = "\n".join(path.read_text() for path
+                       in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")))
+    # Class NAMES out of class attributes, not a substring search over the whole
+    # template text. Searching the raw source let any rule whose name happened
+    # to occur anywhere -- in an id, a Jinja expression, a comment, a word --
+    # count as reached: a dead `.reading { }` was called live because
+    # `reading.aqi` and `#reading` appear in today.html. Verified by adding
+    # exactly that rule and watching this test stay green.
+    attribute_tokens = set()
+    for value in re.findall(r'class="([^"]*)"', source):
+        attribute_tokens.update(re.findall(r"[A-Za-z][\w-]*", value))
     rendered = {css_class for trees in (pages, hindi_pages) for root in trees.values()
                 for node in _walk(root) for css_class in _classes(node)}
 
     def composed(css_class):
         """A template building this name out of a stem plus an expression."""
-        return any(re.search(re.escape(css_class[:cut + 1]) + r"\{\{", reachable)
+        return any(re.search(re.escape(css_class[:cut + 1]) + r"\{\{", source)
                    for cut, char in enumerate(css_class) if char == "-")
 
     dead = sorted(c for c in declared
-                  if c not in reachable and c not in rendered and not composed(c))
+                  if c not in attribute_tokens and c not in rendered and not composed(c))
     assert not dead, f"styled but never applied: {dead}"
 
 

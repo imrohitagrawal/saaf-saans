@@ -236,7 +236,7 @@ def test_a_stored_row_with_no_aqi_falls_back_to_the_sample(monkeypatch):
     assert "CACHED" not in rows["Rohini"]
 
 
-def test_the_guide_labels_every_age_in_the_rate_table(monkeypatch):
+def test_the_guide_labels_every_age_in_the_rate_table():
     """The EPA age brackets are rendered from web.main._epa_rows alone; the
     second copy that used to sit in risk.EPA_AGE_BANDS is gone. This is the
     check that went with it: every age in INHALATION_RATES gets a bracket, in
