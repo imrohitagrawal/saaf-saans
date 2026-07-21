@@ -52,21 +52,47 @@ _FILLER = r"[\w\s'\"-]{0,30}?"  # tolerant, non-greedy filler between verb/targe
 # "ignore the instructions on the old inhaler box" until this was added.
 # "prompt" is deliberately NOT gated: it is not an ordinary word in this app's
 # traffic, where the subject is air quality and asthma.
-_EN_BOUND = (r"(?:\byour\b|\b(?:previous|prior|earlier|above|preceding|"
-             r"original|initial|first|system)\b)\s*(?:[\w'-]+\s+){0,2}?")
+# A binder points the target at THIS conversation. Two kinds, because they earn
+# their keep differently:
+#   * STRONG binders ("your", "previous", "above", "system") mean the model's
+#     own instructions wherever they appear, so they count in any position.
+#   * A bare quantifier ("all", "any") does not: "follow all instructions on the
+#     label" is ordinary, and so is "should I skip all instructions from my
+#     doctor?". It counts only in imperative position, which is where the
+#     injection sits.
+_EN_STRONG = (r"(?:\byour\b|\b(?:previous|prior|earlier|above|preceding|"
+              r"original|initial|first|system|aforementioned|last|these|"
+              r"those)\b)")
+_EN_BOUND = _EN_STRONG + r"\s*(?:[\w'-]+\s+){0,2}?"
+# The mirror: English postposes the binder just as idiomatically -- "the
+# instructions above", "the rules given earlier" -- and a binder list that only
+# looks left misses every one of them.
+_EN_POST = (r"\s*(?:[\w'-]+\s+){0,2}?"
+            r"\b(?:above|earlier|previously|before|aforementioned)\b")
+_EN_TARGET = r"\b(?:instructions|rules|guidelines|directives)\b"
+# Sentence start, or an imperative lead-in. An injected order leads a clause;
+# a patient's question about the same words does not.
+_EN_IMPERATIVE = r"(?:^|[.!?]\s*|\bplease\s+|\bnow\s+|\bthen\s+|\bjust\s+)"
+_EN_VERB = r"(?:ignore|disregard|forget|override|skip|bypass)"
 _PATTERNS = [
-    # Instruction-override, two shapes. Either the target is bound to the model
-    # ("ignore your instructions", "ignore all previous instructions"), or the
-    # verb sits DIRECTLY on the bare noun with no determiner -- "ignore
-    # instructions", the canonical fragment. English needs an article for the
-    # ordinary reading, so "ignore the instructions on the inhaler box" has one
-    # and the attack fragment does not; that gap is the whole discriminator.
+    # Bound target, any position: "ignore your instructions", "ignore all
+    # previous instructions", "ignore the instructions above".
     ("ignore_instructions",
-     r"\b(?:ignore|disregard|forget|override|skip|bypass)\b" + _FILLER +
-     _EN_BOUND + r"\b(?:instructions|rules|guidelines|directives)\b"),
+     r"\b" + _EN_VERB + r"\b" + _FILLER + _EN_BOUND + _EN_TARGET),
     ("ignore_instructions",
-     r"\b(?:ignore|disregard|forget|override|skip|bypass)\s+"
-     r"(?:instructions|rules|guidelines|directives)\b"),
+     r"\b" + _EN_VERB + r"\b" + _FILLER + _EN_TARGET + _EN_POST),
+    # Imperative position: the bare canonical fragment, and the quantifier
+    # forms that carry no strong binder. "ignore all instructions" is the most
+    # common injection string there is and matches nothing above.
+    ("ignore_instructions",
+     _EN_IMPERATIVE + _EN_VERB + r"\s+"
+     r"(?:(?:all|any|every|each)\s+(?:the\s+)?(?:[\w'-]+\s+){0,2}?)?" +
+     _EN_TARGET),
+    # "disregard everything above" -- no instruction-noun at all, but the
+    # postposed binder makes the referent unambiguous.
+    ("disregard",
+     r"\b" + _EN_VERB + r"\b" + _FILLER +
+     r"\b(?:everything|anything|all)\b" + _EN_POST),
     # Literal "system prompt" (hyphen/underscore/space tolerant).
     ("system_prompt", r"system[\s_-]?prompt"),
     # Exfiltration: reveal/print/show ... (system) prompt | bound instructions.
@@ -74,7 +100,8 @@ _PATTERNS = [
      r"\b(?:print|show|reveal|repeat|output|display|dump|leak|expose|"
      r"tell me|give me|send me|share)\b" + _FILLER +
      r"(?:(?:your\s+|the\s+)?(?:system[\s_-]?)?prompt\b"
-     r"|" + _EN_BOUND + r"\b(?:instructions|guidelines|directives)\b)"),
+     r"|" + _EN_BOUND + _EN_TARGET +
+     r"|" + _EN_TARGET + _EN_POST + r")"),
     ("you_are_now", r"\byou\s*(?:are|'re)\s+now\b"),
     ("from_now_on", r"\bfrom now on\b" + _FILLER + r"\byou\b"),
     ("pretend", r"\bpretend\s+(?:to be|you|that)\b"),
@@ -82,11 +109,17 @@ _PATTERNS = [
     # "act as" is an instruction only when it IS one. As a plain verb phrase it
     # is ordinary health English -- dust can "act as a trigger", smoke can "act
     # as an irritant" -- and the single hardcoded "a doctor" exemption did not
-    # begin to cover that. Anchored to the start of a sentence or to an
-    # imperative lead-in, which is where the injection actually sits.
-    ("act_as", r"(?:^|[.!?]\s*|\bplease\s+|\bnow\s+|\binstead\s+)"
-               r"act as\b(?! a doctor)"),
-    ("disregard", r"\bdisregard\b"),
+    # begin to cover that. So it is anchored to where an order sits: leading a
+    # clause, or after an imperative lead-in, or behind a second-person subject
+    # ("I want you to act as..."), which is how the attack is most often
+    # written and which a start-of-sentence anchor alone misses entirely.
+    #
+    # "act as if" is carved back out: supposing a condition is ordinary health
+    # English ("act as if I have COPD", "act as if the AQI were 400"), and only
+    # "act as if YOU..." turns it back into a persona switch.
+    ("act_as", r"(?:^|[.!?,]\s*|\bplease\s+|\bnow\s+|\binstead\s+"
+               r"|\byou\s+(?:to|must|should|shall|will|are\s+to)\s+)"
+               r"act as\b(?! a doctor)(?!\s+if\b(?!\s+you\b))"),
     ("jailbreak", r"\bjailbreak\b"),
     ("api_key", r"api[\s_-]?key"),
     ("password", r"\bpassword\b"),
