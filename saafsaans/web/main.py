@@ -29,8 +29,8 @@ from fastapi.templating import Jinja2Templates
 
 from saafsaans.attack_demo import ATTACKS
 from saafsaans.services import (
-    aqi_scale, config, es, forecast, guard, i18n, llm, metrics, normalize,
-    risk, waqi,
+    aqi_scale, clock, config, es, forecast, guard, i18n, llm, metrics,
+    normalize, risk, waqi,
 )
 from saafsaans.web import presenters as pr
 
@@ -43,7 +43,7 @@ AGES = ["Child", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
 ACTIVITIES = ["Outdoor exercise", "Commute", "School run", "Stay home"]
 TERMS = ["AQI", "PM2.5", "PM10"]
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = clock.IST   # one definition, in services/clock.py
 
 # The transcript store holds raw user questions, so leaving it unbounded is a
 # privacy exposure as much as a memory leak: every question ever asked of this

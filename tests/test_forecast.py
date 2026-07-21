@@ -184,3 +184,26 @@ def test_the_hindi_window_says_which_half_of_the_day():
         # not only in the label before it.
         bracket = value[value.index("(") + 1:value.index(")")]
         assert any(m in bracket for m in marks), (key, bracket)
+
+
+def test_the_season_is_decided_in_india_not_on_the_server(monkeypatch):
+    """best_window called date.today() for the month, so on the UTC container
+    the season changed 5.5 hours late at every boundary -- including the one
+    into November, when Delhi's air turns and this advice matters most.
+
+    Frozen at 20:00 UTC on 31 October, which is already 01:30 on 1 November in
+    Delhi: the winter rationale must be the one a Delhi reader gets.
+    """
+    from datetime import datetime
+
+    from saafsaans.services import clock, forecast
+
+    seen = {}
+    monkeypatch.setattr(forecast, "_is_winter",
+                        lambda month: seen.setdefault("month", month) and False)
+    monkeypatch.setattr(clock, "now_ist",
+                        lambda: datetime(2026, 11, 1, 1, 30, tzinfo=clock.IST))
+    forecast.best_window(180, "pm25", "en")
+
+    assert seen["month"] == 11, (
+        f"the season was decided from month {seen['month']}, not India's 11")

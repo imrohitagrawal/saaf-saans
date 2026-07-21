@@ -14,7 +14,7 @@ documented CPCB-style scale.
 """
 import datetime
 
-from . import aqi_scale, i18n
+from . import aqi_scale, clock, i18n
 
 # CPCB 24h PM2.5 concentration (µg/m3) -> label. Applied to a real
 # concentration, which is what daily_outlook now produces.
@@ -170,7 +170,12 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
                     i18n.t(lang, "answer", "activity_generic", "outdoor activity")),
         }
 
-    winter = _is_winter(datetime.date.today().month)
+    # The season is Delhi's, so the month must be Delhi's. date.today() is the
+    # server's, and the container ships UTC: for the five and a half hours
+    # after midnight UTC it still reports the previous month, so the winter
+    # rationale arrived late at every month boundary -- including the one into
+    # November, when Delhi's air turns and the advice matters most.
+    winter = _is_winter(clock.today_ist().month)
     pollutant = _pollutant_key(dominant_pollutant)
 
     if aqi_val > 300:

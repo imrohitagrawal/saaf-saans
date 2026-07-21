@@ -275,12 +275,30 @@ def test_group_attempts_survives_empty_and_missing_fields():
     assert p.group_attempts([{}])[0]["pattern"] == "unknown"
 
 
-def test_outlook_today_is_decided_in_india_not_server_local_time():
-    """A UTC-configured server would otherwise mislabel 'Today' for 5.5 hours."""
-    import inspect
-    src = inspect.getsource(p.outlook_rows)
-    assert "hours=5, minutes=30" in src, "outlook must resolve 'today' in IST"
-    assert "date.today()" not in src
+def test_outlook_today_is_decided_in_india_not_server_local_time(monkeypatch):
+    """A UTC-configured server would otherwise mislabel 'Today' for 5.5 hours.
+
+    This asserted on the SOURCE of outlook_rows -- that the text
+    "hours=5, minutes=30" appeared in it -- which pinned one spelling of the
+    offset rather than the behaviour, and went red the moment the offset moved
+    into services/clock.py without anything changing for a reader. It now
+    freezes an instant inside the gap and checks which row is called Today.
+    """
+    from datetime import datetime
+
+    from saafsaans.services import clock
+
+    # 20:00 UTC on 1 Jan is 01:30 IST on 2 Jan: the two dates disagree.
+    monkeypatch.setattr(clock, "now_ist",
+                        lambda: datetime(2026, 1, 2, 1, 30, tzinfo=clock.IST))
+    rows = p.outlook_rows([{"date": "2026-01-01", "pm25_avg": 100},
+                           {"date": "2026-01-02", "pm25_avg": 200}])
+
+    # The 1st is yesterday in India and must be dropped, not labelled Today.
+    assert len(rows) == 1, rows
+    assert rows[0]["label"] == "Today"
+    assert rows[0]["avg"] == 200, (
+        "the row labelled Today is the server's date, not India's")
 
 
 # --- The WHO comparison ----------------------------------------------------

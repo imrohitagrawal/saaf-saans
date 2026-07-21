@@ -12,7 +12,7 @@ import math
 
 from markupsafe import Markup, escape
 
-from saafsaans.services import i18n
+from saafsaans.services import clock, i18n
 
 
 def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
@@ -462,10 +462,10 @@ def outlook_rows(outlook, today=None, lang: str = "en") -> list:
     row is always today. Dates become 'Sat 19', and today is flagged so the
     template can weight it.
     """
-    from datetime import date, datetime, timedelta, timezone
+    from datetime import date, datetime, timedelta
     # The audience is in India; a UTC-configured server would otherwise label
     # the wrong row "Today" for five and a half hours of every day.
-    today = today or datetime.now(timezone(timedelta(hours=5, minutes=30))).date()
+    today = today or clock.today_ist()
     rows = []
     for row in outlook or []:
         try:
