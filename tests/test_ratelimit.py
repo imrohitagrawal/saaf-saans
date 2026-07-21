@@ -85,13 +85,24 @@ def test_a_rate_limit_trip_is_not_logged_as_a_security_event(monkeypatch):
 
 def test_the_simulate_endpoint_is_limited_harder_than_ask():
     """Nobody needs the red-team demo twenty times in five minutes, and it
-    writes a document per attack every time it runs."""
+    writes a document per attack every time it runs.
+
+    Asserted on the redirect TARGET, not the status code: both branches return
+    303, so a status assertion here held whether or not the limiter existed.
+    Only the allowed path carries sim=1, which is what tells the Security view
+    a run just happened.
+    """
     assert ratelimit.SIMULATE_LIMIT < ratelimit.ASK_LIMIT
     with TestClient(app) as client:
-        codes = [client.post("/system/simulate", params=PERSONA,
-                             follow_redirects=False).status_code
-                 for _ in range(ratelimit.SIMULATE_LIMIT + 2)]
-    assert all(c == 303 for c in codes), codes
+        targets = [client.post("/system/simulate", params=PERSONA,
+                               follow_redirects=False).headers["location"]
+                   for _ in range(ratelimit.SIMULATE_LIMIT + 2)]
+
+    ran = [t for t in targets if "sim=1" in t]
+    refused = [t for t in targets if "sim=1" not in t]
+    assert len(ran) == ratelimit.SIMULATE_LIMIT, (
+        f"{len(ran)} runs allowed, limit is {ratelimit.SIMULATE_LIMIT}")
+    assert len(refused) == 2, targets
 
 
 # --- the limiter itself ----------------------------------------------------
@@ -129,20 +140,52 @@ def test_the_bucket_table_cannot_grow_without_bound():
 
 @pytest.mark.parametrize("headers,expected", [
     ({"x-forwarded-for": "203.0.113.7"}, "203.0.113.7"),
-    ({"x-forwarded-for": "203.0.113.7, 10.0.0.1, 10.0.0.2"}, "203.0.113.7"),
+    # A forged prefix must be ignored: Fly APPENDS the connecting address, so
+    # only the last entry is the proxy's own and everything before it is
+    # whatever the client chose to send.
+    ({"x-forwarded-for": "1.2.3.4, 203.0.113.7"}, "203.0.113.7"),
+    ({"x-forwarded-for": "evil, 10.0.0.1, 203.0.113.7"}, "203.0.113.7"),
     ({"x-forwarded-for": "  203.0.113.7  "}, "203.0.113.7"),
 ])
-def test_the_originating_client_is_read_not_the_proxy(headers, expected):
-    """Fly terminates TLS at its proxy and appends the real client, so
-    request.client.host is the proxy for every visitor alike -- keying on it
-    would put the whole internet in one bucket and throttle everyone at once.
-    The FIRST entry is the originating client; the rest are hops."""
+def test_the_key_is_the_hop_the_proxy_wrote_not_the_one_the_client_sent(headers, expected):
+    """Fly terminates TLS at its proxy, so request.client.host is that proxy
+    for every visitor alike and keying on it would throttle the whole internet
+    as one. The header must be read -- but only its LAST entry is written by
+    the proxy.
+
+    The first draft read entry [0], the one value an attacker fully controls.
+    See the next test for what that cost."""
     class _Req:
         def __init__(self, h):
             self.headers = h
             self.client = type("C", (), {"host": "127.0.0.1"})()
 
     assert ratelimit.client_key(_Req(headers)) == expected
+
+
+def test_a_forged_forwarded_header_cannot_buy_a_fresh_bucket():
+    """The bypass this limiter shipped with for one commit. A client sending a
+    different X-Forwarded-For each time arrives at the proxy as
+    "<whatever they sent>, <their real ip>"; keying on the first entry put them
+    in a new bucket every request, so they were never limited -- while filling
+    the bucket table, which is the leak the bound exists for. The limiter was
+    decorative against precisely the caller it is for."""
+    class _Req:
+        def __init__(self, forged):
+            self.headers = {"x-forwarded-for": f"{forged}, 203.0.113.99"}
+            self.client = type("C", (), {"host": "127.0.0.1"})()
+
+    keys = {ratelimit.client_key(_Req(f"10.9.9.{i}")) for i in range(50)}
+    assert keys == {"203.0.113.99"}, (
+        f"a rotating forged header produced {len(keys)} distinct buckets")
+
+    allowed_after_limit = None
+    for i in range(ratelimit.ASK_LIMIT + 5):
+        key = ratelimit.client_key(_Req(f"172.16.0.{i}"))
+        allowed_after_limit, _ = ratelimit.check(
+            f"ask:{key}", ratelimit.ASK_LIMIT, ratelimit.ASK_WINDOW)
+    assert allowed_after_limit is False, (
+        "a caller rotating X-Forwarded-For evaded the limit entirely")
 
 
 def test_a_caller_with_no_forwarded_header_still_gets_a_key():

@@ -76,19 +76,31 @@ def check(key: str, limit: int, window: int):
 
 
 def client_key(request) -> str:
-    """The caller's identity for limiting: the first X-Forwarded-For hop.
+    """The caller's identity for limiting: the LAST X-Forwarded-For hop.
 
-    Fly terminates TLS at its proxy and appends the real client to
-    X-Forwarded-For, so ``request.client.host`` is the proxy for every visitor
-    and would put the whole internet in one bucket. The FIRST entry is the
-    originating client; later ones are proxies. It is attacker-controlled, so
-    it is a courtesy key and not an identity -- which is why the table above is
-    bounded.
+    Fly terminates TLS at its proxy and APPENDS the connecting address to
+    X-Forwarded-For. ``request.client.host`` is therefore the proxy for every
+    visitor alike and would put the whole internet in one bucket -- so the
+    header has to be read. But only its last entry is written by the proxy;
+    everything before it was sent by the client and can say anything.
+
+    The first draft of this read ``forwarded[0]``, which is the one value an
+    attacker fully controls. A client sending `X-Forwarded-For: <random>` on
+    each request arrives as "<random>, <real ip>", lands in a fresh bucket
+    every time, and is never limited at all -- while also filling the bucket
+    table, which is the memory leak the bound above exists for. The limiter
+    would have been decorative.
+
+    Taking the last entry inverts that: a forged prefix is ignored, because
+    whatever the client prepends, the proxy's own append is what is read. If a
+    second trusted proxy is ever put in front, this must index from the end by
+    the known hop count -- not go back to [0].
     """
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")
-    first = forwarded[0].strip()
-    if first:
-        return first
+    forwarded = [hop.strip() for hop in
+                 (request.headers.get("x-forwarded-for") or "").split(",")]
+    forwarded = [hop for hop in forwarded if hop]
+    if forwarded:
+        return forwarded[-1]
     client = getattr(request, "client", None)
     return getattr(client, "host", None) or "unknown"
 

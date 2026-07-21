@@ -378,3 +378,70 @@ def test_a_failing_station_is_retried_sooner_than_a_good_one(monkeypatch):
             waqi._CACHE[key] = (stored_at - waqi._CACHE_TTL_FALLBACK - 1, r, s)
     waqi.get_aqi("Anand Vihar")
     assert len(calls) == 2, "the failure was cached for the full live TTL"
+
+
+def test_concurrent_cold_readers_produce_one_fetch_and_one_write(monkeypatch):
+    """The thundering herd, in the one case where it actually bites: a machine
+    waking from scale-to-zero with several people already waiting.
+
+    The cache lock cannot be held across the network call -- every locality
+    would queue behind whichever one is talking to WAQI -- so without a second
+    per-locality lock, N readers all miss, all fetch, and all index, which is
+    precisely the behaviour the cache was added to remove.
+    """
+    import threading
+
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    fetches, indexed = [], []
+    started = threading.Event()
+
+    def _slow(*a, **k):
+        fetches.append(1)
+        started.wait(0.2)          # hold the fetch open so the others pile up
+        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _iso(1)))
+
+    monkeypatch.setattr(waqi.requests, "get", _slow)
+    monkeypatch.setattr(waqi.es, "index_reading",
+                        lambda client, doc: indexed.append(doc))
+
+    results = []
+    threads = [threading.Thread(
+        target=lambda: results.append(waqi.get_aqi("Anand Vihar", es_client=object())))
+        for _ in range(8)]
+    for t in threads:
+        t.start()
+    started.set()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(fetches) == 1, f"{len(fetches)} concurrent readers each fetched"
+    assert len(indexed) == 1, f"{len(indexed)} documents for one observation"
+    assert len(results) == 8 and all(r[1] == "ok" for r in results)
+
+
+def test_one_slow_locality_does_not_block_another(monkeypatch):
+    """The reason the cache lock is not simply held across the fetch."""
+    import threading
+
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    release = threading.Event()
+
+    def _by_feed(url, *a, **k):
+        if "anand" in url.lower():
+            release.wait(2)
+            name = "Anand Vihar, Delhi, Delhi, India"
+        else:
+            name = "Dwarka, Delhi, Delhi, India"
+        return Resp(200, _payload(name, _iso(1)))
+
+    monkeypatch.setattr(waqi.requests, "get", _by_feed)
+    slow = threading.Thread(target=lambda: waqi.get_aqi("Anand Vihar"))
+    slow.start()
+    try:
+        done = threading.Event()
+        threading.Thread(
+            target=lambda: (waqi.get_aqi("Dwarka"), done.set())).start()
+        assert done.wait(1.5), "Dwarka queued behind Anand Vihar's fetch"
+    finally:
+        release.set()
+        slow.join(timeout=5)

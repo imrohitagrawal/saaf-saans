@@ -51,10 +51,26 @@ def _cache_put(locality: str, reading, status: str):
         _CACHE[locality] = (time.monotonic(), reading, status)
 
 
+# One fetch per locality at a time. _CACHE_LOCK is held only long enough to
+# read or write the dict -- it must NOT be held across the network call, or
+# every locality would queue behind whichever one is talking to WAQI. But
+# without a second lock, N readers arriving on a cold cache all miss, all
+# fetch, and all index: the thundering herd, which is exactly the behaviour
+# this cache exists to remove, surviving in the one case that matters (a
+# machine waking from scale-to-zero with several people waiting).
+_FETCH_LOCKS = {}
+
+
+def _fetch_lock(locality: str):
+    with _CACHE_LOCK:
+        return _FETCH_LOCKS.setdefault(locality, threading.Lock())
+
+
 def cache_clear():
     """Drop every cached reading. For tests, and for the seeding scripts."""
     with _CACHE_LOCK:
         _CACHE.clear()
+        _FETCH_LOCKS.clear()
 
 
 TIMEOUT = 5
@@ -322,6 +338,18 @@ def get_aqi(locality: str, es_client=None):
     if cached is not None:
         return cached
 
+    with _fetch_lock(locality):
+        # Re-probe: while this thread waited for the lock, the thread that held
+        # it may have filled the cache. Without this the queue behind a slow
+        # fetch still produces one fetch each as they file through.
+        cached = _cache_get(locality)
+        if cached is not None:
+            return cached
+        return _fetch_uncached(locality, es_client)
+
+
+def _fetch_uncached(locality: str, es_client):
+    """The cache miss path. Caller must hold this locality's fetch lock."""
     token = config.waqi_token()
     if not token:
         return _fallback(locality), "fallback"
