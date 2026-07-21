@@ -1084,3 +1084,54 @@ def test_opening_a_term_lands_on_the_card_that_holds_the_definition(client):
     body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
     assert 'id="reading"' in body
     assert 'class="def-slot"' in body
+
+
+def test_the_scale_marker_never_prints_a_missing_reading():
+    """A WAQI feed can report ozone and no particulate at all. This app refuses
+    to convert a US EPA figure into Indian band names, so `reading["aqi"]` is
+    None on that path -- see test_missing_pm25_no_crash, which pins it -- and
+    the headline duly renders "--". The scale marker did not: it printed
+    Python's "None ▾", and printed it at scale_position(None) = 0.0, which
+    parks the caret at the Good end of the bar. So the one line that says where
+    on the scale you are said "Good" for a reading the app had just declined to
+    compute.
+
+    Found by review against master, where this path does not exist, and wrongly
+    dismissed as unreachable there. It is reachable here.
+    """
+    from unittest import mock
+
+    from saafsaans.services import waqi
+
+    reading = {"aqi": None, "pm25": None, "pm10": None, "dominant_pollutant": None,
+               "feed_aqi": 150, "feed_dominant": "o3", "stale": False}
+    with mock.patch.object(waqi, "get_aqi", return_value=(reading, "ok")):
+        with TestClient(app) as client:
+            body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                           "condition": "None", "activity": "Walking"}).text
+
+    assert "None ▾" not in body, "the scale marker printed Python's None"
+    assert "scale-mark" not in body, (
+        "the marker rendered for a reading with no index; any value it shows "
+        "asserts a position on the bar that this reading does not have"
+    )
+
+
+def test_the_scale_marker_is_hidden_from_assistive_technology():
+    """It duplicates the .aqi-num heading, and its caret is decoration: the bar
+    it indexes is itself aria-hidden, so the position means nothing without
+    sight of it."""
+    with TestClient(app) as client:
+        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                       "condition": "None", "activity": "Walking"}).text
+    start = body.find('class="scale-mark"')
+    assert start != -1, "no marker rendered to check"
+    # Its OWN tag, not a window of surrounding markup: the very next element is
+    # `<div class="scale" aria-hidden="true">`, so a fixed-width slice passes
+    # whether or not the marker carries the attribute. Caught by mutating the
+    # template and watching this test stay green.
+    marker = body[start:body.index(">", start)]
+    assert 'aria-hidden="true"' in marker, (
+        "the scale marker is announced to a screen reader, which reads the "
+        "AQI number twice and then a bare caret"
+    )

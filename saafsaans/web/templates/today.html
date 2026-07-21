@@ -136,7 +136,17 @@
     </div>
 
     <div class="scale-wrap">
-      <div class="scale-mark" style="left:{{ scale_pos }}%">{{ reading.aqi }} ▾</div>
+      {#- No marker when there is no index. A feed can report ozone and no
+          particulate at all, which this app refuses to convert -- so the
+          headline renders "--" while this line printed Python's "None ▾", and
+          printed it at scale_position(None) = 0.0, parking the caret at the
+          Good end of the bar. A placeholder would still assert that position,
+          so the marker goes away entirely rather than pointing somewhere.
+          aria-hidden because it duplicates the .aqi-num heading above and its
+          caret is decoration: the bar it indexes is itself aria-hidden. -#}
+      {% if reading.aqi is not none %}
+      <div class="scale-mark" style="left:{{ scale_pos }}%" aria-hidden="true">{{ reading.aqi }} ▾</div>
+      {% endif %}
       <div class="scale" aria-hidden="true">
         <span style="width:10%;background:var(--g1)"></span><span style="width:10%;background:var(--g2)"></span>
         <span style="width:20%;background:var(--g3)"></span><span style="width:20%;background:var(--g4)"></span>
