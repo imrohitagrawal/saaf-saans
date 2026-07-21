@@ -47,7 +47,18 @@
 <header class="hdr">
   <div class="hdr-in">
     <a class="wordmark" href="/?{{ q }}">
+      {#- The Devanagari is the name, not decoration, so an English reader is
+          told what it says. A Hindi reader already reads it and gets no gloss.
+          It is a translation, not a tagline: "clean breath" is true at AQI 40
+          and at AQI 400, where a promise like "breathe clean" would contradict
+          the hero underneath it on a severe day.
+
+          Not routed through T: a key here would oblige the corpus to carry a
+          Hindi counterpart (test_the_corpus_carries_every_key_the_code_requests)
+          for a string the Hindi page never renders, putting prose in front of
+          the Hindi reviewer that no page will ever show them. -#}
       <b>SaafSaans</b><span lang="hi">साफ़ साँस</span>
+      {% if lang != 'hi' %}<span class="gloss">clean breath</span>{% endif %}
     </a>
     <nav class="nav" aria-label="{{ T('ui', 'nav_label', 'Main') }}">
       <a href="/?{{ q }}"        {% if active == 'today'  %}aria-current="page"{% endif %}>{{ T('ui', 'nav_today', 'Today') }}</a>

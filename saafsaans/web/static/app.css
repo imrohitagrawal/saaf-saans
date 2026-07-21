@@ -132,6 +132,9 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .wordmark { display: flex; align-items: baseline; gap: 8px; text-decoration: none; color: inherit; }
 .wordmark b { font-family: var(--disp); font-weight: 800; font-size: 21px; letter-spacing: -.01em; }
 .wordmark span { font-size: 13px; color: var(--text-3); }
+/* A step below the Devanagari it translates, so it reads as a gloss on the
+   name rather than as a third part of the name. English pages only. */
+.wordmark .gloss { font-size: 12px; }
 .nav { display: flex; gap: 2px; margin-left: auto; }
 .nav a { padding: 8px 12px 6px; font-size: 14px; color: var(--text-3);
          text-decoration: none; border-bottom: 2px solid transparent; }

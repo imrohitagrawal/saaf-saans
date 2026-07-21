@@ -1175,3 +1175,43 @@ def test_the_footer_sentences_are_not_welded_together():
     text = re.sub(r"<[^>]+>", " ", footer)
     welded = re.findall(r"[A-Za-z]\.[A-Z][a-z]", text)
     assert not welded, f"footer sentences run together: {welded}"
+
+
+def _wordmark(body: str) -> str:
+    """The wordmark anchor's markup, so an assertion about the masthead cannot
+    pass on the word appearing somewhere else entirely on the page."""
+    start = body.find('class="wordmark"')
+    assert start != -1, "no wordmark on the page"
+    return body[start:body.find("</a>", start)]
+
+
+@pytest.mark.parametrize("path", ["/", "/city", "/guide", "/system"])
+def test_the_english_wordmark_is_glossed_and_the_hindi_one_is_not(path):
+    """The name is Hindi, so an English reader is told what it says.
+
+    Written as a property over both languages rather than as one string on one
+    page: the Devanagari is the name and must survive in BOTH, while the gloss
+    explains it and belongs only where it is not already readable. Asserting
+    only the English half would let a change that dropped साफ़ साँस from the
+    Hindi masthead, or that glossed the Hindi page too, pass unnoticed.
+    """
+    with TestClient(app) as client:
+        english = _wordmark(client.get(path, params={**PERSONA, "lang": "en"}).text)
+        hindi = _wordmark(client.get(path, params={**PERSONA, "lang": "hi"}).text)
+
+    assert "साफ़ साँस" in english, f"{path}: the name is missing in English"
+    assert "साफ़ साँस" in hindi, f"{path}: the name is missing in Hindi"
+    assert "clean breath" in english, f"{path}: the English masthead is not glossed"
+    assert "clean breath" not in hindi, f"{path}: the Hindi masthead glosses itself"
+
+
+def test_the_wordmark_gloss_translates_the_name_and_promises_nothing():
+    """"Breathe clean" was rejected and must stay rejected. It is a promise the
+    app exists to break -- its own hero reads "Don't go out unless you must --
+    this air is dangerous for you" on a severe day, so a masthead promising
+    clean breathing contradicts the page under it. A translation of the name is
+    true at every AQI; a tagline is not.
+    """
+    with TestClient(app) as client:
+        body = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert "breathe clean" not in body.lower(), "the masthead promises clean air"
