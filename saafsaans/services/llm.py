@@ -334,10 +334,13 @@ def _verdict(aqi_val, activity: str, risk_band: str, lang: str):
     verdict to keep in sync.
     """
     if aqi_val is None:
-        return "CAUTION", i18n.t(
+        # A missing number is the one case where the persona ladder is all
+        # there is. Returning here would have skipped it, so a reader whose
+        # hero says "Do not go outdoors" was told CAUTION underneath it.
+        token, why = "CAUTION", i18n.t(
             lang, "answer", "why_unknown",
             "AQI reading is unavailable; treat {activity} as unsafe until confirmed.")
-    if aqi_val > 300:
+    elif aqi_val > 300:
         token, why = "NO-GO", i18n.t(
             lang, "answer", "why_severe",
             "AQI {aqi} is very poor to severe; avoid {activity}.")
