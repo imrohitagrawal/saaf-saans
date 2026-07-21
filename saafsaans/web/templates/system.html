@@ -1,18 +1,23 @@
 {% extends "base.html" %}
-{% block title %}SaafSaans — System{% endblock %}
+{% block title %}SaafSaans — {{ T('ui', 'nav_system', 'System') }}{% endblock %}
 
 {# This register is deliberately mono-heavy and flat. It must not sound like the
-   health advice: the point is that the app can be audited, not reassured about. #}
+   health advice: the point is that the app can be audited, not reassured about.
+   That holds in Hindi too -- the copy in i18n is factual, not warm.
+
+   The values inside the bars, the pattern names and the prompt excerpts are not
+   translated: they are the literal contents of the telemetry and security
+   indices, and showing them unchanged is what this page is for. #}
 
 {% block content %}
-<h1 class="page-h1">System</h1>
-<p class="page-sub">The app audits itself — grounded, degraded-honest, and guarded. Watch it here.</p>
+<h1 class="page-h1">{{ T('ui', 'nav_system', 'System') }}</h1>
+<p class="page-sub">{{ T('ui', 'sys_sub', 'The app audits itself — grounded, degraded-honest, and guarded. Watch it here.') }}</p>
 
-<div class="seg" role="group" aria-label="System view" style="margin-top:14px;max-width:420px">
+<div class="seg" role="group" aria-label="{{ T('ui', 'sys_view_label', 'System view') }}" style="margin-top:14px;max-width:420px">
   <a href="/system?{{ q_obs }}" aria-current="{{ 'true' if view == 'observability' else 'false' }}"
-     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Observability</a>
+     style="flex:1;text-align:center">{{ T('ui', 'sys_view_obs', 'Observability') }}</a>
   <a href="/system?{{ q_sec }}" aria-current="{{ 'true' if view == 'security' else 'false' }}"
-     style="flex:1;text-align:center;padding:9px 0;font-size:12px">Security</a>
+     style="flex:1;text-align:center">{{ T('ui', 'sys_view_sec', 'Security') }}</a>
 </div>
 
 {% if view == 'observability' %}
@@ -24,27 +29,36 @@
 
   <div class="grid" style="margin-top:14px">
     <section class="card">
-      <h2 class="kicker">Events by type</h2>
+      <h2 class="kicker">{{ T('ui', 'sys_h_events', 'Events by type') }}</h2>
       {% if ev_rows %}
         <div class="bars">
           {% for r in ev_rows %}
           <div class="sysbar">
-            <span class="l">{{ r.l }}</span>
+            {# lang="en": the event name is a stored index value, not Hindi
+               prose, and a screen reader on this page would otherwise read
+               "chat_completed" with Hindi phonetics. #}
+            <span class="l" lang="en">{{ r.l }}</span>
             <span class="track"><span class="fill fill-accent" style="width:{{ r.w }}"></span></span>
             <span class="v">{{ r.v }}</span>
           </div>
           {% endfor %}
         </div>
-        <p class="caption">Fallbacks are logged, never hidden — a cached reading or a
-          rule-based answer is shown as such at the moment it is served.</p>
+        <p class="caption">{{ T('ui', 'sys_events_caption', 'Fallbacks are logged, never hidden — a cached reading or a rule-based answer is shown as such at the moment it is served.') }}</p>
       {% else %}
-        <p class="empty">No telemetry yet. Ask a question on Today, or run
-          <code>python -m saafsaans.seed_demo_history</code> to backfill.</p>
+        {% if has_index %}
+        <p class="empty">{{ T('ui', 'sys_empty_telemetry', 'No telemetry yet. Ask a question on Today, or run this to backfill:') }}
+          <code lang="en">python -m saafsaans.seed_demo_history</code></p>
+        {% else %}
+        {#- Without an index nothing is recorded at all, so the advice above
+            would be a wrong remedy for a misdiagnosed fault: a reader could
+            ask questions all day and this view would stay at zero. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'This view reads from a database index, and none is configured, so nothing is being recorded. The app runs without it; these panels are the part that does not.') }}</p>
+        {% endif %}
       {% endif %}
     </section>
 
     <section class="card">
-      <h2 class="kicker">Requests by locality</h2>
+      <h2 class="kicker">{{ T('ui', 'sys_h_localities', 'Requests by locality') }}</h2>
       {% if loc_rows %}
         <div class="bars">
           {% for r in loc_rows %}
@@ -56,7 +70,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="empty">No locality data yet.</p>
+        <p class="empty">{{ T('ui', 'sys_empty_localities', 'No locality data yet.') }}</p>
       {% endif %}
     </section>
   </div>
@@ -70,7 +84,7 @@
 
   <div class="grid" style="margin-top:14px">
     <section class="card">
-      <h2 class="kicker">Blocked · last 7 days</h2>
+      <h2 class="kicker">{{ T('ui', 'sys_h_blocked_7d', 'Blocked · last 7 days') }}</h2>
       {% if days %}
         <div class="cols">
           {% for d in days %}
@@ -82,22 +96,23 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="empty">No blocked attempts recorded in the last 7 days.</p>
+        <p class="empty">{{ T('ui', 'sys_empty_blocked_7d', 'No blocked attempts recorded in the last 7 days.') }}</p>
       {% endif %}
     </section>
 
     <section class="card">
       <div class="row">
-        <h2 class="kicker">Recent blocked attempts</h2>
+        <h2 class="kicker">{{ T('ui', 'sys_h_attempts', 'Recent blocked attempts') }}</h2>
         {# A real POST against the live guard — not a canned animation. #}
         <form method="post" action="/system/simulate?{{ q }}" style="margin-left:auto">
-          <button class="pill-btn" type="submit">▸ Run red-team simulation</button>
+          <button class="pill-btn" type="submit">▸ {{ T('ui', 'sys_btn_simulate', 'Run red-team simulation') }}</button>
         </form>
       </div>
 
       {% if simulated %}
-      <p class="sim-note">Simulation fired {{ attack_count }} known attack prompts at the
-        guard — all blocked before the model, logged below.</p>
+      {# One line: the attack count sits inside the sentence, and a newline
+         between the fragments would put a line break inside it. #}
+      <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after', 'known attack prompts at the guard — all blocked before the model, logged below.') }}</p>
       {% endif %}
 
       {% if attempts %}
@@ -105,21 +120,44 @@
           {% for g in attempts %}
           <div class="attempt-group">
             <div class="attempt-head">
-              <span class="pat">{{ g.pattern }}</span>
-              <span class="when">{{ g.total }} blocked · pre-model</span>
+              {# lang="en" for the same reason as the event name above: this is
+                 the guard's stored pattern id, not copy. #}
+              <span class="pat" lang="en">{{ g.pattern }}</span>
+              <span class="when">{{ g.total }} {{ T('ui', 'sys_blocked_premodel', 'blocked · pre-model') }}</span>
             </div>
             {% for v in g.variants %}
             <div class="variant">
-              <span class="excerpt">"{{ v.excerpt }}"</span>
+              {# The excerpt is a fragment of what somebody typed. It is
+                 evidence, so it is reproduced in the language it arrived in and
+                 never translated.
+
+                 Which language that is, nobody here knows -- an attacker may
+                 have typed Hindi. lang="" is the HTML spec's *explicitly
+                 unknown*, and it is the only honest value: inheriting lang="hi"
+                 from <html> asserts a language for text the app did not write,
+                 and lang="en" would be a guess stated as a fact on the one page
+                 whose purpose is showing what is actually in the index.
+                 <bdi> is dir="auto" and bidi-isolating, so an Arabic or Urdu
+                 injection cannot reorder the quote marks around it, and
+                 translate="no" stops an in-browser translator rewriting
+                 evidence. The quote marks stay outside; lang="" never goes on
+                 .excerpt itself, which would break :lang(hi) .excerpt.
+                 The .pat chip above is different and stays lang="en": the
+                 pattern id is the app's own string. #}
+              <span class="excerpt">"<bdi lang="" translate="no">{{ v.excerpt }}</bdi>"</span>
               <span class="when">{% if v.count > 1 %}&times;{{ v.count }} · {% endif %}{{ v.when }}</span>
             </div>
             {% endfor %}
           </div>
           {% endfor %}
         </div>
+        {# Says why the text above is not in the page's language. "cut short",
+           not "exactly as it arrived": normalize.excerpt caps at 120
+           characters and the simulation button fires a ~1,250-character
+           attack, so most of what is listed here is truncated. #}
+        <p class="caption">{{ T('ui', 'sys_excerpt_caption', 'Shown in whatever language it was typed, and never translated. Long attempts are cut short.') }}</p>
       {% else %}
-        <p class="empty">Nothing blocked yet. Run the simulation above, or send an
-          injection attempt from Today — either way it is audited here.</p>
+        <p class="empty">{{ T('ui', 'sys_empty_attempts', 'Nothing blocked yet. Run the simulation above, or send an injection attempt from Today — either way it is audited here.') }}</p>
       {% endif %}
     </section>
   </div>

@@ -79,4 +79,27 @@ ADVISORIES = [
          advice="AQI 151-400 for children's outdoor play or sport: cancel it. Children's faster breathing and developing lungs make PM2.5 and NO2 especially harmful; shift games indoors and ask schools to suspend outdoor PE."),
     dict(aqi_min=301, aqi_max=999, condition="heart", activity="any", age_group="senior", source="AHA-airpollution",
          advice="AQI above 300 for older adults with heart disease: highest risk of heart attack and arrhythmia. Do not go outdoors, run purified air indoors, keep nitrates or prescribed medicines to hand, and treat chest pain or breathlessness as an emergency."),
+    # --- Rows added to close the gaps the persona filter exposed -------------
+    # Ranking excludes an advisory written for someone else, so a persona with
+    # no applicable row in a band would fall back to the whole corpus. Every
+    # condition now has a row in every band above AQI 100, and 101-300 has a
+    # general row for readers who state no condition, activity or age.
+    dict(aqi_min=101, aqi_max=200, condition="any", activity="any", age_group="any", source="CPCB-AQI-scale",
+         advice="AQI 101-200 (Moderate): most healthy people are unaffected, but this level causes breathing discomfort to people with lung disease such as asthma, and discomfort to people with heart disease, children and older adults. If you are in one of those groups, keep spells outdoors short and unhurried."),
+    dict(aqi_min=201, aqi_max=300, condition="any", activity="any", age_group="any", source="CPCB-AQI-scale",
+         advice="AQI 201-300 (Poor): prolonged exposure causes breathing discomfort to most people, and discomfort to people with heart disease. Cut outdoor time to what you need to do, keep windows shut, and wear a well-fitted N95 when you are out for long."),
+    dict(aqi_min=301, aqi_max=999, condition="asthma", activity="any", age_group="any", source="GINA-guidance",
+         advice="AQI above 300 with asthma: stay indoors with windows shut and filtered air, and cancel outdoor activity entirely. Keep taking your controller medication, keep the reliever inhaler with you, and follow your written action plan. Seek urgent care if reliever use keeps climbing, if it stops relieving symptoms, or if you are too breathless to speak in full sentences."),
+    dict(aqi_min=401, aqi_max=999, condition="copd", activity="any", age_group="any", source="GOLD-guidance",
+         advice="AQI above 400 with COPD: severe air is a common trigger for a flare-up. Do not go outdoors at all, run purified air in the room you use most, keep rescue medication and your action plan to hand, and check SpO2 if you have an oximeter. Treat breathlessness at rest, a change in sputum colour or amount, or confusion and drowsiness as urgent."),
+    dict(aqi_min=401, aqi_max=999, condition="pregnancy", activity="any", age_group="any", source="ACOG-airquality",
+         advice="AQI above 400 in pregnancy: avoid outdoor exposure altogether and run indoor filtration continuously; PM2.5 exposure is linked to low birth weight and preterm birth. Wear a well-fitted N95 for a trip you cannot postpone. Contact your obstetrician the same day about breathlessness at rest, chest pain, or any change in your baby's movements."),
+    dict(aqi_min=301, aqi_max=999, condition="heart", activity="any", age_group="any", source="AHA-airpollution",
+         advice="AQI above 300 with a heart condition: fine particles at this level raise the short-term risk of heart attack, arrhythmia and stroke. Stay indoors with purified air, avoid all exertion, and keep prescribed medicines to hand. Treat chest pain, palpitations, sudden breathlessness or one-sided weakness as an emergency and call for help."),
+    dict(aqi_min=401, aqi_max=999, condition="any", activity="any", age_group="child", source="WHO-children-air",
+         advice="AQI above 400 for children: children breathe faster than adults and their lungs are still developing, so severe air reaches them harder. Keep them indoors with windows shut and a purifier running, cancel all outdoor play and sport, and ask the school to move or suspend outdoor periods. Get medical help for wheeze, fast or laboured breathing, or a child too breathless to play or feed."),
+    dict(aqi_min=101, aqi_max=200, condition="heart", activity="any", age_group="any", source="AHA-airpollution",
+         advice="AQI 101-200 with a heart condition: this level can already cause discomfort, so cut back on long or hard outdoor exertion and keep away from busy roads where PM2.5 and NO2 are highest. Stop and rest at any chest tightness, palpitations or unusual breathlessness, and seek care if it does not settle."),
+    dict(aqi_min=151, aqi_max=200, condition="pregnancy", activity="any", age_group="any", source="ACOG-airquality",
+         advice="AQI 151-200 in pregnancy: keep outdoor spells short and unhurried, and prefer parks and quieter streets to main roads. Run indoor filtration where you can, since PM2.5 exposure across a pregnancy is linked to lower birth weight. Mention any breathlessness or persistent cough to your obstetrician."),
 ]

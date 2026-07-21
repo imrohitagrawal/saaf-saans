@@ -1,0 +1,15 @@
+# Everything the image does not need. Keeping it small is secondary; keeping
+# secrets and local state out of it is the point.
+.env
+.venv/
+.git/
+.github/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+docs/
+private/
+design_handoff_saafsaans/
+*.md
+!requirements.txt

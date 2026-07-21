@@ -23,20 +23,38 @@ The hackathon placement is self-reported and not independently verifiable.
 
 ## 2. The artifact, measured
 
-Reproduce any of these from a clone:
+Reproduce any of these from a clone. Three columns because two branches changed most of them;
+the earlier figures are kept so previous versions of this document stay checkable rather than
+quietly overwritten.
 
-| Metric | Value | How to check |
-|---|---|---|
-| Tests | **186 passing** | `pytest -q` |
-| Test files | 13 | `ls tests/test_*.py` |
-| Application Python | 2,750 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
-| CSS + templates | 925 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
-| Test code | 1,712 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | `git log --oneline \| wc -l` |
-| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+**Pinned to `fbd0183`**, the tip of `hindi-2` before the merges. Every figure below was
+re-derived by running the command beside it at that commit, not carried forward — the previous
+version of this table had three rows that no longer matched their own commands, which is
+exactly the failure this document exists to record.
 
-Test code is 62% the size of application code. The rebuild **removed** 715 more lines
-than it added.
+| Metric | at `v1.0.0` | at `v1-closure` | at `fbd0183` | How to check |
+|---|---|---|---|---|
+| Tests | 186 passing | 363 passing | **698 passing** | `pytest -q` |
+| Test files | 13 | 16 | **24** | `ls tests/test_*.py \| wc -l` |
+| Application Python | 2,750 lines | 4,305 lines | **5,691 lines** | `find saafsaans -name '*.py' \| xargs wc -l` |
+| CSS + templates | 925 lines | 1,089 lines | **1,421 lines** | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
+| Test code | 1,712 lines | 3,668 lines | **7,009 lines** | `find tests -name '*.py' \| xargs wc -l` |
+| Seed advisories | 34 | 34 | **43** | `python -c "from saafsaans.data.advisories import ADVISORIES; print(len(ADVISORIES))"` |
+| Commits | 19 | 48 | **97** | `git rev-list <ref> --count` |
+| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| v1.0.0 → v1-closure | — | 46 files, +4,815 / −387 | — | `git diff --shortstat master..v1-closure` |
+| v1-closure → hindi-2 | — | — | **44 files, +6,054 / −575** | `git diff --shortstat v1-closure..fbd0183` |
+
+Test code is now **123%** the size of application code, up from 85% and from 62% at v1.0.0 —
+there is more test than app. The v1.0.0 rebuild **removed** 715 more lines than it added; both
+later branches add, because most of what they contain is either a correction with a test
+pinning it or the Hindi corpus.
+
+Two of the `v1-closure` figures are corrected here. The row for `v1.0.0 → v1-closure` said
+"44 files, +4,523 / −383"; the command printed beside it returns 46 files, +4,815 / −387. The
+commit count said "46 at `a021623`" against a branch of 48. Nobody re-ran the commands after
+the last few commits landed, which is the ordinary way a measured claim goes stale — and the
+reason this version names the commit it was measured at.
 
 Three tests are unusual and worth naming, because they encode claims the documentation
 makes rather than behaviour the code exhibits:
@@ -46,6 +64,11 @@ makes rather than behaviour the code exhibits:
 - `test_band_chip_word_and_control_borders_meet_contrast` — computes contrast ratios for
   every band chip and control border from the stylesheet.
 - `test_pages_carry_no_javascript` — asserts the app ships zero `<script>` tags.
+
+The closure branch adds a fourth kind: tests whose subject is an *absence*.
+`test_no_page_repeats_the_false_never_logged_claim` walks every page and fails on the
+wording of a privacy claim that was once true-sounding and false. A defect that has been
+fixed twice in two places is worth a test that watches for it in all of them.
 
 ## 3. What the adversarial code review found
 
@@ -152,7 +175,10 @@ defects, and shipping something honest and complete rather than something larger
 
 - **No real users.** Zero people outside the author have used this. Every usability claim
   is reasoning, not observation.
-- **Not deployed.** It runs locally. There is no public URL.
+- **Deployed, but unexercised.** It is live at https://saafsaans.fly.dev on one 256 MB
+  Fly.io machine scaled to zero. No traffic beyond the author's own, and the public
+  instance runs without `OPENROUTER_API_KEY`, so it answers from the rule-based
+  fallback rather than a model. A URL is not evidence that anything was used.
 - **Written with heavy AI assistance.** The code was largely produced by an AI assistant
   under direction. The human contribution was problem selection, quality standards,
   rejecting inadequate output, and the decision to stop — not line-by-line authorship.
@@ -192,13 +218,19 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
 
 ## 9. Open items, in order of value
 
-1. **Put v1 in front of two or three real people and write down what confuses them.**
-   This is the cheapest available improvement by a wide margin: thirty minutes converts
-   the weakest part of this record (§6 — no observed usage) into the strongest.
-2. **Deploy publicly.** A reader currently has to clone and run it. A URL is worth more
-   than another feature.
-3. **Hindi for the advice, not just the numbers** — the one evidence-backed improvement.
-4. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
+1. **Put v1 in front of five or six real people and write down what confuses them.**
+   Still the cheapest available improvement by a wide margin: it converts the weakest part
+   of this record (§6 — no observed usage) into the strongest. A facilitator script and a
+   per-participant recording sheet are ready in [`USER-TEST.md`](USER-TEST.md) and
+   [`user-test-sheet.md`](user-test-sheet.md), including the wording to use, the wording
+   that leads and must be avoided, and a check on whether the facilitator contaminated the
+   session. **Do this before the Hindi sign-off** — the test will change the English copy,
+   and a translation signed off against copy that then moves has to be reviewed twice.
+2. **Hindi sign-off.** The translation is drafted, committed and gated behind a banner; one
+   fluent Delhi Hindi speaker needs to read `services/i18n.py` end to end, checking the
+   health instructions hardest — anything about an inhaler, a mask or seeking care must
+   carry identical force, neither softened nor strengthened. The banner comes out only then.
+3. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
    retrieved during research and is the most decision-relevant unread document; it governs
    whether personalised health advice can legally ship in India.
 
@@ -219,3 +251,211 @@ The counts are support for that claim, not the claim itself.
 heavy AI assistance whether or not it is stated; stating it first is the difference
 between candour and being caught. The same applies to "no real users" — it is the obvious
 first question, and answering it before it is asked is worth more than hiding it.
+
+## 10a. The closure run, 20 July 2026
+
+An unattended run worked a closure brief across six phases on the `v1-closure` branch. Each
+phase was adversarially reviewed before merge, with the kill rate recorded.
+
+| Phase | What it did | Kill rate |
+|---|---|---|
+| A | Six persona walkthroughs of the running site | **60%** (10 of 25 survived) |
+| B | Grounded the risk score; corrected the data claims | 3 defects raised on the diff, all fixed |
+| C | Hindi for the advice, behind an unreviewed banner | 8 defects, 2 of them high |
+| D | Feed integrity, bounded transcripts, share preview, measured a11y | 6 defects |
+| E | Deployment prepared and the container actually run | — |
+| F | This record, and a final review of the whole branch | **38%** (50 examined) |
+
+Two supporting studies ran alongside: a verification of the WAQI data question (**51
+conclusions, 31% killed**) and a repo-wide review (**47 findings, 64% killed**).
+
+**The risk score is now half-grounded and says so.** Activity and age were re-derived from
+the US EPA Exposure Factors Handbook 2011 Table 6-2, transcribed from the EPA chapter PDF
+rather than from a summary of it, and pinned by a test. EPA rates its own confidence in that
+table Medium, which the app repeats where the score is explained. The condition weights
+stayed uncited because no citable multiplier exists — they are labelled an unvalidated
+clinical heuristic in the UI, not only in the README.
+
+**The app was misreporting its own data, and four of the six personas noticed without being
+able to name why.** Both faults are recorded in section 11.
+
+**The Hindi is drafted and gated.** The verdict, band advice, AQI meanings, glossary, Guide
+and all 43 advisories are translated and committed — never machine-translated at request
+time. Every Hindi page carries a banner stating no Hindi speaker has checked it. The persona
+sentence, comparison line and driver chips were English when this paragraph was first written
+and are not any more -- see section 12.
+
+**Roughly half the station feeds were broken.** Auditing all 21 found 11 returning 404 —
+and because the code retried the Delhi city feed on a 404, those 11 localities had been
+serving one central Delhi station's reading under 11 different neighbourhood names. The
+`noida` slug returned Anand Vihar, Delhi byte-for-byte. Seven feeds served month-old
+readings with `status: "ok"`, which the UI stamped LIVE. The fix checks the feed's own
+station name against the locality on every fetch, so the table is no longer the only
+defence.
+
+### What the Phase A walkthrough was, and was not
+
+Six agents walked the running site as six personas. They are **heuristic reviewers, not
+users** — they cannot be genuinely ignorant, they have no stakes, and they do not see a
+rendered page. Where a finding depended on visual rendering they were required to say so.
+Each finding was then attacked by an independent refuter defaulting to rejection.
+
+**This is not the user test.** Open item 1 in section 9 stands untouched. Nothing here
+should be read as having put this in front of a person.
+
+### The correction that created a new defect
+
+The scale correction made a latent bug reachable. Before it, the app always had
+an AQI, because it used WAQI's — the number on the wrong scale. Afterwards a feed with no
+usable particulate correctly yields no index at all, and `compute_risk` coerced that `None`
+to zero. Zero is the cleanest possible air, so the hero offered *"A good day to breathe —
+enjoy it outside"* on a page that simultaneously said UNKNOWN and *"treat conditions as
+unhealthy until you can confirm"*.
+
+Nobody wrote that bug. It was created by fixing a different one, and the only thing that
+caught it was reviewing the whole branch again at the end rather than trusting the
+per-phase reviews that had each passed. **Fixing something correctly is not the same as
+leaving the system correct.**
+
+### The most useful finding was about a process, not a defect
+
+The 45-agent review in section 3 found the false privacy claim in the README and it was
+fixed there. This run found the same claim still live in the site footer on all four pages
+and in the Guide, while `locality` went on being written to telemetry.
+
+The original fix corrected the sentence the finding pointed at. It did not ask where else
+that belief had been written down. **A finding is about a sentence; the defect is about a
+belief, and beliefs are usually recorded more than once.** The repair now has a test that
+walks every page and fails on the old wording, which is the only version of this fix that
+stays fixed.
+
+## 11. Decisions taken autonomously
+
+An unattended run on 20 July 2026 worked through a closure brief on the `v1-closure`
+branch. The brief said to take the owner's decisions where the work needed them and record
+each one here. These are those decisions, with the reasoning, for review.
+
+### The brief asked for a WHO line that could not honestly be written
+
+The brief specified this sentence:
+
+> *Today you breathed in about **ten times** more pollution than the World Health
+> Organization says is safe in a day.*
+
+It shipped in a different shape, because that sentence asserts three things the app cannot
+support. It claims a **daily average**, from a single near-instantaneous station reading.
+It claims an **inhaled dose**, which needs the exposure model this project deliberately
+cancelled. And it treats 15 µg/m³ as a **daily ceiling**, which is not what it is: WHO
+defines the 24-hour AQG level as the 99th percentile of a year's daily means, so three or
+four days above it still meet the guideline (WHO AQG 2021, p. 88).
+
+What ships compares the air **right now** against a guideline defined over a whole day, and
+says so in those words rather than hiding the mismatch. Both qualifications are in the
+Guide. The phrasing is also "six times **as much as**" rather than "six times **more
+than**" — the loose form literally means seven times, and overstating by one multiple every
+time is exactly the failure this repository exists to record.
+
+### The app was misreporting its own data, in two ways
+
+Neither was in the brief. Both were found while building B1, and both are the same class as
+the false privacy claim.
+
+**The pollutant figures were not concentrations.** `iaqi.pm25.v` from the WAQI feed is an
+AQI sub-index; the UI rendered it with the literal label `µg/m³`. WAQI's own field
+documentation says "Individual AQI for the PM2.5". Across a sample of 237 stations
+worldwide the dominant pollutant's sub-index equalled `data.aqi` in **237 of 237** cases,
+and 91% of stations reported PM2.5 above PM10 — impossible for mass concentrations, since
+PM10 contains PM2.5. Four of the six Phase A personas independently noticed something wrong
+here without being able to name the cause.
+
+**The scale was not India's.** The number was credited to CPCB and bucketed with CPCB band
+boundaries. WAQI publishes on the US EPA scale worldwide and states specifically for India
+that it moved every Indian station onto that scale in January 2016, warning that its figures
+will therefore differ from India's own National AQI portal. The scales are not close: 60
+µg/m³ of PM2.5 is CPCB 100 "Satisfactory" and US EPA about 154 "Unhealthy".
+
+**Decision: convert rather than relabel.** The smaller fix was to delete the `µg/m³` label
+and rename the bands to the US EPA ones. That would have been honest and cost almost
+nothing. It was rejected because it makes the product worse for the people it is for — a
+Delhi resident checking this against any other Indian source would see a different number
+under different words. Instead the feed's sub-index is inverted through the EPA table WAQI
+actually uses, and India's index is computed from the resulting concentrations. The
+trade-off, disclosed on the page and in the Guide: the result uses **two** pollutants where
+CPCB uses up to eight and requires at least three, so on a gas-dominated day the official
+figure would be higher. The provenance panel shows both numbers so a reader can watch them
+disagree.
+
+### Three places where a gap was left visible instead of filled
+
+- **CPCB publishes its top category open-ended** ("PM2.5 above 250" → 401–500), so there is
+  no upper concentration to interpolate towards. Values past the last breakpoint report the
+  floor of Severe with a flag rather than an invented slope. A verification agent was sent
+  to find whether CPCB publishes an upper bound and was cut off by a session limit before
+  answering; the question is open, and the code says so.
+- **A feed with no usable particulate yields no AQI at all**, and the page shows `--`. The
+  obvious fallback — use WAQI's own number — would put a US figure under Indian band names,
+  which is the defect being removed.
+- **Children's extra vulnerability stayed unvalidated.** Grounding age in EPA's published
+  inhalation rates has an uncomfortable consequence: a 6–11 year old moves *less* air per
+  minute than an adult, so a purely rate-based model scores a child as safer. The reasons
+  children are more affected are real but do not reduce to a citable number, so those weights
+  sit in a term labelled unvalidated rather than beside a citation they do not have. A test
+  asserts the inversion so it cannot be quietly reversed.
+
+### Two claims were deleted rather than softened
+
+- **"Staying home" no longer subtracts 6 points.** That discount assumed indoor air is
+  cleaner; in Delhi indoor PM2.5 tracks outdoor closely and the claim was never evidenced.
+  Staying home still scores lowest, but now only because a resting body inhales least.
+- **The "you scored below the baseline" message is gone.** An exhaustive sweep of the input
+  space shows the case cannot occur. Copy for an unreachable state can never be shown and
+  never be checked. A test now pins the property, so if a future weight makes the case
+  reachable the suite fails and the branch gets written.
+
+### The false privacy claim was still on every page
+
+The 45-agent review corrected the README and stopped there. The site footer went on saying
+"Persona stays in session — never logged" on all four pages, and the Guide said the persona
+"is never written to a database", while `locality` was written to `app-telemetry` on every
+request. The fix had moved the sentence rather than retiring the claim. Both surfaces now
+say what the code does, and a test walks every page and fails on the old wording.
+
+That this survived a 45-agent review is the most useful thing in this section. The review
+found the claim; the fix was applied where the finding pointed, not everywhere the claim
+lived. **A finding is about a sentence. The defect is about a belief, and beliefs are
+usually written down more than once.**
+
+### Findings recorded but not acted on in this run
+
+Two entries here were wrong when written, and are corrected rather than deleted: the code
+already acted on both. `noida` is pinned by station uid precisely because the named slug
+resolved to Anand Vihar, and `MAX_OBS_AGE` exists precisely to refuse the four-week-stale
+`delhi/ito` reading. They are struck through below rather than removed, because a decision
+record that quietly drops its own mistakes is worth less than one that keeps them visible.
+
+- ~~The `noida` feed slug returns the Anand Vihar, Delhi station byte-for-byte.~~ Acted on:
+  the locality is pinned by station uid, and every fetch checks the feed's own station name.
+- ~~The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`.~~ Acted on:
+  readings older than twelve hours are refused.
+- Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path. Still
+  open: a per-locality TTL memo is the obvious fix and was not made, because it is a
+  behaviour change to the freshness story rather than a correction, and this run was closing
+  v1 rather than tuning it.
+- `_TRANSCRIPTS` was unbounded and the session cookie unsigned. **Both were fixed** — the
+  store is capped at 500 LRU sessions of 20 turns, and the cookie is validated as a
+  canonical v4 uuid rather than signed, with the docstring stating what that does not
+  protect against.
+- The test suite was calling the live WAQI and OpenRouter APIs on every run, so its results
+  depended on Delhi's weather and on model output. **Fixed**; the suite went from three
+  minutes to half a second, and that runtime had been visible the whole time without anyone
+  asking why.
+
+### Phase A was a heuristic evaluation, not user testing
+
+Six agents walked the running site as six personas. They are **heuristic reviewers, not
+users**: they cannot be genuinely ignorant, they have no stakes, and they do not see a
+rendered page. Where a finding depended on visual rendering they were required to say so.
+25 findings were raised and each was attacked by an independent refuter instructed to
+default to rejection; **10 survived, a 60% kill rate**. This does not substitute for the
+open item at the top of section 9 — putting v1 in front of real people — and nothing here
+should be read as having done that.

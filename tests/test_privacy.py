@@ -1,5 +1,18 @@
 """Privacy invariants: no raw persona leaves the process into any index."""
+import pathlib
+import uuid
+
+import pytest
+
 from saafsaans.services import es, normalize
+
+
+@pytest.fixture
+def empty_store():
+    from saafsaans.web import main as web_main
+    web_main._TRANSCRIPTS.clear()
+    yield web_main._TRANSCRIPTS
+    web_main._TRANSCRIPTS.clear()
 
 
 def test_session_hash_len_and_determinism():
@@ -72,3 +85,246 @@ def test_security_excerpt_within_index_path():
     })
     assert len(captured["doc"]["prompt_excerpt"]) == 120
     assert set(captured["doc"].keys()) <= es.SECURITY_FIELDS
+
+
+def test_no_page_repeats_the_false_never_logged_claim():
+    """The README's version of this claim was the worst defect this project
+    found in itself: it said the persona is never written to any index while
+    locality was written on every request. The footer and the Guide were still
+    saying it after the README was corrected. Any surface making a blanket
+    "never logged" promise about the persona is making a false one."""
+    from fastapi.testclient import TestClient
+    from saafsaans.web.main import app
+    with TestClient(app) as client:
+        for path in ("/", "/guide", "/city", "/system"):
+            flat = " ".join(client.get(path).text.replace("&#39;", "'").split())
+            assert "Persona stays in session — never logged" not in flat, path
+            assert "persona stays in the page address and your session — it is never" \
+                not in flat.lower(), path
+
+
+def test_the_transcript_store_forgets_the_oldest_questions(empty_store, monkeypatch):
+    """The store holds raw user questions in process memory. Capping the turns
+    per session bounds how long any one question is retained."""
+    from fastapi.testclient import TestClient
+    from saafsaans.web import main as web_main
+
+    monkeypatch.setattr(web_main, "MAX_TURNS_PER_SESSION", 2)
+    with TestClient(web_main.app) as client:
+        for q in ("Question about my first child?", "Second?", "Third?"):
+            client.post("/ask", data={"question": q})
+    held = [t["question"] for store in empty_store.values() for t in store["turns"]]
+    assert len(held) == 2
+    assert "Question about my first child?" not in held
+
+
+def test_the_transcript_store_forgets_the_least_recently_used_session(empty_store,
+                                                                     monkeypatch):
+    """Sessions are capped too, so questions do not accumulate for the life of
+    the process one abandoned session at a time."""
+    from saafsaans.web import main as web_main
+
+    monkeypatch.setattr(web_main, "MAX_SESSIONS", 3)
+    for n in range(4):
+        web_main.add_turn(f"sid-{n}", {"question": f"q{n}"})
+    assert len(empty_store) == 3
+    assert "sid-0" not in empty_store          # least recently used, evicted
+
+
+def test_reading_a_session_does_not_create_one(empty_store):
+    """Otherwise any request with a stale or forged cookie grows the store."""
+    from saafsaans.web import main as web_main
+    assert web_main.read_turns("never-seen") == []
+    assert len(empty_store) == 0
+
+
+def test_a_client_chosen_session_key_is_never_used(empty_store):
+    """`sid` is client-controlled. Anything that is not a canonical uuid4 --
+    the only form this server issues -- is replaced, so a caller cannot pick
+    the key its questions are filed under, nor read someone else's by naming
+    it. This does NOT defend against a stolen or guessed real uuid4."""
+    from fastapi.testclient import TestClient
+    from saafsaans.web import main as web_main
+
+    for forged in ("admin", "../etc", "x" * 5000, "{%s}" % uuid.uuid4(),
+                   "urn:uuid:%s" % uuid.uuid4(), str(uuid.uuid4()).upper(),
+                   str(uuid.uuid1())):
+        with TestClient(web_main.app, cookies={"sid": forged}) as client:
+            client.post("/ask", data={"question": "Is it safe outside?"})
+        assert forged not in empty_store
+    for key in empty_store:
+        assert uuid.UUID(key).version == 4 and str(uuid.UUID(key)) == key
+
+
+def test_a_real_session_id_still_carries_the_transcript(empty_store):
+    """The uuid check must not break continuity for a legitimate cookie."""
+    from fastapi.testclient import TestClient
+    from saafsaans.web import main as web_main
+
+    sid = str(uuid.uuid4())
+    with TestClient(web_main.app, cookies={"sid": sid}) as client:
+        client.post("/ask", data={"question": "Should I cycle today?"})
+        assert "Should I cycle today?" in client.get("/").text
+    assert sid in empty_store
+
+
+def test_the_pages_name_locality_as_the_logged_exception():
+    from fastapi.testclient import TestClient
+    from saafsaans.web.main import app
+    with TestClient(app) as client:
+        footer = " ".join(client.get("/").text.replace("&#39;", "'").split())
+        assert "hashed session id and the area you picked" in footer
+        guide = " ".join(client.get("/guide").text.replace("&#39;", "'").split())
+        assert "is the one exception and is stored deliberately" in guide
+
+
+def test_the_security_view_does_not_publish_other_visitors_typed_text():
+    """/system is public and unauthenticated, and prompt_excerpt is a verbatim
+    fragment of something a visitor typed. The guard stopping it does not make
+    it ours to publish. Only the red-team demo's own attempts and the reader's
+    own may be listed."""
+    from fastapi.testclient import TestClient
+    from saafsaans.services import metrics, normalize
+    from saafsaans.web import main as web_main
+    from saafsaans.web.main import app
+
+    stranger = normalize.session_hash("some-other-visitor")
+    events = [
+        {"pattern": "ignore_instructions", "excerpt": "my private medical question",
+         "ts": "2026-07-20T10:00:00+00:00", "session_hash": stranger},
+        {"pattern": "jailbreak", "excerpt": "[demo] blocked prompt-injection attempt",
+         "ts": "2026-07-20T10:01:00+00:00",
+         "session_hash": normalize.session_hash("red-team-demo")},
+    ]
+    original_events, original_client = metrics.recent_security_events, web_main.get_client
+    metrics.recent_security_events = lambda client, limit=6: events
+    web_main.get_client = lambda: object()
+    try:
+        with TestClient(app) as client:
+            body = client.get("/system", params={"view": "security"}).text
+    finally:
+        metrics.recent_security_events = original_events
+        web_main.get_client = original_client
+
+    assert "my private medical question" not in body
+    assert "[demo] blocked prompt-injection attempt" in body
+
+
+def test_the_shipped_server_does_not_log_the_persona():
+    """The persona travels in the query string, so uvicorn's default access log
+    prints age, condition and activity next to the client IP on every request:
+
+      127.0.0.1:58193 - "GET /?locality=Anand+Vihar&age=Senior&condition=COPD..."
+
+    Reproduced against a real server before this test was written. The Guide
+    tells every reader those fields are never written to a database and that the
+    logs hold only a hashed session id and a status; the field whitelists above
+    keep that true of Elasticsearch, and nothing kept it true of stdout, which a
+    hosted platform collects and retains. The control is one flag on the shipped
+    command, so the test is on the shipped command.
+    """
+    import pathlib
+    dockerfile = pathlib.Path(__file__).resolve().parent.parent / "Dockerfile"
+    cmd = [ln for ln in dockerfile.read_text().splitlines()
+           if ln.startswith("CMD") and "uvicorn" in ln]
+    assert len(cmd) == 1, f"expected exactly one uvicorn CMD, found {len(cmd)}"
+    assert "--no-access-log" in cmd[0], (
+        "the shipped uvicorn command has no --no-access-log, so the reader's "
+        "health condition is printed beside their IP on every request"
+    )
+
+
+def test_clearing_credentials_needs_them_empty_not_unset():
+    """`services/config` calls ``load_dotenv()`` at import, and load_dotenv does
+    not overwrite a name that is already in the environment -- but it does fill
+    in one that has been UNSET. So `env -u WAQI_TOKEN ...`, the obvious way to
+    neutralise a checkout that has a live .env, is silently undone at import and
+    the process runs against real credentials. `env WAQI_TOKEN= ...` survives.
+
+    This is a footgun, not a defect in the app: a bare script SHOULD pick up
+    .env. It is pinned here because the difference is invisible -- both spellings
+    look like they disable the credential, and only one does -- and because
+    getting it wrong points a review at a live paid API.
+    """
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    probe = ("import os;"
+             "from saafsaans.services import config;"
+             "print(repr(os.environ.get('WAQI_TOKEN')))")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # A .env of our own, in a directory of our own. Reading the repository's
+    # real .env would make this test depend on whether the machine running it
+    # happens to have credentials -- and an earlier version of this test, which
+    # asserted only the empty case, could not fail at all: it checked that a
+    # subprocess started with WAQI_TOKEN="" sees "", which is a fact about
+    # `env` and not about this application.
+    with tempfile.TemporaryDirectory() as tmp:
+        (pathlib.Path(tmp) / ".env").write_text("WAQI_TOKEN=from-dotenv\n")
+
+        def _probe(env):
+            full = {**os.environ, **env, "PYTHONPATH": root}
+            full.pop("PYTEST_CURRENT_TEST", None)
+            return subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=full,
+                                  capture_output=True, text=True).stdout.strip()
+
+        unset = {k: v for k, v in os.environ.items() if k != "WAQI_TOKEN"}
+        unset["PYTHONPATH"] = root
+        unset.pop("PYTEST_CURRENT_TEST", None)
+        refilled = subprocess.run([sys.executable, "-c", probe], cwd=tmp, env=unset,
+                                  capture_output=True, text=True).stdout.strip()
+
+        assert refilled == "'from-dotenv'", (
+            f"UNSETTING the variable should let load_dotenv() refill it from "
+            f"the .env -- that is the trap. Got {refilled}")
+        assert _probe({"WAQI_TOKEN": ""}) == "''", (
+            "setting the variable EMPTY should survive load_dotenv()")
+
+
+def test_no_page_can_leak_the_persona_in_a_referer_header():
+    """The persona travels in the query string and the page fetches its fonts
+    from a third party, so every page view makes a cross-origin request while
+    the URL holds the reader's age and health condition.
+
+    Current browsers default to strict-origin-when-cross-origin, which sends
+    the origin alone -- so the persona does not in fact reach Google today.
+    That is a default, not a guarantee, and this is the one field that must not
+    leak, so the policy is declared rather than assumed.
+    """
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        for path in ("/", "/city", "/system", "/guide"):
+            body = client.get(path, params={"locality": "Anand Vihar", "age": "Senior",
+                                            "condition": "COPD",
+                                            "activity": "Outdoor exercise"}).text
+            assert '<meta name="referrer" content="strict-origin-when-cross-origin">' in body, (
+                f"{path} declares no referrer policy while linking a third-party origin"
+            )
+
+
+def test_the_only_third_party_origin_is_the_font_host():
+    """Recorded so that adding another one is a decision rather than a drift.
+
+    The threat model in README names this exposure: a visitor's IP reaches
+    Google on every page view. Self-hosting the two families would remove it
+    and is a change to the deploy artifact, deliberately not made unattended.
+    """
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from saafsaans.web.main import app
+
+    with TestClient(app) as client:
+        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                       "condition": "None", "activity": "Walking"}).text
+    origins = {re.match(r"https?://[^/]+", url).group(0)
+               for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', body)}
+    assert origins <= {"https://fonts.googleapis.com", "https://fonts.gstatic.com"}, (
+        f"a new third-party origin appears on the page: {origins}")

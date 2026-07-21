@@ -33,8 +33,15 @@
      luminance (g2 sat brighter than g3-g5, so a Poor reading receded while a
      Satisfactory one advanced). Same hue families; luminance now climbs with
      severity, so severity tracks contrast-against-background in both themes.
-     Measured against --surface: 3.89 / 5.04 / 5.81 / 6.23 / 7.36 / 10.76 : 1. */
-  --g1: #4A7FB0; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
+     Measured against --surface: 4.63 / 5.04 / 5.81 / 6.23 / 7.36 / 10.76 : 1.
+
+     g1 was #4A7FB0 and measured 3.89:1. That is the 3:1 non-text threshold
+     (SC 1.4.11), which is the right floor for the 9px `.dot` swatch and the
+     wrong one for `.station .bd`, which paints the same token as 11px text and
+     needs 4.5 (SC 1.4.3). Lightened along its own hue until it clears the text
+     floor, and no further: its luminance is 0.245 against g2's 0.271, so the
+     ramp still climbs with severity. */
+  --g1: #5A8CBA; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
   --n1: #1C2938; --n2: #1B2C31; --n3: #322815; --n4: #362216; --n5: #351D1B; --n6: #3A1F18;
   --gx: #8B877E; --nx: #232834;
 }
@@ -83,10 +90,39 @@ a:hover { color: var(--text); }
 .mono { font-family: var(--mono); }
 .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
           text-transform: uppercase; color: var(--text-3); }
-.muted { color: var(--text-3); }
 h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .page-h1 { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
 .page-sub { margin: 0; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+
+/* The one quiet style. Every honesty fix this site made added a sentence, and
+   none of them were ranked against each other -- the WHO comparison was set in
+   the same weight as the band meaning it sits under, and seven more
+   qualifications each had a one-off class. Full weight now belongs to the
+   verdict, the advice and what to do about it; every qualification of those is
+   this class, and nothing else.
+
+   No background colour, deliberately: --text-3 on --surface-2 measures 4.12:1
+   in dark, which is below the 4.5 floor. A caveat that needs to sit on a tint
+   takes .on-tint, which swaps in --text-2 (6.27 light / 6.14 dark).
+
+   NOTE for anyone adding a caveat inside a card: this is a single class, so a
+   descendant rule like `.answer p` outranks it and would render it at body
+   weight. That is not hypothetical -- it is what .disclaimer did for its whole
+   life. Such rules are written `p:not(.caveat)` below, so the competing rule
+   stops applying rather than two rules fighting over the element. */
+.caveat { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; font-weight: 400;
+          color: var(--text-3); text-wrap: pretty; }
+/* The underline stays. --accent measures 1.21:1 (light) and 1.72:1 (dark)
+   against --text-3, the colour of the sentence the link sits inside, so colour
+   alone leaves the link indistinguishable from the prose around it -- SC 1.4.1
+   wants 3:1 before colour may carry that on its own. The base `a` rule's
+   text-underline-offset keeps it off the Devanagari descenders. */
+.caveat a { color: var(--accent); }
+.caveat.on-tint { color: var(--text-2); }
+/* The window is a baseline-aligned flex row, and a flex item is blockified, so
+   .caveat's top margin would push this one out of the alignment it shares with
+   the label and the value. */
+.hero-window .caveat { margin: 0; font-size: 12px; color: #F5F4F0; opacity: .65; }
 
 /* --------------------------------------------------------------- header -- */
 .hdr { position: sticky; top: 0; z-index: 10; background: var(--bg);
@@ -103,7 +139,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .seg { display: flex; border: 1px solid var(--border-s); border-radius: 999px; overflow: hidden; }
 .seg a, .seg button { border: none; cursor: pointer; font-family: var(--mono); font-size: 11px;
         padding: 5px 11px; background: none; color: var(--text-2); text-decoration: none; }
-.seg [aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg [aria-current="true"] { background: var(--accent); color: var(--on-accent); }
 
 /* ----------------------------------------------------------------- grid -- */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
@@ -119,16 +155,27 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-sun { position: absolute; top: 34px; right: 5%; width: 68px; height: 68px;
             border-radius: 50%; background: var(--sun); filter: blur(10px); opacity: .55; }
 .hero-haze { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 18%, var(--haze)); }
+/* The scrim used to start at 24% of the hero height, which left the metadata
+   row, the AQI pill and the kicker sitting on bare sky. On the clean-air bands
+   that sky is light, and 11px text at #F7F3EC measured about 2.4:1 against it
+   -- failing worst on exactly the days somebody glances rather than reads. It
+   now has a floor at the top. Haze still carries the severity, because haze
+   rides above this and climbs with the band. */
 .hero-scrim { position: absolute; inset: 0;
-              background: linear-gradient(180deg, rgba(10,12,16,0) 24%, rgba(10,12,16,.7) 84%); }
+              background: linear-gradient(180deg, rgba(10,12,16,.5) 0%,
+                                          rgba(10,12,16,.6) 45%, rgba(10,12,16,.82) 100%); }
 .hero-body { position: relative; padding: 22px; color: #F7F3EC;
              display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
 .hero-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
              font-family: var(--mono); font-size: 11px; letter-spacing: .08em; }
-.hero-meta .prov { opacity: .75; }
+.hero-meta .prov { opacity: 1; }
+/* The locality is upper-cased here rather than by a template filter, so the
+   markup still carries the name as it is spelled in the picker and in the
+   query string. */
+.hero-meta .place { text-transform: uppercase; }
 .hero-pill { padding: 3px 10px; border-radius: 999px;
              background: rgba(247,243,236,.16); border: 1px solid rgba(247,243,236,.35); }
-.hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; opacity: .85; }
+.hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; }
 .verdict { margin: -4px 0 0; font-weight: 800; font-size: clamp(28px, 5vw, 42px);
            line-height: 1.08; letter-spacing: -.015em; text-wrap: pretty; }
 .hero-advice { margin: 0; font-size: 15px; opacity: .92; text-wrap: pretty; }
@@ -141,7 +188,6 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
                padding: 12px 22px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .hero-window .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; opacity: .7; }
 .hero-window .val { font-family: var(--disp); font-weight: 600; font-size: 17px; }
-.hero-window .note { font-size: 12px; opacity: .65; }
 .stale-note { margin: 0; font-size: 13px; color: var(--text-2); background: var(--surface);
               border: 1px dashed var(--border-s); border-radius: 10px; padding: 10px 14px; }
 
@@ -186,7 +232,11 @@ select, input[type="text"] {
 .pollutants .unit { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
 .def-slot { margin: 12px 0 0; padding: 8px 12px; background: var(--surface-2);
             border-radius: 8px; font-size: 13px; color: var(--text-2); }
-.meaning { margin: 12px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+/* Promoted, and left with exactly one job: the advice on the reading card.
+   The WHO comparison used to share this class, which made a qualification look
+   like a second finding. */
+.meaning { margin: 14px 0 0; font-size: 14.5px; font-weight: 500;
+           color: var(--text); text-wrap: pretty; }
 
 /* --------------------------------------------------------------- outlook -- */
 .bars { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -200,9 +250,6 @@ select, input[type="text"] {
 .caption { margin: 10px 0 0; font-size: 11.5px; color: var(--text-3); text-wrap: pretty; }
 
 /* ------------------------------------------------------------------- ask -- */
-.ask-cols { margin-top: 16px; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-.ask-main { flex: 3 1 380px; min-width: 0; }
-.ask-side { flex: 2 1 300px; min-width: 0; }
 .q { display: flex; gap: 10px; }
 .q .mark { font-family: var(--mono); font-size: 12px; color: var(--text-3); flex: none; padding-top: 2px; }
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
@@ -210,11 +257,10 @@ select, input[type="text"] {
 .answer-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
 .answer h3 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
              letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.answer p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.answer p:not(.caveat) { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .answer .lead { font-weight: 600; font-size: 14.5px; color: var(--text); }
 .answer ul { margin: 5px 0 0; padding-left: 18px; display: flex; flex-direction: column;
              gap: 3px; font-size: 13.5px; color: var(--text-2); }
-.disclaimer { margin: 0; font-size: 11.5px; color: var(--text-3); }
 .prov-bar { border-top: 1px solid var(--border); }
 .prov-btn { display: flex; align-items: center; gap: 8px; width: 100%; border: none;
             background: none; cursor: pointer; padding: 10px 16px; font-family: var(--mono);
@@ -228,8 +274,14 @@ select, input[type="text"] {
 .src-row span + span { font-size: 12px; color: var(--text-3); flex: 1 1 220px; }
 .refusal { margin-top: 10px; border-radius: 12px; background: var(--surface-2); padding: 12px 16px; }
 .refusal b { display: block; font-size: 13.5px; }
-.refusal p { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
-.refusal .audit { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.refusal p:not(.caveat) { margin: 4px 0 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.ask-h2 { font-size: 20px; font-weight: 600; }
+/* Both of these were inline `style="font-size:..."` in today.html. An inline
+   declaration outranks every selector, so the Devanagari floor below could not
+   reach them and both rendered under it on the Hindi page. They are classes so
+   that the floor applies, not for tidiness. */
+.reading-meta { font-size: 11px; color: var(--text-3); }
+.ask-sub { font-size: 12.5px; color: var(--text-3); }
 .ask-form { margin-top: 16px; display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; font-size: 14px; }
 .btn { border: none; cursor: pointer; padding: 11px 20px; border-radius: 10px;
@@ -244,7 +296,15 @@ select, input[type="text"] {
            color: var(--text); font-family: var(--body); font-size: 14px; cursor: pointer;
            text-align: left; width: 100%; text-decoration: none; }
 .station:first-child { border-top: none; }
-.station[aria-current="true"] { background: var(--accent-tint); }
+/* The selected row is marked with a rail rather than a fill. It used to take a
+   --accent-tint background, and the band word sits on it in --ink: that measured
+   4.12:1 (g1) and 4.31:1 (g2) in light, and 3.48:1 (g1) in dark -- below the 4.5
+   floor on the row the page selects by default. No ramp value fixes it, because
+   the tint leaves a luminance window about 0.008 wide for two bands to fit in;
+   the backdrop is what has to change. Nothing is lost: the rail is a stronger
+   selection mark than the wash was, aria-current still says it, and the bold
+   name below still says it a second time. */
+.station[aria-current="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .station[aria-current="true"] .nm { font-weight: 600; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
        background: var(--ink); margin-right: 8px; vertical-align: baseline; }
@@ -254,6 +314,15 @@ select, input[type="text"] {
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
+/* The 24-hour trend card's header row. These three were written inline in
+   city.html, which put their sizes at a specificity no `:lang(hi)` rule can
+   reach; the Hindi floor below can only apply to them from here. `.trend-head`
+   follows `.row` in source order and carries the same weight, so its baseline
+   alignment wins without any escalation. */
+.trend-head { align-items: baseline; gap: 8px; }
+.trend-place { font-weight: 600; font-size: 15px; }
+.trend-lbl { font-size: 11px; color: var(--text-3); }
+.trend-val { margin-left: auto; font-size: 13px; font-weight: 600; }
 .spark { margin-top: 10px; color: var(--accent); }
 .spark svg { display: block; width: 100%; height: auto; }
 .spark-x { display: flex; justify-content: space-between; font-family: var(--mono);
@@ -301,7 +370,6 @@ select, input[type="text"] {
 /* ---------------------------------------------- persona, thread, guide ---- */
 .pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px; }
 .hint { margin: 8px 0 0; font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
-.hint a { text-decoration: none; }
 .fields { align-items: flex-end; }
 .fields label { flex: 1 1 200px; }
 .fields .btn { padding: 9px 18px; border-radius: 8px; font-size: 13.5px; }
@@ -315,7 +383,6 @@ select, input[type="text"] {
 .thread { list-style: none; margin: 22px 0 0; padding: 0;
           display: flex; flex-direction: column; gap: 20px; }
 .thread .turn { border-top: 1px solid var(--border); padding-top: 18px; }
-.answered-for { margin: 6px 0 0; font-size: 12.5px; color: var(--text-3); }
 .prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
 .prov-body > div + div { margin-top: 4px; }
 
@@ -324,7 +391,52 @@ select, input[type="text"] {
 .faq dd { margin: 3px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .faq em { font-style: italic; }
 
+/* --------------------------------------------------------------- Hindi ---- */
+/* Anek Latin has no Devanagari, so Hindi headings would fall back to whatever
+   the device happens to have. The Devanagari sibling is only requested in the
+   markup when lang=hi (see base.html), so this rule never names a font an
+   English reader has been made to download. Latin stays second in the stack:
+   AQI, PM2.5 and N95 keep their Latin letters inside the Hindi copy. */
+html[lang="hi"] {
+  --disp: "Anek Devanagari", "Anek Latin", "Nirmala UI", sans-serif;
+}
+
+/* Devanagari at a given weight reads lighter than Latin at the same weight:
+   the script's strokes are thinner relative to its x-height, and the shirorekha
+   is a horizontal that does not thicken with weight the way a Latin stem does.
+   Matched at 600 the Hindi headings look like a de-emphasised version of the
+   English page rather than the same page in another language. Each display-face
+   heading is therefore moved up one step when Hindi is active. The English
+   weights are untouched -- these rules are scoped to html[lang="hi"] and set no
+   value the English page reads.
+
+   Two headings are already at 800, the top of the range base.html requests for
+   Anek Devanagari (500-800), and so cannot be raised: .verdict and .wordmark b.
+   The remaining Hindi text is set in the body and mono faces, neither of which
+   ships Devanagari, so it falls back to the reader's system font and gets no
+   benefit from a weight named here. */
+html[lang="hi"] .page-h1 { font-weight: 800; }
+html[lang="hi"] .ask-h2 { font-weight: 700; }
+html[lang="hi"] .hero-window .val { font-weight: 700; }
+
+/* The unreviewed-translation banner. Styled as a caveat, not an error: this is
+   a statement about how much to trust the copy, and red would read as a
+   failure and be dismissed as one. Not dismissible -- there is no control. */
+.notice { border: 1px solid var(--border-s); border-left: 4px solid var(--accent);
+          background: var(--surface-2); border-radius: 8px; padding: 12px 16px;
+          display: flex; flex-direction: column; gap: 6px; }
+.notice p { font-size: 14px; line-height: 1.55; color: var(--text); margin: 0; }
+.notice .notice-en { font-size: 12.5px; color: var(--text-2); }
+
 /* ------------------------------------------------------- a11y remedies ---- */
+/* The header is sticky, so anything the browser scrolls to lands underneath it:
+   the skip link's own #main, and every focus move the tab key has to scroll for.
+   scroll-padding keeps that region out of the scrollport. The value clears the
+   header at its unwrapped height, which tests/test_a11y.py computes from the
+   controls inside it; a wrapped header on a narrow viewport is taller and needs
+   a browser to measure. */
+html { scroll-padding-top: 76px; }
+
 /* Skip link: the sticky header repeats six controls on every page. */
 .skip { position: absolute; left: -9999px; top: 0; z-index: 100;
         background: var(--surface); color: var(--text); padding: 10px 16px;
@@ -336,22 +448,216 @@ select, input[type="text"] {
    inside, in the segment's own foreground colour. */
 .seg :focus-visible { outline-offset: -3px; outline-color: currentColor; }
 
+/* Same clipping, same remedy: both of these set overflow:hidden to keep their
+   rounded corners, which crops a ring drawn outside the child. */
+.station-list :focus-visible,
+.answer :focus-visible { outline-offset: -3px; }
+
 /* Touch-target floors. Padding is raised rather than overlaying pseudo-elements,
-   which would intercept pointer events on neighbouring controls. */
+   which would intercept pointer events on neighbouring controls.
+
+   Heights here are measured, not eyeballed: a box is font-size x the
+   line-height that reaches it, plus padding plus border, and tests/test_a11y.py
+   recomputes every one of them from this file against the 44px floor. Note
+   WHICH line-height: the flex-centring rule near the end of this file sets 1.2
+   on the five pill-shaped controls, so those do NOT get the body's 1.55, and
+   the padding below is sized against 1.2. That is the whole of the difference
+   between these numbers and the ones that stood here before -- every one of
+   the five was under 44px, by up to 3.8px, because the padding had been sized
+   against a line-height the control does not have. `.term` is held at the 24px floor
+   instead: the AQI link genuinely is an inline target in running text, which
+   cannot be enlarged without prising the lines apart, and the two pollutant
+   labels are given the same treatment so the three read as one control type.
+   Only the first of those three is covered by the WCAG 2.5.8 exemption.
+
+   `.pill-btn.strong` and `.fields .btn` are listed separately because they
+   outrank the plain class and would otherwise keep their designed padding —
+   that is how the persona editor's own toggle stayed a 31px target. */
+.wordmark { padding: 6px 0; }
 .nav a { padding: 13px 12px 11px; }
-.seg a, .seg button { padding: 12px 16px; }
-.pill-btn { padding: 11px 16px; }
-.prov-btn { padding: 14px 16px; }
+.seg a, .seg button { padding: 16px; }
+.pill-btn { padding: 15px 16px; }
+.pill-btn.strong { padding: 15px 18px; }
+.prov-btn { padding: 16px; }
+.btn { padding: 14px 20px; }
+.fields .btn { padding: 14px 18px; }
+select { padding: 12px 10px; }
 .term { display: inline-block; padding: 6px 0; }
 @media (pointer: fine) {
   /* Pointer devices do not need the same floor; keep the designed density. */
+  .wordmark { padding: 0; }
   .nav a { padding: 8px 12px 6px; }
   .seg a, .seg button { padding: 5px 11px; }
   .pill-btn { padding: 6px 14px; }
+  .pill-btn.strong { padding: 6px 14px; }
   .prov-btn { padding: 10px 16px; }
+  .btn { padding: 11px 20px; }
+  .fields .btn { padding: 9px 18px; }
+  select { padding: 8px 10px; }
   .term { padding: 0; }
 }
 
 /* h2 styled as a kicker: the level carries the outline, the class carries the look. */
 h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
             letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+
+
+/* ------------------------------------------------- Devanagari typography -- */
+/* Three rules the Latin design breaks when the text is not Latin. Patching a
+   list of class names was the wrong shape -- --mono is used in twenty-odd
+   places and none of them had been checked in Hindi -- so these are systemic.
+
+   1. THE FACE. IBM Plex Mono carries no Devanagari, so every label set in it
+      was silently falling back to whatever face the machine offered: different
+      on every device, never the one the design chose, and worst on the
+      provenance line, which is entirely mono. Hindi gets a --mono that has
+      real Devanagari. Anek also carries Latin, so mixed strings like
+      "AQI 187 · लाइव" stay in one face instead of two.
+
+   2. THE TRACKING. Devanagari must never be letter-spaced. Latin small-caps
+      gain clarity from tracking; Devanagari loses it, because the space pulls
+      matras and conjuncts off the consonants they belong to. Neutralised on
+      every element whose own computed language is Hindi -- including the
+      negative tracking on the verdict, which tightens Latin display type and
+      collides Devanagari marks.
+
+   3. THE SIZE. Devanagari carries its distinguishing detail above and below
+      the line, so at a given font-size the glyph body is effectively smaller
+      than Latin's, and every label size here was chosen against Latin. Below
+      about 12px the matras stop resolving and the text reads as texture.
+
+   `*:lang(...)` rather than `[lang=...] *` throughout: it follows the computed
+   language, so a citation marked lang="en" inside a Hindi page keeps the Latin
+   treatment instead of inheriting Devanagari sizing. */
+/* Both Latin faces this design uses -- IBM Plex Sans and IBM Plex Mono --
+   carry no Devanagari at all. Naming only --mono fixed the labels and left
+   every sentence of Hindi body text falling back to whatever the operating
+   system happened to supply: a different face on every device, and the reason
+   the primary button's text sat off-centre. Both variables are redirected. */
+*:lang(hi) {
+  --body: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  --mono: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  letter-spacing: normal;
+}
+*:lang(en) {
+  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Vertical centring across scripts. Latin and Devanagari allocate their line
+   boxes differently -- at the same font-size and line-height, Anek's box is
+   18.5px where Plex Mono's is 14.5px -- so two labels in one control sat 2px
+   apart, which is exactly the misalignment visible in the language toggle.
+   Centring the line box inside the control makes the offset independent of
+   which script the label happens to be in. */
+.seg a, .seg button, .btn, .pill-btn, .prov-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+/* A segmented control is one object: both halves take the same face even when
+   one label is Latin, or the pill reads as two controls jammed together. */
+:lang(hi) .seg a, :lang(hi) .seg button {
+  font-family: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+}
+
+/* Devanagari is unicameral: uppercasing does nothing but tell a screen reader
+   this is an abbreviation. */
+:lang(hi) .kicker, :lang(hi) .hero-kicker, :lang(hi) .lbl,
+:lang(hi) .answer h3, :lang(hi) .band-chip, :lang(hi) .prov-btn {
+  text-transform: none;
+}
+
+/* Size floors. Nothing carrying Devanagari prose sits below 12px. */
+:lang(hi) .hero-kicker { font-size: 14px; line-height: 1.6; }
+:lang(hi) .hero-meta,
+:lang(hi) .chip-risk,
+:lang(hi) .chip-base { font-size: 13px; line-height: 1.6; }
+:lang(hi) .hero-window .lbl,
+:lang(hi) .kicker,
+:lang(hi) .lbl,
+:lang(hi) .fields .lbl,
+:lang(hi) .pollutants .lbl,
+:lang(hi) .answer h3,
+:lang(hi) .station .tag,
+:lang(hi) .q .mark { font-size: 12.5px; line-height: 1.6; }
+/* The controls. These were not on the floor's original list, which is a list of
+   class names and so could not notice its own omissions: `.seg a` is every
+   toggle in the header, on every page of the site, and it was the same 11px
+   chosen for Latin small-caps. `:lang(hi) .seg a` and `:lang(hi) .pill-btn`
+   already existed -- one setting a face, the other an optical padding -- and
+   neither had ever been given a size.
+
+   The geometry holds. Each of these is centred by `align-items: center` on a
+   line box, not by its own padding, so the box grows by 1.5px and the label
+   stays centred in it; the optical compensation below moves padding between the
+   two edges and is unaffected by the size. The touch floor is measured from the
+   font-size, so it rises with it rather than being eaten by it. */
+:lang(hi) .seg a,
+:lang(hi) .seg button,
+:lang(hi) .pill-btn,
+:lang(hi) .kpi .l,
+:lang(hi) .when,
+:lang(hi) .spark-x,
+:lang(hi) .col .d,
+:lang(hi) .trend-lbl,
+:lang(hi) .driver,
+:lang(hi) .caption,
+:lang(hi) .prov-btn,
+:lang(hi) .prov-count,
+:lang(hi) .src-tag,
+:lang(hi) .band-chip,
+:lang(hi) .station .bd,
+:lang(hi) .scale-ends,
+:lang(hi) .bar-row,
+:lang(hi) .sysbar,
+:lang(hi) .reading-meta,
+:lang(hi) .ask-sub { font-size: 12.5px; }
+/* The provenance line is the densest text on the site and was entirely mono. */
+:lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
+:lang(hi) .hint,
+:lang(hi) .caveat,
+:lang(hi) .foot,
+:lang(hi) .excerpt { font-size: 13.5px; line-height: 1.65; }
+/* The caveat in the hero window is set two steps down from the prose caveat and
+   would land at 12px, below where matras resolve. It takes the same floor as
+   the rest of the hero's small text rather than the prose floor, because it
+   shares a baseline with the label and the value beside it. The old .note had
+   no floor of any kind here. */
+:lang(hi) .hero-window .caveat { font-size: 13px; line-height: 1.6; }
+
+
+/* Optical centring for Devanagari in pill-shaped controls.
+
+   Measured in the browser with canvas TextMetrics: at 13px, Anek Devanagari
+   reserves 9px below the baseline, but a string with no below-line matras --
+   "जानकारी बदलें", "सेहतमंद बड़ा व्यक्ति" -- inks only 0.8-2.4px of it. So a box
+   that is geometrically centred leaves the visible text about 3px high, which
+   is what the eye reports and what the box measurements deny.
+
+   The strings that DO carry marks below the line ("बहुत ज़्यादा", with ु and ़)
+   already centre within 0.1px, which is why only some chips looked wrong.
+
+   Two pixels moves off the top padding and onto the bottom, so the ink shifts
+   down without the control changing height. A constant rather than a
+   per-string correction: the residual varies with the words, and chasing it
+   exactly would mean measuring text the server has not composed yet. */
+:lang(hi) .chip-risk,
+:lang(hi) .chip-base { padding-top: 7px; padding-bottom: 3px; }
+:lang(hi) .pill-btn  { padding-top: 8px; padding-bottom: 4px; }
+:lang(hi) .band-chip { padding-top: 5px; padding-bottom: 1px; }
+:lang(hi) .driver    { padding-top: 6px; padding-bottom: 2px; }
+:lang(hi) .hero-pill { padding-top: 5px; padding-bottom: 1px; }
+/* The same 2px shift as the two rules above -- 4px of padding moved from the
+   bottom edge to the top, so the ink sits 2px lower -- re-derived on the touch
+   padding rather than the mouse padding. It used to read 13/9 while the
+   generic coarse .pill-btn was 14/14, so it quietly spent 6px of the target to
+   buy the shift and left the Hindi persona toggle a 39px control. The shift is
+   what is wanted; the subtraction was not. Against the 15/15 this rule now
+   sits under, 17/13 keeps the total at 30px, so the box is the height the
+   floor asks for and the ink still sits where the eye expects it. */
+@media (pointer: coarse) {
+  :lang(hi) .pill-btn { padding-top: 17px; padding-bottom: 13px; }
+}

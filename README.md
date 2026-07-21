@@ -16,13 +16,17 @@ so severity is felt before it is read. The gradient and haze density track the C
 |---|---|---|
 | ![Dark](docs/screenshots/today-dark.jpg) | ![City](docs/screenshots/city-pulse.jpg) | ![System](docs/screenshots/system-security.jpg) |
 
+Hindi is drafted and gated behind a banner saying no Hindi speaker has checked it:
+
+![Hindi](docs/screenshots/today-hindi.jpg)
+
 ## Run it
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                      # optional: blank = mock mode
-python saafsaans/setup_indices.py         # create 4 indices + seed 34 advisories
+python saafsaans/setup_indices.py         # create 4 indices + seed 43 advisories
 python -m saafsaans.seed_demo_history     # optional: backfill so System has data
 uvicorn saafsaans.web.main:app --reload --port 8010
 ```
@@ -31,10 +35,18 @@ Runs with **zero keys**: every external call is timeout-bounded with a determini
 Add `WAQI_TOKEN`, `OPENROUTER_API_KEY`, and Elastic credentials to light up live data, the model,
 and the dashboards.
 
+It is deployed at **https://saafsaans.fly.dev** — one 256 MB Fly.io machine in Mumbai, scaled to
+zero when idle, so the first request after a quiet spell is slow. `WAQI_TOKEN` is set;
+`OPENROUTER_API_KEY` deliberately is not, so the public instance answers from the rule-based
+fallback rather than a model. `/health` reports which of each is live. See
+[`docs/DEPLOY.md`](docs/DEPLOY.md) for the `Dockerfile` and the free-tier terms of five hosts,
+with the URL each claim was read from.
+
 ## Four views
 
 - **Today** — sky hero, personal risk against a healthy-adult baseline, best-time window, the
-  reading with its position on the CPCB scale, a five-day PM2.5 outlook, and grounded Q&A.
+  reading with its position on the CPCB scale, how today compares with the World Health
+  Organization's guideline in plain words, a five-day PM2.5 outlook, and grounded Q&A.
 - **City Pulse** — 21 Delhi/NCR stations sorted worst-first, plus a 24-hour trend.
 - **System** — Observability (latency, fallback rates, token spend) and Security (blocked
   prompt-injection attempts, with a live red-team simulation). The app auditing itself.
@@ -45,7 +57,8 @@ and the dashboards.
 ## Architecture
 
 1. **WAQI** (`services/waqi.py`) fetches live AQI; readings are indexed into `aqi-readings`.
-2. **Elasticsearch** (`services/es.py`) retrieves health advisories by AQI band and persona.
+2. **Elasticsearch** (`services/es.py`) retrieves health advisories by AQI band and persona,
+   and aggregates the time series behind the System views.
 3. **Guard** (`services/guard.py`) blocks prompt injection *before* the model, auditing to
    `security-events`.
 4. **LLM** (`services/llm.py`) answers from verified context, falling back to rule-based advice.
@@ -69,9 +82,42 @@ white, and in dark mode maroon `#7E0023` falls to ~1.4:1 — making the *most se
 ramp inverts its lightness direction between themes. The US EPA publishes its own accessible
 alternate ("ColorVision Assist") for the same reason.
 
-**Degradation is visible, never disguised.** A cached reading says `◌ CACHED`, a dead feed shows
+**Degradation is visible, never disguised.** On City Pulse a cached reading is tagged `CACHED`
+with its age beside it, a place held with no reading at all is tagged `SAMPLE`, a dead feed shows
 a notice, and a rule-based answer is logged as one. The Observability view exists to make that
 checkable rather than claimed.
+
+## What Elasticsearch is, and is not, used for
+
+Worth settling, because "Elasticsearch" invites the assumption that something is being
+searched.
+
+**It is not a search engine here.** There is not one full-text query in the application:
+
+```bash
+grep -rnE "multi_match|query_string|fuzzy|match_phrase|\"match\"" saafsaans --include='*.py'
+# no matches
+```
+
+**What it actually does** is two things. It aggregates time series for the System views —
+`terms`, `percentiles`, `date_histogram` and `top_hits` over the telemetry and security
+indices (`services/metrics.py`). And it retrieves advisories with `range` filters on the AQI
+band plus `term` clauses on the persona keywords (`services/es.py`) — exact matching on
+keyword fields, never relevance over prose.
+
+**Elasticsearch does not decide what you are shown.** Its result set is ranked in Python by
+`es.rank_advisories`, which drops every advisory whose condition, activity or age group
+contradicts the persona, orders what is left by how specifically it names that persona, and
+tags each row `persona` or `general` so the page can say which is which. The same function
+ranks the in-process path, so the two cannot drift apart. It was added because the ES `should`
+boost only ever *added* points: a row written for someone else scored zero and was returned
+anyway, and a senior with COPD was shown pregnancy and paediatric sources.
+
+**The app runs without it.** `search_advisories` falls back to an in-process filter over the
+same 43 seeded advisories, every metrics call is guarded, and the System views render their
+designed empty states. Verified rather than asserted: the container in
+[`docs/DEPLOY.md`](docs/DEPLOY.md) runs with no Elasticsearch at all and `/health` returns
+`{"ok":true,"es":"none",...}` while every view serves 200.
 
 ## Threat model
 
@@ -92,6 +138,24 @@ fixed constant and the question is framed as *data, not instructions*; every att
 **Exposed edges.** Secrets live only in `.env` (git-ignored). Every outbound call is
 timeout-bounded (WAQI 5s, LLM 30s, ES 10s) with a graceful fallback.
 
+**Third parties in the page.** The type families are loaded from Google Fonts — three Latin
+faces on every page, plus a Devanagari display face requested only when Hindi is active — so a
+visitor's IP address reaches Google on every page view. The persona does not: it travels in
+the query string, and the page declares
+`<meta name="referrer" content="strict-origin-when-cross-origin">`, so a cross-origin request
+carries the origin alone and never the age, condition or activity. That is asserted by
+`test_no_page_can_leak_the_persona_in_a_referer_header`, and
+`test_the_only_third_party_origin_is_the_font_host` fails if a third origin is ever added.
+The IP exposure is real and is not fixed: self-hosting the faces would remove it, and
+that is a change to the deploy artifact whose rendering cannot be checked without a person
+looking at it. It is recorded here rather than done quietly.
+
+**What the server records.** Telemetry and security events go through the field whitelists in
+`services/es.py`. The shipped container also runs uvicorn with `--no-access-log`, because the
+default access line prints the full request path — and therefore the persona — beside the
+client IP. `test_the_shipped_server_does_not_log_the_persona` asserts the flag is on the
+shipped command.
+
 ## Layout
 
 ```
@@ -102,23 +166,41 @@ saafsaans/
     templates/          base · today · city · system · guide
     static/app.css      design tokens, per-band sky, severity ramp
   services/
-    config · normalize · guard · waqi · forecast · risk · es · metrics · llm
-  data/advisories.py    34 seed advisories
+    aqi_scale · clock · config · normalize · guard · waqi · forecast · risk · es
+    metrics · llm · i18n
+  data/advisories.py    43 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  186 tests
+tests/                  773 tests, 25 files
 docs/                   design brief, screenshots, specs
 ```
 
 ## Known limitations
 
-- **English only.** For a Delhi public-health tool that is a real gap. The wordmark is bilingual
-  and the display face (Anek Latin) has a Devanagari sibling, so the door is open — but the 34
-  advisories and the model prompting are not translated.
+- **The Hindi is drafted, not reviewed.** `?lang=hi` serves a committed Hindi translation of
+  the verdict, the advice, the AQI band meanings, the glossary, the Guide and all 43
+  advisories. **No Hindi speaker has checked it**, so every Hindi page carries a banner saying
+  so, and that banner is a condition of the feature shipping rather than a nicety — a
+  mistranslated instruction about an inhaler is worse than English. The persona sentence, the
+  comparison line and the driver chips are translated too — an earlier version of this file said
+  they were not, which stayed written down after the code moved on.
+- **Roughly half the station feeds do not work.** An audit of all 21 on 20 July 2026 found 11
+  slugs returning 404 and several serving month-old readings as current. The app now checks
+  the feed's own station name against the locality on every fetch and refuses readings older
+  than twelve hours, so a locality with no working feed shows a labelled sample instead of a
+  stranger's air. On that day, 12 localities were live and 9 were on samples.
 - **WAQI data is non-commercial.** Their terms forbid resale, use in paid applications, and
   redistributing cached or archived data. Fine for this; a commercial deployment would need
   OpenAQ or a direct CPCB agreement.
-- **The risk score is a heuristic**, not a validated clinical instrument. Weights in
-  `services/risk.py` are documented but not derived from a published model.
+- **The risk score is half evidence and half judgement**, and the app says which is which. The
+  exertion term comes from the US EPA Exposure Factors Handbook 2011 Table 6-2, whose own
+  confidence rating EPA gives as Medium. The health-condition and age terms are an unvalidated
+  clinical heuristic: there is no citable multiplier for how much worse polluted air is with
+  COPD, so none was invented. The Guide publishes every weight and its source.
+- **The air index is computed, not received.** The WAQI feed publishes on the US EPA scale and
+  its `iaqi` values are AQI sub-indices, not concentrations. The app inverts them to
+  micrograms and recomputes India's CPCB index — **from PM2.5 and PM10 only**, where CPCB uses
+  up to eight pollutants and requires at least three. On a gas-dominated day the official CPCB
+  figure would be higher than this one. See `services/aqi_scale.py`.
 
 ## Licence
 
