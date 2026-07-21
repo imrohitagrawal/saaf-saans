@@ -256,3 +256,55 @@ def test_the_median_is_printed_when_stations_are_reporting(monkeypatch, lang):
     expected = int(statistics.median(aqis))
     assert str(expected) in sub, (lang, expected, sub)
     assert str(len(waqi.LOCALITIES)) in sub, (lang, sub)
+
+
+def test_a_raising_feed_does_not_500_the_page(monkeypatch):
+    """`_live_grid`'s comment asserted "get_aqi never raises by contract", and
+    the contract was not enforced: `_fetch_uncached` wraps neither
+    `config.waqi_token()` nor `_corroborates`, so a raise in either became a 500
+    on /city rather than the ("fallback", no numbers) the comment promises. A
+    page whose whole job is to degrade honestly must not be the page that dies.
+    """
+    def boom(locality, es_client=None):
+        raise RuntimeError("upstream exploded")
+    monkeypatch.setattr(waqi, "get_aqi", boom)
+    with TestClient(app) as c:
+        r = c.get("/city", params=PERSONA)
+    assert r.status_code == 200
+    rows = _rows(r.text)
+    assert len(rows) == len(waqi.LOCALITIES)
+    for loc, tile in rows.items():
+        assert _tile_aqi(tile) == "--", (loc, tile)
+        assert i18n.t("en", "ui", "tag_no_reading", "NO READING") in tile, loc
+
+
+def test_a_hanging_feed_does_not_hold_the_page_for_every_locality(monkeypatch):
+    """The sweep has a wall-clock budget, so a dead upstream costs one timeout
+    for the page rather than ceil(21/8) stacked ones on a scale-to-zero machine.
+
+    The feed here never returns. Without the budget this call blocks until all
+    21 threads finish; with it the page renders inside the budget and says, for
+    every station, exactly what is true: no reading.
+    """
+    import threading
+    import time as _time
+    from saafsaans.web import main as web_main
+
+    release = threading.Event()
+    monkeypatch.setattr(web_main, "_CITY_FETCH_BUDGET", 0.3)
+    monkeypatch.setattr(waqi, "get_aqi",
+                        lambda loc, es_client=None: (release.wait(30), None)[1]
+                        or (waqi._fallback(loc), "fallback"))
+    try:
+        with TestClient(app) as c:
+            start = _time.monotonic()
+            r = c.get("/city", params=PERSONA)
+            elapsed = _time.monotonic() - start
+    finally:
+        release.set()
+
+    assert r.status_code == 200
+    assert elapsed < 5, elapsed
+    rows = _rows(r.text)
+    for loc, tile in rows.items():
+        assert _tile_aqi(tile) == "--", (loc, tile)
