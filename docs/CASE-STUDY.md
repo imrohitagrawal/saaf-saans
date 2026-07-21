@@ -285,7 +285,12 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
    > **Correction, 2026-07-21 — three of these four have since been built**, and this item
    > is left in place with its correction rather than rewritten, matching the precedent set
    > in §11 below. (a) `/ask` and `/system/simulate` **are** throttled:
-   > `saafsaans/services/ratelimit.py` exists and is called at `web/main.py:508` and `:797`.
+   > `saafsaans/services/ratelimit.py` exists and is called at `web/main.py:515` (`ask:`) and
+   > `:920` (`simulate:`). *(Corrected 2026-07-21: this originally cited `:508` and `:797`.
+   > `:797` is inside the System view's `loc_rows` comprehension and has nothing to do with
+   > rate limiting, so a reviewer following the citation to verify the throttle found
+   > telemetry row-formatting — in a correction block whose whole purpose is to prove three
+   > previously-open defects were closed. Line numbers here are pinned to `5146e9e`.)*
    > (b) The WAQI fetch **is** cached: `services/waqi.py:30-31`, `_CACHE_TTL = 600`. (c) The
    > unbounded histogram **is** gone: `services/metrics.py:102-108` records its removal.
    > Only the fourth — the ES index growing with traffic rather than with observations —

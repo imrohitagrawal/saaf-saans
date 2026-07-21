@@ -25,7 +25,7 @@ mind, what we kept, what we are modifying, risks accepted, and what would falsif
 | # | Decision | Status | Read it when |
 | --- | --- | --- | --- |
 | [0001](decisions/0001-zero-javascript.md) | Zero JavaScript | **OPEN — NOT DECIDED** | You want to add a script, or you are wondering why the app has none and cannot find a reason. Records that the rule has *no evidence behind it*, states the real benefits too, and names what would settle it. |
-| [0002](decisions/0002-sample-data-honesty.md) | A sample must never drive severity | Decided; implementation pending | You are touching `waqi.SAMPLES`, `_fallback`, `/city`, or anything that turns a number into a band, verdict or health instruction. |
+| [0002](decisions/0002-sample-data-honesty.md) | A sample must never drive severity | **Decided and implemented** | You are touching `_fallback`, `/city`, the seed script, or anything that turns a number into a band, verdict or health instruction. |
 | [0003](decisions/0003-notifications-and-the-pull-ritual.md) | Notifications, and the pull ritual instead | Decided | Someone proposes push notifications or alerts. Explains why push is both evidence-weak *and* architecturally blocked, and what replaces it. |
 | [0004](decisions/0004-value-proposition.md) | The same air is not the same dose for you | Decided | You are deciding what goes at the top of a page, or arguing about what this app is for. |
 
@@ -36,7 +36,7 @@ appear in user-facing prose.
 
 | Document | Read it when |
 | --- | --- |
-| [`2026-07-exposure-evidence.md`](research/2026-07-exposure-evidence.md) | Before writing any factual claim about purifiers, masks, commuting, indoor air or behaviour change. **Read Part 1 (refuted) first** — 9 of 25 claims died, and four of them were headed into the product. |
+| [`2026-07-exposure-evidence.md`](research/2026-07-exposure-evidence.md) | Before writing any factual claim about purifiers, masks, commuting, indoor air or behaviour change. **Read Part 1 (refuted) first** — 9 of 25 claims died, and four of them were headed into the product. *(The 25 is not auditable from the file's own contents; see the audit note at its head.)* |
 
 ## Narrative
 
@@ -77,7 +77,7 @@ Things you run, not things you read for information.
 
 ## Test baseline
 
-882 passing, ~2.3s, no network, at commit `3bac090`. Run with:
+993 passing, ~2.9s, no network, at commit `5146e9e`. Run with:
 
 ```
 cd /Users/rohitagrawal/Projects/saaf-saans && env OPENROUTER_API_KEY= WAQI_TOKEN= \
@@ -89,6 +89,8 @@ calls `load_dotenv()` at import, which refills an unset name from `.env` and pro
 live-credential run. `load_dotenv` does not overwrite a name that is present but empty.
 
 > Note: `README.md:174` and `RETROSPECTIVE.md:52` both state 773 tests / 25 files. The
-> measured figure is 882 / 26. Those are stale, unpinned, present-tense claims and should
-> be corrected by measurement. (`CASE-STUDY.md:32`'s 831 is *pinned to commit `b26256d`*
+> measured figure is 993 tests across 30 files in `tests/`. Those are stale, unpinned, present-tense claims and should
+> be corrected by measurement. This baseline itself was left at `882 … 3bac090` for seven
+> commits — pinned, so not false, but read as current by anyone following the reading
+> order this file prescribes. Re-pin it in the same commit that changes the count. (`CASE-STUDY.md:32`'s 831 is *pinned to commit `b26256d`*
 > and is therefore a correct historical statement, not a stale one.)

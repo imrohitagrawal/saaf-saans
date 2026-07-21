@@ -1,6 +1,16 @@
 # Research — personal exposure, protection and behaviour (July 2026)
 
-Deep-research output. **Kill rate: 9 of 25 claims refuted (36%).**
+Deep-research output. **Kill rate: 9 of 25 claims refuted (36%) — but only 20 of the 25
+are enumerated in this file, so the headline cannot be reproduced from its own contents.**
+
+> **Audit note, 2026-07-21.** What is recorded below is 9 refuted (R1–R4 individually,
+> R5–R9 only as a shared pattern), 9 survived (D1–D9) and 2 search-layer (S1–S2) = **20**.
+> Five claims are missing from the enumeration entirely, and five of the nine refutations
+> (R5–R9) have no content recorded. Since this document's own instruction is "read the
+> refutations first, they are the most valuable part", five unrecorded refutations defeat
+> its stated purpose. The 36% arithmetic is correct *on the asserted 25*; it is not
+> auditable from what is written here. Treat the kill rate as an unverified headline until
+> the missing claims are written up or the denominator is corrected by re-derivation.
 
 Read the refutations first. They are the most valuable part of this document: each one is a
 claim that sounded right, that a reasonable person would have built on, and that did not
@@ -80,11 +90,24 @@ small" licenses using them with stated uncertainty.
 
 ---
 
-## Part 2 — SURVIVED (verified, with sources)
+## Part 2 — SURVIVED (verified; sources given except where flagged)
+
+> **Audit note, 2026-07-21.** This part was headed "verified, with sources", and three of
+> its nine entries name no author, journal or year: **D1** ("2026 meta-analysis, 27 RCTs"),
+> **D2** ("17 sham-controlled RCTs") and **D5** ("the Detroit gap"), the last of which the
+> document itself calls "the most important single finding". D3, D4, D6 and D8 are properly
+> cited. This matters most for D1 and D2, because those are the two the copy-review
+> checklist at the end of this file converts into hard product prohibitions: someone
+> checking whether the meta-analysis covers this app's population has nothing to follow —
+> the same audience-transfer failure this document records as R2, with no way to detect it.
+> The findings are left in place, flagged, rather than deleted: they are load-bearing for
+> rules that make the product *more* cautious, and removing them would relax those rules on
+> the strength of a citation gap.
 
 ### D1. Personal protective measures show NO lung-function benefit
 
 2026 meta-analysis, **27 RCTs**. FEV1 **SMD 0.04**; PEF **0.00**; FVC **0.00**.
+**⚠ Source not captured** — no author, journal or year recorded; see the audit note above.
 GRADE certainty: **low to very low**.
 
 **Product consequence: the app must never promise a health outcome.** Not "you will breathe
@@ -96,6 +119,7 @@ better", not "this protects your lungs". The app's product is information for a 
 The same body of evidence shows real physiological effects on other endpoints:
 
 - Systolic BP **−3.94 mmHg**, 95% CI **−7.00 to −0.89**, **17 sham-controlled RCTs**.
+  **⚠ Source not captured** — see the audit note at the head of Part 2.
 - Significant **FeNO** (airway inflammation) reduction.
 
 **Product consequence:** the app must not overcorrect into nihilism. D1 and D2 together
@@ -126,6 +150,8 @@ Three caveats, all load-bearing:
 
 Measured. Indoor concentration fell 60%; **personal** exposure fell only **53%** — because
 people leave the filtered room.
+**⚠ Source not captured** — no author, journal or year recorded, for the finding this
+document calls its most important. See the audit note at the head of Part 2.
 
 **This is the most important single finding in the document.** It is the general form of
 the whole exposure problem: an intervention's effect on a *place* systematically overstates

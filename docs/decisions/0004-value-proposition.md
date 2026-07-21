@@ -35,20 +35,40 @@ This is the product. It is a sentence that no dashboard on the market prints.
 
 ### It is buried
 
-In the rendered ITO page (senior, asthma, planning outdoor exercise), text-node order is:
+> **The table below was re-measured at HEAD on 2026-07-21 and is now pinned.** As
+> originally written it was taken from a page that no longer exists: nodes 13 and 14 were
+> `◌ SAMPLE — not a reading` and `AQI 400 · VERY POOR`, both produced by the hardcoded
+> winter stand-in that [0002](0002-sample-data-honesty.md) deleted. It was also unpinned,
+> which is the failure `CASE-STUDY.md:32` is cited elsewhere in these docs as the precedent
+> against. Two audits are given, because the answer differs by state and the original gave
+> no state at all.
+
+**With a reading** (feed stubbed live at PM2.5 250 / PM10 400; ITO, Senior, Asthma,
+Outdoor exercise), measured at commit `5146e9e`:
 
 | Position | Content |
 | --- | --- |
-| 12 | `ITO` |
-| 13 | `◌ SAMPLE — not a reading` |
-| 14 | `AQI 400 · VERY POOR` |
-| 16 | the verdict `<h1>` |
-| **19** | the terse chip `healthy adult, same plans · 79` |
-| **29** | the full sentence, at byte offset 5867 |
+| 13 | `ITO` |
+| 14 | `● LIVE · 10:00 AM` |
+| 15 | `AQI 400 · VERY POOR` |
+| 17 | the verdict `<h1>` |
+| **20** | the terse chip `healthy adult, same plans · 79` |
+| **29** | the full sentence, at byte offset 5468 (chip at 4347) |
 
-The differentiating claim is the **29th** text node on the page, roughly 1.3 KB below a
-terse chip that states the same comparison without explaining it. Everything above it —
-the index, the band, the verdict — is the commodity part, the part every competitor has.
+The differentiating claim is the **29th** text node, roughly 1.1 KB below a terse chip that
+states the same comparison without explaining it. Everything above it — the index, the
+band, the verdict — is the commodity part, the part every competitor has. The original
+argument therefore survives its own correction: the positions moved by one or two, the
+byte gap shrank from 1.3 KB to 1.1 KB, and the conclusion is unchanged.
+
+**In the shipped configuration** (no `WAQI_TOKEN`, no `ELASTIC_*` — what a visitor to
+saafsaans.stackclimb.com actually gets when the feed is silent), the audit cannot be run at
+all: node 14 is `◌ NO READING`, and `grep 'healthy adult'` over the rendered page returns
+nothing. The comparison sentence and the chip are both suppressed, deliberately — both
+quote risk scores computed from an assumed AQI. **So in the state the site is most often
+in, the differentiator does not render at all.** That is a stronger version of this
+document's own thesis than the one it was written with, and it is the state any "raise the
+delta" work has to answer for first.
 
 *(Correcting the record: an earlier note in this session cited positions 7 and 16 and the
 phrase "the gap is yours". Both were wrong. The real positions are 19 and 29 and the real
@@ -95,8 +115,9 @@ mitigation either. Full detail and the refuted claims:
 | Claim | Evidence |
 | --- | --- |
 | The delta sentence exists | `saafsaans/web/presenters.py:218-232`, three variants |
-| It renders at text-node 29, byte offset 5867 | Rendered `/?locality=ITO&age=senior&conditions=asthma&plan=exercise` |
-| The chip renders at 19 | same render |
+| It renders at text-node 29, byte offset 5468 | Rendered at `5146e9e`, feed stubbed live: `/?locality=ITO&age=Senior&condition=Asthma&activity=Outdoor+exercise` |
+| The chip renders at 20 | same render |
+| Neither renders at all with no reading | same URL, shipped empty-credential env |
 | Commute mode spread ~3.7× | Maji et al. 2021 — **rank order only** |
 | Recirculation is the lever | Kanpur, 120 trips: 197.6 → 124.9 µg/m³ |
 | Ambient proxy is season-dependent | Pant et al. 2017, r² 0.51 winter / 0.21 summer, n = 12 / 6 |
@@ -134,7 +155,8 @@ licenses next, in order:
    weakest in measurement precision (CV ~60%). If it ships, it ships as **rank order with
    no µg/m³ figure**, and never as "stop walking" — active-travel health benefit generally
    exceeds the exposure penalty (Tainio et al.).
-3. This depends on [0002](0002-sample-data-honesty.md) landing first. A personal delta
+3. This depends on [0002](0002-sample-data-honesty.md) landing first. **It has landed**
+   (see 0002's status header), which is why the audit above has two halves. A personal delta
    computed from a fabricated 400 is worse than a buried one — it makes the *differentiating*
    claim the fabricated one.
 
