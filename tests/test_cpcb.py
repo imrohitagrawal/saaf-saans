@@ -831,3 +831,114 @@ def test_the_addressable_locality_count_matches_the_docstring():
     assert match, "the addressability sentence is no longer in the docstring"
     assert int(match.group(1)) == addressable
     assert int(match.group(2)) == len(waqi.LOCALITIES)
+
+
+# ------------------------------------------- a held payload is not an answer
+#
+# Retention exists to beat NO READING, not to beat the fallback. Before it was
+# added, a CPCB transport failure made values_for return None and WAQI was
+# tried; if a held payload short-circuits that, retention has silently replaced
+# "fall back to the live source" with "serve the stale primary".
+def _waqi_live(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
+    """A live WAQI feed answering for Wazirpur. Returns the call log."""
+    calls = []
+
+    class Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "data": {
+                "aqi": 280, "city": {"name": station},
+                "iaqi": {"pm25": {"v": pm25}, "pm10": {"v": pm10}},
+                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
+
+    def fake_get(url, *a, **k):
+        calls.append(url)
+        return Resp()
+
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(waqi.requests, "get", fake_get)
+    return calls
+
+
+def _hold_delhi(feed, monkeypatch, **values):
+    """Prime a good Delhi payload, then make the next fetch fail."""
+    feed(rows("Wazirpur, Delhi - DPCC", **values))
+    assert cpcb.values_for("Wazirpur")["retained"] is False
+    _age_the_cache("Delhi", cpcb._TTL + 1)
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("transient")))
+
+
+def test_a_live_waqi_reading_beats_a_held_cpcb_one(feed, monkeypatch):
+    """The measured Wazirpur case: CPCB holds a PM10-only 119 while WAQI is
+    publishing both particulates for the same station."""
+    _hold_delhi(feed, monkeypatch, pm10=129)
+    calls = _waqi_live(monkeypatch)
+
+    reading, status = waqi.get_aqi("Wazirpur")
+
+    assert status == "ok"
+    assert calls, "WAQI was never asked, so the held payload short-circuited it"
+    assert reading["source"] == "waqi"
+    assert reading["retained"] is False
+    # Whole, never merged: every field came from the one source that answered.
+    assert reading["pm25"] is not None and reading["pm10"] is not None
+
+
+def test_a_held_cpcb_payload_is_still_served_when_waqi_has_nothing(feed, monkeypatch):
+    """The mirror. Preferring live must not throw away a real held reading when
+    there is no live one -- that would reinstate the blank city retention
+    exists to remove."""
+    _hold_delhi(feed, monkeypatch, pm25=63, pm10=330)
+    monkeypatch.setattr(config, "waqi_token", lambda: "")
+
+    reading, status = waqi.get_aqi("Wazirpur")
+
+    assert status == "ok"
+    assert reading["source"] == "cpcb"
+    assert reading["retained"] is True
+    assert reading["pm25"] == 63 and reading["pm10"] == 330
+
+
+def test_a_fresh_cpcb_reading_still_beats_a_live_waqi_one(feed, monkeypatch):
+    """The narrowing's other mirror: only a HELD payload defers to WAQI. A
+    fresh CPCB answer must still win outright, or this change would have
+    quietly reversed the primary source."""
+    feed(rows("Wazirpur, Delhi - DPCC", pm25=63, pm10=330))
+    calls = _waqi_live(monkeypatch)
+
+    reading, status = waqi.get_aqi("Wazirpur")
+
+    assert status == "ok"
+    assert reading["source"] == "cpcb"
+    assert calls == [], "WAQI was called for a locality CPCB had already answered"
+
+
+def test_a_held_reading_is_cached_on_the_short_ttl(feed, monkeypatch):
+    """cpcb._TTL_FAILURE is 60s so one timeout cannot blank a city for ten
+    minutes. Caching the held result under waqi's 600s "ok" TTL made that fast
+    retry invisible to the request path: the page went on saying the source was
+    failing for ten minutes after it had recovered."""
+    _hold_delhi(feed, monkeypatch, pm25=77, pm10=86)
+    monkeypatch.setattr(config, "waqi_token", lambda: "")
+
+    reading, _status = waqi.get_aqi("Wazirpur")
+    assert reading["retained"] is True
+
+    # Age the locality cache past the FAILURE ttl but not past the live one.
+    with waqi._CACHE_LOCK:
+        for key, (stored_at, r, s) in list(waqi._CACHE.items()):
+            waqi._CACHE[key] = (stored_at - waqi._CACHE_TTL_FALLBACK - 1, r, s)
+    assert waqi._CACHE_TTL_FALLBACK + 1 < waqi._CACHE_TTL
+    assert waqi._cache_get("Wazirpur") is None, \
+        "a held reading was pinned for the full live TTL"
+
+    # And the recovery it exists to allow: CPCB's own failure marker ages out
+    # after _TTL_FAILURE, and the very next render serves the fresh figure
+    # rather than the held one. This is what the 600s pin made unreachable.
+    _age_the_cache("Delhi", cpcb._TTL_FAILURE + 1)
+    feed(rows("Wazirpur, Delhi - DPCC", pm25=120, pm10=140))
+    reading, _status = waqi.get_aqi("Wazirpur")
+    assert reading["retained"] is False and reading["pm25"] == 120

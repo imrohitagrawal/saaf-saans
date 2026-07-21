@@ -41,7 +41,15 @@ def _cache_get(locality: str):
     if hit is None:
         return None
     stored_at, reading, status = hit
-    ttl = _CACHE_TTL if status == "ok" else _CACHE_TTL_FALLBACK
+    # A RETAINED reading is served under status "ok" -- it carries real
+    # numbers, and the page must not treat it as a no-reading turn -- but it
+    # must not inherit the long TTL. ``cpcb._TTL_FAILURE`` is 60s precisely so
+    # one timeout cannot blank a city for ten minutes; caching the held result
+    # here for 600s made that fast retry invisible to the request path, so the
+    # page went on saying the source was failing for ten minutes after it had
+    # recovered. Freshness of the FETCH, not the status word, picks the TTL.
+    fresh = status == "ok" and not (reading or {}).get("retained")
+    ttl = _CACHE_TTL if fresh else _CACHE_TTL_FALLBACK
     if time.monotonic() - stored_at >= ttl:
         return None
     return reading, status
@@ -432,6 +440,23 @@ def _choose(cpcb_reading, waqi_reading):
     """
     if cpcb_reading is None:
         return waqi_reading
+    # A HELD CPCB payload is not a CPCB answer. ``cpcb`` failed; what is on
+    # offer is the last good fetch being re-served. Retention exists to beat
+    # NO READING, not to beat the fallback -- before it was added, a CPCB
+    # transport failure made ``values_for`` return None and WAQI was tried, so
+    # keeping the held payload here would have quietly replaced "fall back to
+    # the live source" with "serve the stale primary". Measured: Wazirpur held
+    # a PM10-only index of 119 while WAQI was publishing 280 for the same
+    # station, and WAQI was never called.
+    #
+    # This is a different axis from PREFER_TWO_PARTICULATES below, which weighs
+    # a FRESH CPCB reading against WAQI and declines to swap one quantity for
+    # another to gain a pollutant. Here CPCB has produced nothing new at all,
+    # so there is no fresh 24-hour mean to protect: the choice is between a
+    # live measurement and an old one, and live wins. Still never merged --
+    # whichever is returned is returned whole.
+    if cpcb_reading["retained"]:
+        return waqi_reading if waqi_reading is not None else cpcb_reading
     if not _wants_second_opinion(cpcb_reading):
         return cpcb_reading
     # One particulate at CPCB, both at WAQI: take WAQI's reading WHOLE.
@@ -477,7 +502,12 @@ def _serve(locality: str, reading, es_client):
 def _fetch_uncached(locality: str, es_client):
     """The cache miss path. Caller must hold this locality's fetch lock."""
     cpcb_reading = _fetch_cpcb(locality)
-    if cpcb_reading is not None and not _wants_second_opinion(cpcb_reading):
+    # Short-circuit only on a FRESH CPCB answer. A retained one falls through
+    # to the WAQI fetch below so ``_choose`` has a live candidate to prefer;
+    # returning here would leave that preference unreachable.
+    if (cpcb_reading is not None
+            and not cpcb_reading["retained"]
+            and not _wants_second_opinion(cpcb_reading)):
         return _serve(locality, cpcb_reading, es_client)
 
     token = config.waqi_token()
