@@ -494,8 +494,15 @@ def ask(request: Request, question: str = Form(...)):
         return _back(request, sid, theme, lang)
 
     try:
+        # The AQI, or None when the feed carried no usable particulate --
+        # never `or 0`. Zero is the cleanest possible air, so coercing the
+        # missing value here retrieved the "outdoor activity is fine for
+        # everyone" row and handed it to the model as verified context, on a
+        # page whose own verdict said to treat the outing as unsafe.
+        # search_advisories returns [] for None, and the answer path already
+        # copes with an empty list.
         advisories = es.search_advisories(
-            reading.get("aqi") or 0,
+            reading.get("aqi"),
             normalize.norm_condition(persona["condition"]),
             normalize.norm_activity(persona["activity"]),
             normalize.norm_age(persona["age"]), client=client)

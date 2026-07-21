@@ -166,18 +166,30 @@ def _band_distance(advisory: dict, aqi: int) -> int:
     return 0
 
 
-def rank_advisories(docs: list, aqi: int, condition: str, activity: str,
+def rank_advisories(docs: list, aqi, condition: str, activity: str,
                     age_group: str, k: int) -> list:
     """Up to ``k`` of ``docs``, applicable to this persona and tagged.
 
-    Never returns empty for a non-empty input: if nothing applies to the
-    persona the input is used unchanged, and if nothing sits in the AQI band the
-    nearest band is used. That is the only empty-fallback rule in this module,
-    so callers need no second one.
+    ``aqi`` may be ``None``, meaning the feed yielded no usable particulate. In
+    that case the result is ``[]``: no band applies, because no band is known.
+    No band is substituted, no nearby band is used, and the never-empty rule
+    below does NOT apply — that rule exists so a *known* reading always has
+    guidance, not so an unknown one gets guidance invented for it. Coercing the
+    missing value to 0 retrieves the 0-100 "outdoor activity is fine for
+    everyone" row, which is the cleanest air in the corpus and the opposite of
+    what the rest of the page says about a missing reading.
+
+    For a known ``aqi``, never returns empty for a non-empty input: if nothing
+    applies to the persona the input is used unchanged, and if nothing sits in
+    the AQI band the nearest band is used. That is the only empty-fallback rule
+    in this module, so callers need no second one.
 
     Returns new dicts carrying ``relevance``. The input is never mutated:
     ``ADVISORIES`` is a module constant and a stray key on it would be indexed.
     """
+    if aqi is None:
+        return []
+
     candidates = [d for d in docs if applies_to(d, condition, activity, age_group)]
     if not candidates:
         candidates = docs
@@ -203,13 +215,22 @@ def _hits_to_docs(resp):
     return [h["_source"] for h in resp.get("hits", {}).get("hits", [])]
 
 
-def search_advisories(aqi: int, condition: str, activity: str, age_group: str, k: int = 4,
+def search_advisories(aqi, condition: str, activity: str, age_group: str, k: int = 4,
                       client="__auto__"):
     """Return up to ``k`` advisories most relevant to persona + AQI.
 
-    Always returns a non-empty list when any advisory can apply. Uses ES when a
-    client is available, else (or on any ES error) an in-process search.
+    ``aqi=None`` means there is no reading, and returns ``[]`` — no query is
+    issued, because there is no band to query for. Callers must be able to
+    render an answer with no advisory; ``llm._rule_based`` falls back to its
+    generic sentence and ``llm.build_user_message`` tells the model none were
+    found. See ``rank_advisories`` for why no band is substituted.
+
+    For a known ``aqi``, always returns a non-empty list when any advisory can
+    apply. Uses ES when a client is available, else (or on any ES error) an
+    in-process search.
     """
+    if aqi is None:
+        return []
     if client == "__auto__":
         client = get_client()
     if client is None:
