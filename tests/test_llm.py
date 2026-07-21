@@ -469,3 +469,40 @@ def test_the_prompt_says_nothing_about_a_band_it_was_not_given():
     msg = llm.build_user_message(READING, PERSONA, ADVISORIES, "Should I jog?",
                                  "ITO", "t")
     assert "persona risk band" not in msg
+
+
+# ------------------------------------------------- held is not the same as none
+#
+# ``retained`` and ``stale`` are different fields on purpose. ``stale`` is true
+# on exactly one path -- waqi._fallback, which carries no numbers -- and both
+# the prompt tag and the advice suffix mean "we have no reading for this area".
+# A held reading has real numbers. Folding the two would print "we have no
+# reading for this area" directly beside a number.
+HELD_READING = {"aqi": 310, "pm25": 240.0, "dominant_pollutant": "pm25",
+                "stale": False, "retained": True}
+
+
+def test_a_held_reading_is_not_tagged_as_stale_data_in_the_prompt():
+    msg = llm.build_user_message(HELD_READING, PERSONA, ADVISORIES,
+                                 "Should I jog?", "ITO", "2026-07-18T10:00")
+    assert "STALE DATA" not in msg
+    assert "310" in msg
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_does_not_say_we_have_no_reading(lang):
+    advice = llm._rule_based(HELD_READING, ADVISORIES, lang=lang)
+    suffix = i18n.t(lang, "answer", "stale_suffix",
+                    " (we have no reading for this area)")
+    assert suffix not in advice, (lang, advice)
+    assert " | STALE DATA" not in advice
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_mirror_a_reading_with_no_numbers_still_says_so(lang):
+    """Without this the test above passes on a suffix that was simply deleted."""
+    advice = llm._rule_based({**HELD_READING, "stale": True, "retained": False},
+                             ADVISORIES, lang=lang)
+    suffix = i18n.t(lang, "answer", "stale_suffix",
+                    " (we have no reading for this area)")
+    assert suffix in advice, (lang, advice)

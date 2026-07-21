@@ -177,7 +177,7 @@ _API = "https://api.waqi.info/feed/{feed}/?token={token}"
 
 
 def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
-             feed_aqi=None, feed_dominant=None):
+             feed_aqi=None, feed_dominant=None, retained=False):
     """Assemble the reading contract from two particulate concentrations.
 
     One constructor for both the live and the fallback path, so the two cannot
@@ -205,6 +205,13 @@ def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
         "station": station,
         "city": city,
         "stale": stale,
+        # NOT the same field as ``stale``, and deliberately not folded into it.
+        # ``stale`` is true on exactly one path -- ``_fallback``, which returns
+        # no numbers at all -- and ``llm.py`` appends "we have no reading for
+        # this area" to it. A retained reading has real numbers; what it lacks
+        # is a fresh fetch behind them. Folding the two would print "we have no
+        # reading for this area" beside a number.
+        "retained": retained,
         "forecast": forecast,
         "obs_time": obs_time,
     }
@@ -373,7 +380,8 @@ def _fetch_cpcb(locality: str):
     reading = _reading(
         values["pm25"], values["pm10"],
         station=values["station"], city=values["city"],
-        stale=False, forecast=None, obs_time=values["obs_time"])
+        stale=False, forecast=None, obs_time=values["obs_time"],
+        retained=values.get("retained", False))
     # No usable particulate means no CPCB AQI. Returning the shell would stop
     # the WAQI fallback being tried, which is the whole point of having one.
     return reading if reading["aqi"] is not None else None
@@ -383,10 +391,15 @@ def _fetch_uncached(locality: str, es_client):
     """The cache miss path. Caller must hold this locality's fetch lock."""
     reading = _fetch_cpcb(locality)
     if reading is not None:
-        try:
-            es.index_reading(es_client, {**reading, "station": locality})
-        except Exception:
-            pass  # indexing must never affect the returned reading
+        # A retained reading is an observation we already indexed when it was
+        # fresh. Indexing it again on every 600s cache miss is precisely the
+        # "index grows with traffic rather than observations" defect recorded
+        # at the top of this file as fixed.
+        if not reading["retained"]:
+            try:
+                es.index_reading(es_client, {**reading, "station": locality})
+            except Exception:
+                pass  # indexing must never affect the returned reading
         _cache_put(locality, reading, "ok")
         return reading, "ok"
 

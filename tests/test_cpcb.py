@@ -452,7 +452,7 @@ def test_one_cold_miss_produces_one_upstream_fetch_not_eight(monkeypatch):
 
     def worker(locality):
         barrier.wait(5)
-        out[locality] = cpcb._stations("Delhi")
+        out[locality] = cpcb._stations("Delhi")[0]
 
     threads = [threading.Thread(target=worker, args=(loc,)) for loc in localities]
     for thread in threads:
@@ -489,7 +489,7 @@ def test_a_second_city_is_not_blocked_by_a_slow_first_city(monkeypatch):
 
     def worker(city):
         try:
-            results[city] = cpcb._stations(city)
+            results[city] = cpcb._stations(city)[0]
         except Exception as exc:    # noqa: BLE001 - recorded, asserted below
             results[city] = exc
 
@@ -507,3 +507,125 @@ def test_a_second_city_is_not_blocked_by_a_slow_first_city(monkeypatch):
         # dict. So the payload itself is asserted, not merely its type.
         assert result, f"{city} did not fetch concurrently: {result}"
         assert f"Sector-51, {city} - CPCB" in result
+
+
+# ----------------------------------------------------------------- retention
+#
+# One transient timeout used to blank a whole city: observed live, Gurugram
+# rendered NO READING while all four of its stations were reporting. These
+# tests assert BOTH halves every time -- the numbers came back AND the flag
+# says they are held. Numbers without the flag is the dangerous half-fix: it
+# serves an old reading as a live one.
+def _age_the_cache(city, seconds):
+    with cpcb._lock:
+        stored_at, grouped = cpcb._cache[city]
+        cpcb._cache[city] = (stored_at - seconds, grouped)
+
+
+def test_a_transient_failure_serves_the_last_good_payload(feed, monkeypatch):
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, pm10=86, city="Gurugram"))
+    good = cpcb.values_for("Gurugram")
+    assert good["pm25"] == 77 and good["retained"] is False
+
+    _age_the_cache("Gurugram", cpcb._TTL + 1)
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("transient")))
+
+    held = cpcb.values_for("Gurugram")
+    assert held is not None, "one timeout blanked the whole city"
+    assert held["pm25"] == 77 and held["pm10"] == 86
+    assert held["retained"] is True, "a held payload was served as a fresh one"
+    # The age the reader sees is the MEASUREMENT's age, not our fetch time.
+    assert held["obs_time"] == good["obs_time"]
+
+
+def test_a_second_render_inside_the_failure_window_is_also_served(feed, monkeypatch):
+    """The failure marker is a cache HIT and it is falsy.
+
+    A re-serve written only in the ``except`` branch rescues exactly one call:
+    the next render reads ``(t, {})`` back out of the cache, sees a hit, and
+    blanks the city for the rest of the failure TTL.
+    """
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, pm10=86, city="Gurugram"))
+    cpcb.values_for("Gurugram")
+    _age_the_cache("Gurugram", cpcb._TTL + 1)
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("transient")))
+
+    first = cpcb.values_for("Gurugram")
+    second = cpcb.values_for("Gurugram")
+    assert first is not None and second is not None, "the second render blanked"
+    assert second["pm25"] == 77
+    assert second["retained"] is True
+
+
+def test_a_retained_payload_past_the_bound_is_not_served(feed, monkeypatch):
+    """Held, not kept forever. The bound runs from the last SUCCESS."""
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, city="Gurugram"))
+    cpcb.values_for("Gurugram")
+    _age_the_cache("Gurugram", cpcb._TTL + 1)
+    with cpcb._lock:
+        stored_at, grouped = cpcb._last_good["Gurugram"]
+        cpcb._last_good["Gurugram"] = (stored_at - cpcb._TTL_RETAIN - 1, grouped)
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("transient")))
+    assert cpcb.values_for("Gurugram") is None
+
+
+def test_a_failure_with_no_previous_payload_is_still_blank(monkeypatch):
+    """The mirror. Retention holds what we measured; it invents nothing."""
+    monkeypatch.setattr(config, "cpcb_key", lambda: "test-key")
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("down")))
+    assert cpcb.values_for("Gurugram") is None
+
+
+def test_a_live_payload_is_never_marked_retained(feed):
+    """The other mirror: the flag must distinguish, not decorate."""
+    feed(rows("ITO, Delhi - CPCB", pm25=53, pm10=90))
+    assert cpcb.values_for("ITO")["retained"] is False
+
+
+def test_clearing_the_cache_drops_the_last_good_payload(feed, monkeypatch):
+    """Without this the suite is order-dependent: a later test would be served
+    an earlier test's numbers through the retention path."""
+    feed(rows("ITO, Delhi - CPCB", pm25=53))
+    cpcb.values_for("ITO")
+    assert cpcb._last_good
+    cpcb.cache_clear()
+    assert not cpcb._last_good
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("down")))
+    assert cpcb.values_for("ITO") is None
+
+
+def test_a_retained_reading_is_not_indexed_again(feed, monkeypatch):
+    """aqi-readings must grow with OBSERVATIONS, not with traffic.
+
+    Re-indexing one held observation on every cache miss is the exact defect
+    waqi's module docstring records as fixed.
+    """
+    indexed = []
+
+    class FakeClient:
+        def index(self, **kwargs):
+            indexed.append(kwargs)
+
+    from saafsaans.services import es
+    monkeypatch.setattr(es, "index_reading",
+                        lambda client, reading: indexed.append(reading))
+    feed(rows("ITO, Delhi - CPCB", pm25=53, pm10=90))
+    waqi.get_aqi("ITO", es_client=FakeClient())
+    assert len(indexed) == 1
+
+    _age_the_cache("Delhi", cpcb._TTL + 1)
+    monkeypatch.setattr(cpcb, "_fetch_city",
+                        lambda city: (_ for _ in ()).throw(OSError("transient")))
+    for _ in range(3):
+        # Only the locality cache: waqi.cache_clear() would also drop the CPCB
+        # retention this test is about.
+        with waqi._CACHE_LOCK:
+            waqi._CACHE.clear()
+        reading, status = waqi.get_aqi("ITO", es_client=FakeClient())
+        assert reading["retained"] is True and status == "ok"
+    assert len(indexed) == 1, "a held observation was indexed again"

@@ -471,7 +471,12 @@ def today(request: Request):
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"],
                                       persona, lang=lang),
         "scale_pos": pr.scale_position(data["reading"].get("aqi")),
-        "prov_chip": pr.provenance_chip(data["waqi_status"], obs_time, lang=lang),
+        "prov_chip": pr.provenance_chip(
+            data["waqi_status"], obs_time, lang=lang,
+            state=pr.freshness(data["waqi_status"], data["reading"])),
+        # The templates call this per stored turn, so a turn indexed before the
+        # field existed answers "live"/"none" exactly as it did before.
+        "freshness": pr.freshness,
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
         "term": term, "persona_open": persona_open,
@@ -718,7 +723,13 @@ def city(request: Request):
     for loc in waqi.LOCALITIES:
         row = grid.get(loc)
         reading, status = live.get(loc, (None, "fallback"))
-        live_aqi = reading.get("aqi") if status == "ok" and reading else None
+        state = pr.freshness(status, reading)
+        live_aqi = reading.get("aqi") if state == "live" else None
+        # A held reading brings BOTH its number and its age. Taking the number
+        # from one source and the age from another -- an Elasticsearch row's
+        # timestamp under a CPCB payload's figure -- would be a new false claim
+        # in place of the old one.
+        held_aqi = reading.get("aqi") if state == "held" else None
         # A stored reading is only "cached" if we hold one at all. Treating a
         # week-old document as current would present stale air as the air
         # outside now -- the one thing this product promises never to do -- so
@@ -732,7 +743,8 @@ def city(request: Request):
         # something and the reader can price it once they know when it was.
         # A station we hold nothing for gets no number and no band; there is
         # nothing to stand in for it with.
-        aqi = live_aqi if live_aqi is not None else stored
+        aqi = live_aqi if live_aqi is not None else (
+            held_aqi if held_aqi is not None else stored)
         # A stored row is NEVER "live". It used to become live when it was
         # under three hours old, which meant a tile could carry the band word,
         # the severity colour, no tag and no age off a row measured 2h50m ago --
@@ -743,6 +755,11 @@ def city(request: Request):
         # answered just now; everything else is dated.
         if live_aqi is not None:
             source = "live"
+        elif held_aqi is not None:
+            # Held, not live: real numbers we already fetched, being re-served
+            # because the upstream failed. It is tagged and dated exactly as a
+            # stored reading is, and earns no band word for the same reason.
+            source = "held"
         elif stored is not None:
             source = "cached"
         else:
@@ -762,8 +779,12 @@ def city(request: Request):
                          "slug": slug if source == "live"
                                  else normalize.band_for(None)[3],
                          "source": source,
-                         "age": None if source != "cached"
-                                else _age_label(row.get("ts"), lang),
+                         # Each dated by its OWN measurement: the stored row by
+                         # the row's timestamp, the held reading by the
+                         # observation time CPCB published with it.
+                         "age": _age_label(row.get("ts"), lang) if source == "cached"
+                                else (_age_label(reading.get("obs_time"), lang)
+                                      if source == "held" else None),
                          "selected": loc == selected})
 
     def group(region):

@@ -119,7 +119,18 @@ NOT_A_STATION = {"Delhi (city)"}
 # the same reason.
 _TTL = 600
 _TTL_FAILURE = 60
+# How long the last GOOD payload may be re-served through an upstream failure.
+# Bounded from the last successful fetch, never from the failure, so a source
+# that stays down ages out instead of pinning yesterday's air on the page.
+# Three hours matches the age at which City Pulse already calls a reading held
+# rather than current, and MAX_OBS_AGE (12h) is still the outer bound because
+# the retained payload keeps its own obs_time.
+_TTL_RETAIN = 3 * 3600
 _cache: dict = {}
+# Deliberately a SECOND dict rather than a third element in _cache's tuple:
+# _cache's 2-tuple shape is asserted directly by tests, and the two have
+# different lifetimes -- _cache holds failures, this holds only successes.
+_last_good: dict = {}
 _lock = threading.Lock()
 
 # One upstream fetch per city at a time. ``waqi._FETCH_LOCKS`` cannot collapse
@@ -217,14 +228,19 @@ def _fetch_city(city: str):
 
 
 def _stations(city: str):
-    """``{station name: {"pm25":, "pm10":, "obs_time":}}`` for a city.
+    """``({station name: {...}}, retained)`` for a city.
 
     Cached per city and not per locality: one upstream call answers for every
     station in it, and City Pulse asks for twenty-one in a row.
+
+    ``retained`` is True when the payload is the last good one being held
+    through an upstream failure rather than a fresh answer. The caller has to
+    say so on screen; serving a held reading as a live one would be the same
+    class of defect as the stand-in figures this app spent two runs deleting.
     """
     hit = _cached(city)
-    if hit is not None:
-        return hit
+    if hit:
+        return hit, False
 
     with _fetch_lock(city):
         # Re-probe inside the lock: while this thread queued, the thread that
@@ -232,13 +248,24 @@ def _stations(city: str):
         # still produces one upstream fetch each as it files through, which is
         # the herd arriving late rather than not at all.
         hit = _cached(city)
+        if hit:
+            return hit, False
         if hit is not None:
-            return hit
+            # The empty FAILURE MARKER, still inside its short TTL. It is a
+            # cache hit and it is falsy, so returning it here would blank the
+            # city for the whole failure window -- exactly the bug retention
+            # exists to fix, surviving in the second render onwards. Fall
+            # through to the retained payload instead.
+            return _retained(city)
         return _fetch_and_store(city)
 
 
 def _cached(city: str):
-    """The cached grouping for a city, or None when there is nothing fresh."""
+    """The cached grouping for a city, or None when there is nothing fresh.
+
+    ``{}`` and ``None`` are different answers: ``{}`` is a live failure marker
+    inside its TTL, ``None`` is nothing usable in the cache at all.
+    """
     with _lock:
         hit = _cache.get(city)
     if not hit:
@@ -246,6 +273,20 @@ def _cached(city: str):
     stored_at, grouped = hit
     ttl = _TTL if grouped else _TTL_FAILURE
     return grouped if time.time() - stored_at < ttl else None
+
+
+def _retained(city: str):
+    """``(payload, True)`` when the last good fetch is still within bounds.
+
+    The bound runs from the last SUCCESSFUL fetch. A failure never rewrites
+    that timestamp, so a source that stays down ages out rather than pinning
+    an old payload forever.
+    """
+    with _lock:
+        held = _last_good.get(city)
+    if held and time.time() - held[0] < _TTL_RETAIN:
+        return held[1], True
+    return {}, False
 
 
 def _fetch_and_store(city: str):
@@ -260,7 +301,13 @@ def _fetch_and_store(city: str):
         # site -- the same reasoning as waqi's fallback cache.
         with _lock:
             _cache[city] = (time.time(), {})
-        return {}
+        # One transient timeout used to blank a whole city -- observed live,
+        # Gurugram went NO READING while all four of its stations were
+        # reporting. api.data.gov.in is measurably flaky (an SSL handshake
+        # timed out at 20s; the next two attempts answered in 0.5s). Keep
+        # serving what we last actually measured, marked, bounded and dated by
+        # its own obs_time rather than by our fetch time.
+        return _retained(city)
 
     grouped: dict = {}
     for row in records:
@@ -281,22 +328,29 @@ def _fetch_and_store(city: str):
 
     with _lock:
         _cache[city] = (time.time(), grouped)
-    return grouped
+        if grouped:
+            _last_good[city] = (time.time(), grouped)
+    return grouped, False
 
 
 def values_for(locality: str):
-    """``{"pm25":, "pm10":, "station":, "city":, "obs_time":}`` or None.
+    """``{"pm25":, "pm10":, "station":, "city":, "obs_time":, "retained":}``.
 
     None means CPCB has nothing usable for this locality and the caller should
     try its next source. A station that answers but has neither particulate is
     None as well: a row carrying only NO2 cannot produce a CPCB AQI, and
     returning it would stop the fallback from being tried.
+
+    ``retained`` True means these numbers are the last good ones being held
+    through an upstream failure, not a fresh answer. They are still real
+    measurements with their own ``obs_time``; what changes is what the page is
+    allowed to call them.
     """
     if not available() or locality in NOT_A_STATION:
         return None
 
     city = CITY_OF.get(locality, DEFAULT_CITY)
-    stations = _stations(city)
+    stations, retained = _stations(city)
     if not stations:
         return None
 
@@ -316,10 +370,13 @@ def values_for(locality: str):
         return None
     return {"pm25": slot["pm25"], "pm10": slot["pm10"],
             "station": name.split(",")[0].strip(),
-            "city": city, "obs_time": slot["obs_time"]}
+            "city": city, "obs_time": slot["obs_time"], "retained": retained}
 
 
 def cache_clear():
     with _lock:
         _cache.clear()
         _FETCH_LOCKS.clear()
+        # Without this the suite becomes order-dependent: a later test inherits
+        # an earlier test's payload through the retention path.
+        _last_good.clear()

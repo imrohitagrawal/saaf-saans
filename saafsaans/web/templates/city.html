@@ -15,7 +15,12 @@
           together into whichever language the page is in. A reader who cannot
           read the tag cannot tell a stored reading from a stand-in, which is
           the one distinction this page exists to make. -#}
-      {% if s.source == 'cached' %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {#- One tag word for both held states. A reading we stored earlier and a
+          reading we are re-serving through an upstream failure differ in where
+          they came from, not in what the reader must do with them: neither is
+          the air now, and both carry their own age. A second word would be a
+          distinction the reader cannot act on. -#}
+      {% if s.source in ('cached', 'held') %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
       {% elif s.source == 'none' %}<span class="tag">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       {#- No band word without a number to have earned it. The band used to be
@@ -34,7 +39,11 @@
     used to be computed over stand-in figures too, which is how a page holding
     zero readings advertised "21 stations · median AQI 358". -#}
 <p class="page-sub">{{ summary }}</p>
-<p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we hold a reading for that place but it is older than three hours, and the tag says how old. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}</p>
+{#- Defined by what the tag IS, not by a three-hour rule. Two things can now
+    carry it: a reading we stored earlier, and a reading we are still holding
+    because the source stopped answering -- and the second can be minutes old.
+    The old wording promised a threshold the page does not apply. -#}
+<p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we are still holding an earlier reading for that place rather than showing one that just arrived, and the tag says how old the measurement is. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}</p>
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">

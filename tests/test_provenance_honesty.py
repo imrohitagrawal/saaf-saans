@@ -105,3 +105,64 @@ def test_the_collapsed_label_and_the_expanded_line_agree(lang):
         f"reading is live: collapsed says live={collapsed_says_live}, "
         f"expanded says live={expanded_says_live}"
     )
+
+
+# ------------------------------------------------------- the third state
+#
+# There are now three, not two: live, held (real numbers the source published
+# earlier, re-served because it stopped answering) and none. Every surface in
+# this panel branches on ``presenters.freshness`` for that reason -- four of
+# them keyed off waqi_status alone, and a fix applied to the chip only would
+# have left three of them calling a held reading live.
+def _held_feed(monkeypatch, retained=True):
+    from saafsaans.services import waqi
+
+    def get_aqi(locality, es_client=None):
+        return waqi._reading(90.0, 160.0, station=locality, city="Delhi",
+                             stale=False, forecast=None,
+                             obs_time="2026-07-21T10:00:00+05:30",
+                             retained=retained), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+
+
+def _open_panel(client, lang):
+    client.post("/ask", params={**PERSONA, "lang": lang},
+                data={"question": "Can I go out?"})
+    body = client.get("/", params={**PERSONA, "lang": lang}).text
+    turn_id = body.split('id="turn-')[1].split('"')[0]
+    opened = client.get("/", params={**PERSONA, "lang": lang, "prov": turn_id}).text
+    panel = opened[opened.find('class="prov-bar"'):]
+    split = panel.find('class="prov-body"')
+    assert split > 0, "the expanded panel did not render; the split is meaningless"
+    return panel[:split], panel[split:]
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_is_never_described_as_live(monkeypatch, lang):
+    _held_feed(monkeypatch)
+    with TestClient(app) as client:
+        collapsed, expanded = _open_panel(client, lang)
+
+    assert i18n.t(lang, "ui", "prov_count_before", "1 live reading +") not in collapsed
+    assert i18n.t(lang, "ui", "prov_count_before_held", "1 held reading +") in collapsed
+    assert i18n.t(lang, "ui", "prov_measured", "Measured at the time") not in expanded
+    assert i18n.t(lang, "ui", "prov_measured_held",
+                  "Measured earlier, not at the time") in expanded
+    assert i18n.t(lang, "ui", "prov_live", "live reading") not in expanded
+    assert i18n.t(lang, "ui", "prov_held",
+                  "held reading (the source did not answer, so we kept the "
+                  "last one)") in expanded
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_reading_unheld_is_described_as_live(monkeypatch, lang):
+    """The mirror: the held wording must not swallow the live one."""
+    _held_feed(monkeypatch, retained=False)
+    with TestClient(app) as client:
+        collapsed, expanded = _open_panel(client, lang)
+
+    assert i18n.t(lang, "ui", "prov_count_before", "1 live reading +") in collapsed
+    assert i18n.t(lang, "ui", "prov_count_before_held", "1 held reading +") not in collapsed
+    assert i18n.t(lang, "ui", "prov_measured", "Measured at the time") in expanded
+    assert i18n.t(lang, "ui", "prov_live", "live reading") in expanded

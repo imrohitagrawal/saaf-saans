@@ -12,12 +12,13 @@ the other twenty. So production served, in the same minute:
 Every test here is written as a PROPERTY over all 21 localities and both
 languages, not against the numbers that happened to be on screen that day.
 """
+import html
 import re
 
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import i18n, waqi
+from saafsaans.services import i18n, normalize, waqi
 from saafsaans.web.main import app
 
 PERSONA = {"age": "Adult", "condition": "Asthma",
@@ -308,3 +309,105 @@ def test_a_hanging_feed_does_not_hold_the_page_for_every_locality(monkeypatch):
     rows = _rows(r.text)
     for loc, tile in rows.items():
         assert _tile_aqi(tile) == "--", (loc, tile)
+
+
+# ------------------------------------------------------- a held CPCB reading
+#
+# cpcb keeps the last good payload through a transient upstream failure rather
+# than blanking a city. The numbers are real, but they are not "now", and the
+# tile has to say so: a held reading is tagged and dated exactly as a stored
+# one, and earns no band word and no severity colour.
+def _held(monkeypatch, locality, *, retained=True):
+    """Stub the feed so ``locality`` answers with a held (or live) reading."""
+    obs = "2026-07-21T10:00:00+05:30"
+
+    def get_aqi(loc, es_client=None):
+        if loc != locality:
+            return waqi._fallback(loc), "fallback"
+        reading = waqi._reading(PM25[loc], PM25[loc] * 1.6, station=loc,
+                                city="Delhi", stale=False, forecast=None,
+                                obs_time=obs, retained=retained)
+        return reading, "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+    return obs
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_carries_its_own_number_and_its_own_age(monkeypatch, lang):
+    """Number, tag, age, and no band word -- all four, because three of them
+    are also true of a NO READING tile. Only the number tells them apart."""
+    from saafsaans.web import main as web_main
+    obs = _held(monkeypatch, "Rohini")
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    tile = _rows(body)["Rohini"]
+
+    reading = waqi._reading(PM25["Rohini"], PM25["Rohini"] * 1.6,
+                            station="Rohini", city="Delhi", stale=False,
+                            forecast=None, obs_time=obs, retained=True)
+    assert _tile_aqi(tile) == str(reading["aqi"]), tile
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") in tile
+    # The age is derived from the READING's own observation time, never from an
+    # Elasticsearch row belonging to some other measurement.
+    assert web_main._age_label(obs, lang) in tile
+    band = normalize.band_for(reading["aqi"])[0]
+    assert i18n.t(lang, "band_label", band, band) not in tile
+    unknown = normalize.band_for(None)[3]
+    assert f'class="station band-{unknown}"' in tile
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_reading_when_it_is_not_held_is_live_and_banded(monkeypatch, lang):
+    """The mirror. Same numbers, same station, ``retained`` False."""
+    _held(monkeypatch, "Rohini", retained=False)
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    tile = _rows(body)["Rohini"]
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") not in tile
+    unknown = normalize.band_for(None)[3]
+    assert f'class="station band-{unknown}"' not in tile
+    assert _tile_aqi(tile) not in (None, "--")
+
+
+# The threshold the legend used to promise.  Pinned per language because it is
+# a CLAIM, not a spelling: the legend defined CACHED as "older than three
+# hours" while the page tags readings that can be minutes old.
+_THREE_HOURS = {"en": "three hours", "hi": "तीन घंटे"}
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_cached_legend_matches_when_the_tag_is_actually_shown(monkeypatch, lang):
+    """A held reading five minutes old is tagged CACHED, so the legend must not
+    tell the reader the tag means older than three hours."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.web import main as web_main
+
+    recent = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+
+    def get_aqi(loc, es_client=None):
+        if loc != "Rohini":
+            return waqi._fallback(loc), "fallback"
+        return waqi._reading(PM25[loc], PM25[loc] * 1.6, station=loc, city="Delhi",
+                             stale=False, forecast=None, obs_time=recent,
+                             retained=True), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    monkeypatch.setattr(web_main, "waqi", waqi)
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+
+    tile = _rows(body)["Rohini"]
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") in tile
+    assert web_main._age_label(recent, lang) in tile, "a five-minute-old tag"
+    # Read off the RENDERED page rather than out of the corpus: an English
+    # default read back through i18n.t with an empty fallback returns "", and
+    # every absence assertion below it would pass on nothing.
+    legend = html.unescape(re.search(
+        r'<p class="caption">(.*?)</p>', body, re.S).group(1))
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") in legend, (
+        "this is not the tag legend")
+    assert _THREE_HOURS[lang] not in legend, (
+        "the legend states a three-hour threshold the page does not apply")

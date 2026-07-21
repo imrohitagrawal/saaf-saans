@@ -261,8 +261,9 @@ HI: dict = {
         # Names the two chips by the words they now carry in Hindi, not by
         # their English originals -- a legend that names a tag the page does
         # not print is a legend for a different page.
-        "tag_legend": "‘सहेजी हुई’ का मतलब है कि उस जगह की रीडिंग हमारे पास है पर वह तीन घंटे "
-                      "से पुरानी है, और टैग बताता है कि कितनी पुरानी। ‘कोई रीडिंग नहीं’ का मतलब "
+        "tag_legend": "‘सहेजी हुई’ का मतलब है कि उस जगह की जो रीडिंग हमारे पास पहले से है "
+                      "हम वही दिखा रहे हैं — अभी-अभी आई हुई नहीं — और टैग बताता है कि माप "
+                      "कितना पुराना है। ‘कोई रीडिंग नहीं’ का मतलब "
                       "है कि उस जगह का कोई आँकड़ा हमारे पास है ही नहीं — इसलिए वहाँ कोई नंबर "
                       "नहीं दिखाया जाता, क्योंकि हमारे पास है नहीं और हम बनाएँगे नहीं।",
         "sec_trend": "24 घंटे का रुझान",
@@ -443,10 +444,14 @@ HI: dict = {
         # This key used to read "1 नमूना रीडिंग +" and counted a sample that
         # the app no longer has.
         "prov_count_before_none": "कोई रीडिंग नहीं +",
+        # Real numbers, but fetched earlier: the source did not answer this
+        # time and we are still holding what it last published.
+        "prov_count_before_held": "1 सहेजी हुई रीडिंग +",
         "prov_count_after": "गाइडेंस स्रोत",
         "prov_measured": "उस समय मापा गया",
         # The kicker used to be unconditional and sat above a row of dashes.
         "prov_not_measured": "उस समय कुछ भी मापा नहीं गया",
+        "prov_measured_held": "पहले मापा गया था, उस समय नहीं",
         "prov_published": "इस्तेमाल की गई प्रकाशित गाइडेंस",
         # The two groups inside that list: chosen for the reader's own
         # condition, activity or age, and chosen for the air alone.
@@ -463,6 +468,7 @@ HI: dict = {
         "prov_feed_scale": "(US EPA पैमाना)",
         "prov_live": "लाइव रीडिंग",
         "prov_none": "कोई रीडिंग नहीं (फ़ीड ने जवाब नहीं दिया)",
+        "prov_held": "सहेजी हुई रीडिंग (स्रोत ने जवाब नहीं दिया, इसलिए हमने पिछली रीडिंग रखी है)",
 
         # --- system.html ---
         # This view was left in English on the grounds that it is
@@ -577,8 +583,9 @@ HI: dict = {
                          "उसे गढ़ेंगे नहीं। अगर उस जगह की कोई पुरानी माप हमारे पास है, तो हम "
                          "बताते हैं कि वह कितनी थी और किस दिन ली गई थी — और उससे और कुछ नहीं "
                          "निकाला जाता: न कोई श्रेणी, न रंग, न सलाह। शहर की नब्ज़ पर ‘सहेजी हुई’ "
-                         "टैग उस रीडिंग पर लगता है जो हमारे पास है पर तीन घंटे से पुरानी है, और "
-                         "साथ में यह भी लिखा होता है कि कितनी पुरानी है; और जिस जगह की कोई "
+                         "टैग उस रीडिंग पर लगता है जो हमारे पास पहले से है और हम उसे ही दिखा "
+                         "रहे हैं — अभी-अभी आई हुई नहीं — और साथ में यह भी लिखा होता है कि माप "
+                         "कितना पुराना है; और जिस जगह की कोई "
                          "रीडिंग हमारे पास है ही नहीं, उस पर ‘कोई रीडिंग नहीं’ लिखा होता है। "
                          "पुरानी चीज़ को कभी लाइव बनाकर नहीं दिखाया जाता।",
         "q_ignores": "जवाब कभी-कभी मेरे सवाल को अनदेखा क्यों कर देता है?",
@@ -944,6 +951,9 @@ HI: dict = {
         # There is no stand-in figure any more, so there is no sample to name.
         "no_reading": "◌ कोई रीडिंग नहीं",
         "live": "● लाइव · {when}",
+        # The same word City Pulse's tag carries, so a reader who learnt it on
+        # one page meets it again rather than meeting a synonym.
+        "cached": "◌ सहेजी हुई · {when}",
     },
     # presenters.sparkline_svg -- the accessible name of the 24-hour chart.
     #

@@ -442,7 +442,29 @@ def sparkline_svg(points, width: int = 560, height: int = 90,
 
 
 # --- Provenance ------------------------------------------------------------
-def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
+def freshness(waqi_status, reading) -> str:
+    """"live" | "held" | "none" -- one predicate for every freshness surface.
+
+    The chip, the collapsed provenance label, the panel's kicker, the panel's
+    ground line and the City Pulse tile all used to key off ``waqi_status``
+    alone, which has two values where the app now has three states. Each of
+    them branching for itself is how the collapsed label and the expanded line
+    came to contradict each other once already.
+
+    "held" is a reading whose numbers are real measurements we already fetched,
+    being re-served because the upstream failed. It is NOT ``reading["stale"]``:
+    that flag means no numbers at all, and ``llm`` appends "we have no reading
+    for this area" to it.
+    """
+    if waqi_status != "ok":
+        return "none"
+    if reading and reading.get("retained"):
+        return "held"
+    return "live"
+
+
+def provenance_chip(waqi_status: str, when: str, lang: str = "en",
+                    *, state: str = None) -> str:
     """'● LIVE · 2:00 PM' or '◌ NO READING'. Never disguise a fallback.
 
     The glyph is part of the string rather than prepended in code: it is the
@@ -458,7 +480,13 @@ def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
     timestamp shown beside it was the current clock -- a fabricated observation
     time for an observation that does not exist.
     """
-    if waqi_status == "ok":
+    state = state or ("live" if waqi_status == "ok" else "none")
+    if state == "held":
+        # The same word City Pulse's tag uses, deliberately: two words for one
+        # idea is worse than one honest word, and a reader who has learnt
+        # CACHED on one page must not meet a synonym on the other.
+        return _fmt(lang, "prov", "cached", "◌ CACHED · {when}", when=when)
+    if state == "live":
         return _fmt(lang, "prov", "live", "● LIVE · {when}", when=when)
     return i18n.t(lang, "prov", "no_reading", "◌ NO READING")
 
