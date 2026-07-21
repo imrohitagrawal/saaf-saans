@@ -334,13 +334,26 @@ def _verdict(aqi_val, activity: str, risk_band: str, lang: str):
     verdict to keep in sync.
     """
     if aqi_val is None:
-        # A missing number is the one case where the persona ladder is all
-        # there is. Returning here would have skipped it, so a reader whose
-        # hero says "Do not go outdoors" was told CAUTION underneath it.
-        token, why = "CAUTION", i18n.t(
+        # RETURN, deliberately, without consulting the persona ladder. That
+        # ladder is `risk.compute_risk`'s band, and with no measurement that
+        # band is computed from `risk.AQI_BASE_UNKNOWN` -- an ASSUMED AQI. The
+        # hero on the same page refuses to print it for exactly that reason
+        # ("NO READING -- WE CANNOT SCORE YOUR RISK"), and then this line used
+        # to hand the same suppressed band's `BAND_ADVICE` to the answer card
+        # two panels below, verbatim: "Do not go outdoors. Seal windows, keep a
+        # purifier running..." -- a maximum-severity health instruction with no
+        # reading behind it, emitted deterministically on the shipped
+        # no-API-key path in both languages.
+        #
+        # The older comment here argued the opposite: that skipping the ladder
+        # left the card saying CAUTION under a hero saying "Do not go
+        # outdoors". That was true when the hero DID print band advice with no
+        # reading. It no longer does, so the disagreement it guarded against
+        # cannot arise, and honouring the ladder is now the defect.
+        return "CAUTION", i18n.t(
             lang, "answer", "why_unknown",
             "AQI reading is unavailable; treat {activity} as unsafe until confirmed.")
-    elif aqi_val > 300:
+    if aqi_val > 300:
         token, why = "NO-GO", i18n.t(
             lang, "answer", "why_severe",
             "AQI {aqi} is very poor to severe; avoid {activity}.")

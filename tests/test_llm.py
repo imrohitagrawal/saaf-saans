@@ -406,17 +406,32 @@ def test_the_prompt_states_the_persona_risk_band_as_a_floor():
 
 
 @pytest.mark.parametrize("band", ["High", "Very High", "Extreme"])
-def test_an_unknown_aqi_still_obeys_the_persona_band(band):
-    """A missing AQI is the one case where the persona ladder is all there is.
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_an_unknown_aqi_never_borrows_the_persona_band_s_health_instruction(band, lang):
+    """INVERTED, deliberately. This test previously asserted the opposite.
 
-    ``_verdict`` used to return CAUTION and stop, so a COPD reader whose hero
-    said "Do not go outdoors" read CAUTION in the card below it -- the card
-    more permissive than the hero, which is what ``_verdict`` exists to stop.
+    It read: "A missing AQI is the one case where the persona ladder is all
+    there is", and required ``_verdict(None, …, "Extreme")`` to return
+    ``BAND_ADVICE["Extreme"]`` -- "Do not go outdoors. Seal windows, keep a
+    purifier running, and seek care if you feel unwell."
+
+    That band is not a measurement. With no reading ``risk.compute_risk``
+    scores off ``AQI_BASE_UNKNOWN``, an ASSUMED AQI, and the hero on the same
+    page refuses to print the resulting band at all ("NO READING -- WE CANNOT
+    SCORE YOUR RISK"). The old test therefore pinned a maximum-severity health
+    directive with nothing behind it, on the shipped no-API-key path, in both
+    languages -- and its own justification (card more permissive than the hero)
+    describes a hero that no longer exists.
+
+    The app was wrong and the test was pinning it, so the test is inverted
+    rather than the code restored. The property that replaces it: no band, at
+    any severity, may put a band sentence into a card with no AQI.
     """
-    from saafsaans.services import risk
-    token, why = llm._verdict(None, "outdoor activity", band, "en")
-    assert token == "NO-GO"
-    assert why == risk.BAND_ADVICE[band]
+    from saafsaans.services import i18n, risk
+    token, why = llm._verdict(None, "outdoor activity", band, lang)
+    assert token == "CAUTION", (band, lang)
+    for b in risk.BAND_ADVICE:
+        assert why != i18n.t(lang, "band_advice", b, risk.BAND_ADVICE[b]), (band, lang, b)
 
 
 @pytest.mark.parametrize("band", ["Low", "Moderate", None])
@@ -427,10 +442,27 @@ def test_an_unknown_aqi_is_never_relaxed_by_a_calm_band(band):
     assert token == "CAUTION"
 
 
-def test_the_fallback_card_carries_the_band_verdict_when_aqi_is_missing():
+def test_the_fallback_card_does_not_escalate_to_no_go_without_an_aqi():
+    """The whole-card mirror of the inversion above: the assumed band must not
+    reach `parse_advice`'s verdict token either, since presenters render the
+    card from it."""
+    from saafsaans.services import risk
     text = llm._rule_based({"aqi": None}, ADVISORIES, question="Should I jog?",
                            risk_band="Extreme")
+    assert llm.parse_advice(text)["verdict"] == "CAUTION"
+    assert risk.BAND_ADVICE["Extreme"] not in text
+
+
+def test_the_fallback_card_still_escalates_on_a_measured_aqi():
+    """The mirror that keeps the inversion honest. `_verdict`'s band ladder is
+    narrowed to the no-reading case only, so a REAL reading must still be able
+    to raise the card to the hero's band -- otherwise the change above would
+    have silently deleted the escalation everywhere."""
+    from saafsaans.services import risk
+    text = llm._rule_based({"aqi": 120}, ADVISORIES, question="Should I jog?",
+                           risk_band="Extreme")
     assert llm.parse_advice(text)["verdict"] == "NO-GO"
+    assert risk.BAND_ADVICE["Extreme"] in text
 
 
 def test_the_prompt_says_nothing_about_a_band_it_was_not_given():

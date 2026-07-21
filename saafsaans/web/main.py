@@ -571,8 +571,14 @@ def ask(request: Request, question: str = Form(...)):
             advisories, question, locality=persona["locality"],
             timestamp=es.now_iso(), best_window=data["window"], lang=lang,
             # The hero's own band, so the card cannot be more permissive than
-            # the verdict printed above it on the same page.
-            risk_band=data["risk"]["band"])
+            # the verdict printed above it on the same page -- but ONLY when
+            # the hero actually prints one. With no reading `compute_risk`
+            # still returns a band, computed from an assumed AQI, which the
+            # hero suppresses; passing it here re-published the suppressed
+            # severity through the answer card, and through the system prompt
+            # on the paid path (llm.py:133). No measurement, no band.
+            risk_band=(data["risk"]["band"]
+                       if reading.get("aqi") is not None else None))
         parsed = llm.parse_advice(text)
         add_turn(sid, {
             "kind": "answer", "question": question,

@@ -100,10 +100,31 @@ def test_no_reading_means_no_severity_language_anywhere_on_today(monkeypatch, la
     exempt = (i18n.t(lang, "aqi_meaning", "Unknown", normalize.AQI_MEANING["Unknown"]),
               i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
               i18n.t(lang, "ui", "advice_no_reading", _ADVICE_NO_READING),
-              i18n.t(lang, "driver", "no_reading", "No reading — treated as unhealthy"))
+              i18n.t(lang, "driver", "no_reading", "No reading — treated as unhealthy"),
+              # The mask precaution in the answer card. Its Hindi opens
+              # "बाहर अच्छी तरह फ़िट होने वाला N95" -- "a WELL-fitting N95" --
+              # and "अच्छी" is character-for-character the Hindi band label for
+              # Good. It is an adjective about a mask, not a claim about the
+              # air, and it is printed identically whatever the reading is.
+              # Removed by whole-sentence identity from the corpus, like the
+              # others above, rather than by dropping "अच्छी" from the
+              # forbidden list -- which would have blinded the sweep to the
+              # Good band everywhere on the page.
+              i18n.t(lang, "answer", "precaution_mask_high",
+                     "Wear a well-fitted N95/FFP2 mask outdoors and run an air "
+                     "purifier indoors."))
 
     with TestClient(app) as c:
         for loc in waqi.LOCALITIES:
+            # An ANSWER is asked for first, so the transcript block is part of
+            # the body this sweeps. Without this POST the sweep saw only the
+            # empty-thread page, and the one surface that renders a generated
+            # verdict -- the answer card -- was outside it. The band advice for
+            # the assumed-AQI band was being emitted there, in both languages,
+            # while this test passed.
+            c.post("/ask", params={**PERSONA, "locality": loc, "lang": lang},
+                   data={"question": "Can I go for a run this evening?"},
+                   follow_redirects=True)
             # Unescaped: Jinja writes "Don&#39;t go out unless you must" for
             # the Extreme verdict, so a raw substring sweep silently misses the
             # single most severe sentence on the site -- exactly the string
