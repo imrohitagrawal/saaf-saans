@@ -5,6 +5,8 @@ renders without JavaScript, that a blocked prompt looks like a refusal rather
 than an answer, that provenance is reachable, and that the raw model response
 never leaks onto the page.
 """
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -66,8 +68,13 @@ def test_today_shows_the_persona_specific_verdict_and_comparison(client):
     assert "data-band=" in body               # sky is driven by the reading
 
 
-def test_persona_change_moves_the_score(client):
-    """Same air, frailer body: the score must rise."""
+def test_persona_change_moves_the_score(client, live_feed):
+    """Same air, frailer body: the score must rise.
+
+    Needs a reading: with none, the app deliberately prints no risk score at
+    all rather than one built on an assumed AQI, so there would be nothing to
+    compare. It used to get its reading from the hardcoded fallback sample.
+    """
     import re
 
     def score(params):
@@ -117,7 +124,7 @@ def test_answers_and_refusals_sit_in_one_thread(client):
     assert "Not processed." in body and "<h3>Verdict</h3>" in body
 
 
-def test_provenance_panel_lists_its_sources(client):
+def test_provenance_panel_lists_its_sources(client, live_feed):
     client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
     closed = client.get("/", params=PERSONA).text
     assert "What this answer is based on" in closed and "prov-body" not in closed
@@ -139,7 +146,11 @@ def test_city_lists_every_station_worst_first():
     with TestClient(app) as c:
         body = c.get("/city", params=PERSONA).text
     assert body.count('class="station ') == len(waqi.LOCALITIES)
-    assert "worst first" in body
+    # "worst first" is part of the summary sentence, which is only written when
+    # at least one station HAS a reading to be worst of. With none -- the
+    # suite's configuration -- the page says that instead, and ordering nothing
+    # is not a claim worth making.
+    assert ("worst first" in body) or ("reading for none of" in body)
 
 
 def test_city_timestamp_says_what_it_is_and_which_zone():
@@ -150,20 +161,33 @@ def test_city_timestamp_says_what_it_is_and_which_zone():
     assert re.search(r"page loaded \d{1,2}:\d\d [AP]M IST, \d{1,2} \w{3}", body)
 
 
-def _city_rows(monkeypatch, rows):
-    """Render /city with the station grid pinned, so freshness and age are fixed.
+def _now_iso():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
 
-    Returns {station name: its rendered row}, so an assertion about one station's
-    tag cannot be satisfied by the tag legend elsewhere on the page.
-    """
-    import re
+
+def _city_body(monkeypatch, rows, lang="en"):
+    """Render /city with the station grid pinned, so freshness and age are fixed."""
     from saafsaans.web import main as web_main
     monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
     monkeypatch.setattr(web_main, "get_client", lambda: object())
     with TestClient(app) as c:
-        body = c.get("/city", params=PERSONA).text
+        return c.get("/city", params={**PERSONA, "lang": lang}).text
+
+
+def _city_rows(monkeypatch, rows, lang="en"):
+    """{station name: its rendered row}, so an assertion about one station's tag
+    cannot be satisfied by the tag legend elsewhere on the page.
+
+    Keyed by the ENGLISH locality name even on a Hindi page: the label is
+    translated, the identity is not.
+    """
+    from saafsaans.services import i18n, waqi
+    body = _city_body(monkeypatch, rows, lang=lang)
     found = re.findall(r'<a class="station .*?</a>', body, re.S)
-    return {re.search(r'class="nm">([^<]+)<', row).group(1): row for row in found}
+    by_label = {i18n.place(lang, loc): loc for loc in waqi.LOCALITIES}
+    return {by_label[re.search(r'class="nm">([^<]+)<', row).group(1)]: row
+            for row in found}
 
 
 def test_stale_stored_reading_says_how_old_it_is(monkeypatch):
@@ -180,59 +204,73 @@ def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
     assert len(rows) == len(waqi.LOCALITIES)
     for name, row in rows.items():
         assert "CACHED" not in row, name       # nothing is stored, so nothing is cached
-        assert "SAMPLE" in row, name
+        assert "NO READING" in row, name
 
 
-def test_sample_stations_show_the_sample_figure(monkeypatch):
-    """The legend promises "a typical figure for that place is shown instead",
-    so a sample row must carry a number and a band, not "--" and Unknown.
+def test_a_station_with_no_reading_carries_no_number_and_no_band(monkeypatch):
+    """PROPERTY, over every locality and both languages.
 
-    The fallback used to read a key `waqi.SAMPLES` has never had, so it
-    evaluated to None on all 21 rows and the promise was never kept.
+    Replaces `test_sample_stations_show_the_sample_figure`, which asserted the
+    opposite: that a station with nothing stored still printed a figure, taken
+    from a hardcoded winter concentration pair and dressed in a CPCB band. That
+    is the defect. The legend it cited ("a typical figure for that place is
+    shown instead") was a promise the app should never have made, and it has
+    been withdrawn from the legend rather than kept and hedged.
+
+    Asserted over the ROW, not the page, so the band words in the legend and
+    the trend card cannot satisfy it for a station.
     """
-    from saafsaans.services import aqi_scale, waqi
-    rows = _city_rows(monkeypatch, [])
-    for name, row in rows.items():
-        expected = aqi_scale.cpcb_aqi(waqi.SAMPLES[name].get("pm25"),
-                                      waqi.SAMPLES[name].get("pm10"))[0]
-        assert f'>{expected}<' in row, (name, row)
-        assert "Unknown" not in row, name
+    from saafsaans.services import i18n, waqi
+    for lang in ("en", "hi"):
+        rows = _city_rows(monkeypatch, [], lang=lang)
+        assert len(rows) == len(waqi.LOCALITIES), lang
+        for name, row in rows.items():
+            digits = re.findall(r">(\d+)<", row)
+            assert not digits, (lang, name, digits)
+            for band in ("Good", "Satisfactory", "Moderate", "Poor",
+                         "Very Poor", "Severe"):
+                word = i18n.t(lang, "band_label", band, band)
+                assert word not in row, (lang, name, band, row)
 
 
-def test_city_counts_and_median_use_the_sample_figures(monkeypatch):
-    """With no stored reading the header used to read "0 stations - median 0"
-    on a page listing 21 of them."""
+def test_a_page_of_stations_with_no_readings_claims_no_median(monkeypatch):
+    """The header used to read "21 stations - median AQI 358" while the app
+    held zero readings, because both figures were computed over the stand-ins.
+
+    The property is that the summary never counts a station it has no reading
+    for -- checked in both languages, and against the count of tiles that
+    actually carry a number rather than against a fixed string.
+    """
     from saafsaans.services import waqi
     from saafsaans.web import main as web_main
-    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: [])
-    monkeypatch.setattr(web_main, "get_client", lambda: object())
-    with TestClient(app) as c:
-        body = c.get("/city", params=PERSONA).text
-    assert f"{len(waqi.LOCALITIES)} stations" in body
-    assert "median AQI 0" not in body
+    for lang in ("en", "hi"):
+        rows = _city_rows(monkeypatch, [], lang=lang)
+        assert len(rows) == len(waqi.LOCALITIES)
+        body = _city_body(monkeypatch, [], lang=lang)
+        sub = re.search(r'class="page-sub">([^<]*)<', body).group(1)
+        assert "AQI" not in sub, (lang, sub)
+        assert str(len(waqi.LOCALITIES)) in sub, (lang, sub)  # the total is still stated
+    # And with SOME readings, the count is the number that have one, not the
+    # number of stations on the page.
+    stored = [{"station": "Rohini", "aqi": 120, "ts": _now_iso()},
+              {"station": "ITO", "aqi": 200, "ts": _now_iso()}]
+    body = _city_body(monkeypatch, stored)
+    sub = re.search(r'class="page-sub">([^<]*)<', body).group(1)
+    assert "2 of %d" % len(waqi.LOCALITIES) in sub, sub
+    assert "median AQI 160" in sub, sub
 
 
-def test_a_stored_row_with_no_aqi_falls_back_to_the_sample(monkeypatch):
+def test_a_stored_row_with_no_aqi_gets_no_number_either(monkeypatch):
     """A row we hold but which carries no aqi is worth no more than no row.
 
-    The fallback used to key off the row's EXISTENCE, so a station whose stored
-    document had aqi=None rendered "--" and Unknown while its labelled sample
-    figure sat unused -- and the legend says a typical figure is shown instead.
-    The timestamp here is fresh on purpose: the bug was worst for a row that
-    was recent and empty.
+    Replaces `test_a_stored_row_with_no_aqi_falls_back_to_the_sample`. The
+    fallback it asserted is gone; what survives is the part that was always
+    right -- an empty row that happens to be RECENT must not be called live.
     """
-    from datetime import datetime, timezone
-
-    from saafsaans.services import aqi_scale, waqi
-    now = datetime.now(timezone.utc).isoformat()
-    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": None, "ts": now}])
-    expected = aqi_scale.cpcb_aqi(waqi.SAMPLES["Rohini"].get("pm25"),
-                                  waqi.SAMPLES["Rohini"].get("pm10"))[0]
-    assert f">{expected}<" in rows["Rohini"], rows["Rohini"]
-    assert "Unknown" not in rows["Rohini"]
-    # And it is tagged for what it is. Calling a stand-in LIVE because the
-    # empty row happened to be recent would be the worse half of the same bug.
-    assert "SAMPLE" in rows["Rohini"]
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": None,
+                                     "ts": _now_iso()}])
+    assert re.findall(r">(\d+)<", rows["Rohini"]) == [], rows["Rohini"]
+    assert "NO READING" in rows["Rohini"]
     assert "CACHED" not in rows["Rohini"]
 
 
@@ -520,7 +558,7 @@ def test_guide_states_the_who_averaging_time_and_percentile(client):
     assert "World Health Organization; 2021" in flat
 
 
-def test_who_line_appears_on_today_when_there_is_a_reading(client):
+def test_who_line_appears_on_today_when_there_is_a_reading(client, live_feed):
     flat = " ".join(client.get("/").text.replace("&#39;", "'").split())
     assert "World Health Organization's safe level for a whole day" in flat
 
@@ -958,13 +996,15 @@ def test_the_page_load_stamp_does_not_hand_a_hindi_page_an_english_month(client,
     assert datetime.now(IST).strftime("%b") not in html
 
 
-def test_the_cached_and_sample_tags_translate(client, hindi):
+def test_the_cached_and_no_reading_tags_translate(client, hindi):
     """A reader who cannot read the tag cannot tell a stored reading from a
-    stand-in figure, which is the distinction City Pulse exists to make."""
-    hindi("ui", "tag_sample", "MARKER-SAMPLE")
+    station the app holds nothing for, which is the distinction City Pulse
+    exists to make. `tag_sample` became `tag_no_reading` when the stand-in
+    figure it named stopped existing."""
+    hindi("ui", "tag_no_reading", "MARKER-NO-READING")
     html = client.get("/city", params={**PERSONA, "lang": "hi"}).text
-    assert "MARKER-SAMPLE" in html
-    assert ">SAMPLE" not in html
+    assert "MARKER-NO-READING" in html
+    assert ">NO READING" not in html
 
 
 def test_the_age_tag_unit_translates():
@@ -1003,7 +1043,7 @@ def test_hindi_headings_are_a_step_heavier_and_english_is_untouched():
     assert ".hero-window .val { font-family: var(--disp); font-weight: 600;" in text
 
 
-def test_a_normal_question_never_takes_the_error_path(client):
+def test_a_normal_question_never_takes_the_error_path(client, live_feed):
     """The /ask handler wraps everything in `except Exception` so a failure
     still renders something. That safety net turned a real defect into a
     plausible-looking page: a signature mismatch raised TypeError, was
@@ -1011,7 +1051,13 @@ def test_a_normal_question_never_takes_the_error_path(client):
     provenance panel silently lost the guidance it exists to show.
 
     A net that catches bugs and hides them is worse than no net, so the happy
-    path is now asserted directly: sources present, and not the error copy."""
+    path is now asserted directly: sources present, and not the error copy.
+
+    The feed is stubbed live because this test's proxy for "it raised" is "an
+    answer turn with no sources", and an answer with no reading correctly has
+    no sources -- no band applies, so no advisory does, which
+    tests/test_unknown_aqi.py pins as required behaviour. Without a reading the
+    proxy reports the honest path as a crash."""
     from saafsaans.web import main as web_main
 
     took_error_path = []
@@ -1045,22 +1091,25 @@ def test_the_answer_headings_follow_the_language(client):
 
 
 def test_a_stand_in_figure_is_never_called_a_reading(client, monkeypatch):
-    """waqi.get_aqi returns a hardcoded per-locality figure on every failure --
-    no stored prior reading is consulted on this path. The page used to call
-    that "the last good reading, from 2:00 PM", where 2:00 PM was the current
-    clock, because the fallback carries no observation time. Both halves false,
-    and City Pulse's own legend defined the two words apart, so the two pages
-    contradicted each other about the same data."""
+    """The page used to call the fallback "the last good reading, from 2:00 PM",
+    where 2:00 PM was the current clock, because the fallback carries no
+    observation time. Both halves false.
+
+    The fallback no longer carries a figure at all, so the claim this test
+    guards against now has nothing to attach to -- and the assertions say so:
+    the page must not call it CACHED, must not call it a reading, and must not
+    print a number for it.
+    """
     from saafsaans.services import waqi
     from saafsaans.web import main as web_main
 
     monkeypatch.setattr(web_main.waqi, "get_aqi",
                         lambda locality, es_client=None: (waqi._fallback(locality), "fallback"))
     body = client.get("/", params=PERSONA).text
-    assert "SAMPLE" in body
+    assert "NO READING" in body
     assert "CACHED" not in body
     assert "last good reading" not in body
-    assert "stand-in, not a measurement" in body
+    assert "hero-pill" not in body
 
 
 def test_every_disclosure_link_returns_the_reader_to_what_it_opened(client):
@@ -1117,10 +1166,10 @@ def test_the_scale_marker_never_prints_a_missing_reading():
     )
 
 
-def test_the_scale_marker_is_hidden_from_assistive_technology():
+def test_the_scale_marker_is_hidden_from_assistive_technology(live_feed):
     """It duplicates the .aqi-num heading, and its caret is decoration: the bar
     it indexes is itself aria-hidden, so the position means nothing without
-    sight of it."""
+    sight of it. Needs a reading: there is no scale position without one."""
     with TestClient(app) as client:
         body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
                                        "condition": "None", "activity": "Walking"}).text

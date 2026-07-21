@@ -150,41 +150,21 @@ REGIONS = {
 }
 LOCALITIES = REGIONS["Delhi"] + REGIONS["NCR"]
 
-# Labelled per-locality fallback samples used whenever live data is unavailable
-# (no token, or a failed fetch). Distinct values per locality so the UI visibly
-# reacts to the picker even in mock mode; a few carry a non-PM dominant
-# pollutant so the best-time-window advice also varies. All are stale=True.
+# There is deliberately NO table of stand-in concentrations here any more.
 #
-# These are CONCENTRATIONS in micrograms per cubic metre, and always were --
-# pm10 exceeds pm25 in every row, which is what makes them physically coherent
-# and is exactly what the live feed's sub-indices were not. The AQI is derived
-# from them through the CPCB scale rather than stored, so a sample can never
-# drift away from the scale it is supposed to sit on.
-SAMPLES = {
-    "Anand Vihar": {"pm25": 380.0, "pm10": 520.0},
-    "ITO": {"pm25": 250.0, "pm10": 410.0, "dom": "no2"},
-    "Rohini": {"pm25": 110.0, "pm10": 210.0},
-    "RK Puram": {"pm25": 190.0, "pm10": 330.0},
-    "Punjabi Bagh": {"pm25": 220.0, "pm10": 360.0},
-    "Mandir Marg": {"pm25": 150.0, "pm10": 260.0},
-    "Dwarka": {"pm25": 175.0, "pm10": 300.0},
-    "Najafgarh": {"pm25": 130.0, "pm10": 240.0},
-    "Wazirpur": {"pm25": 300.0, "pm10": 460.0},
-    "Jahangirpuri": {"pm25": 350.0, "pm10": 500.0},
-    "Okhla": {"pm25": 200.0, "pm10": 340.0},
-    "Ashok Vihar": {"pm25": 260.0, "pm10": 420.0},
-    "Nehru Nagar": {"pm25": 270.0, "pm10": 430.0},
-    "Patparganj": {"pm25": 185.0, "pm10": 320.0},
-    "DTU": {"pm25": 140.0, "pm10": 250.0},
-    "Delhi (city)": {"pm25": 210.0, "pm10": 320.0},
-    "Noida": {"pm25": 165.0, "pm10": 290.0, "dom": "no2"},
-    "Greater Noida": {"pm25": 180.0, "pm10": 310.0},
-    "Gurugram": {"pm25": 120.0, "pm10": 220.0, "dom": "o3"},
-    "Ghaziabad": {"pm25": 230.0, "pm10": 380.0},
-    "Faridabad": {"pm25": 195.0, "pm10": 335.0},
-}
-_DEFAULT_SAMPLE = SAMPLES["Delhi (city)"]
-
+# There used to be one: 21 hand-written winter PM2.5/PM10 pairs, served
+# whenever the feed did not answer. Because the AQI was derived from them
+# through the real CPCB scale, an invented number arrived on screen wearing the
+# same clothes as a measurement -- ITO's 250/410 became "AQI 400 - VERY POOR"
+# and the verdict "Don't go out unless you must - this air is dangerous for
+# you." in July, off a figure nobody measured anywhere. Two localities
+# (Ashok Vihar, Nehru Nagar) have no WAQI station at all, so for them that was
+# not a rare failure mode: it was every render, forever.
+#
+# The table is gone rather than merely disconnected, because a disconnected
+# table is a loaded gun left on the table for the next change to pick up. What
+# is not in the file cannot come back by accident, and the test that used to
+# require every locality to have a sample now requires the opposite.
 
 _API = "https://api.waqi.info/feed/{feed}/?token={token}"
 
@@ -224,12 +204,25 @@ def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
 
 
 def _fallback(locality: str = None):
-    base = SAMPLES.get(locality, _DEFAULT_SAMPLE)
+    """The reading returned when there is no live measurement: no numbers.
+
+    Every field a severity claim could be computed from is None. That is the
+    whole point. ``aqi=None`` routes the page into the Unknown path, which is
+    already correct and already tested: no band word, no CPCB verdict, no
+    band advice, no WHO multiple, no go-outside window, and no advisory
+    retrieval keyed on a band that was never measured.
+
+    Suppressing the number is not the same as saying nothing. What the reader
+    is owed instead -- this station's last REAL reading and how old it is --
+    comes from the aqi-readings index, which is what the app actually observed,
+    and is attached by the caller (see ``main.last_real_reading``). It is not
+    attached here because this value is cached, and a cached "last reported
+    23 June" would itself go stale.
+    """
     return _reading(
-        base["pm25"], base["pm10"],
-        station=f"{locality or 'Delhi'} (cached sample)",
-        city="Delhi", stale=True, forecast=None, obs_time=None,
-        feed_dominant=base.get("dom"))
+        None, None,
+        station=locality or "Delhi",
+        city="Delhi", stale=True, forecast=None, obs_time=None)
 
 
 def _normalise(name: str) -> str:

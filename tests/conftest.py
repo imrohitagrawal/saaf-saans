@@ -58,3 +58,33 @@ def _no_rate_limit_carryover_between_tests():
     ratelimit.reset()
     yield
     ratelimit.reset()
+
+
+# A live reading, for tests whose SUBJECT only exists when there is one.
+#
+# Until the fallback stopped manufacturing a figure, the default no-credentials
+# render still produced a full reading -- a hardcoded winter concentration pair
+# scored on the CPCB scale -- so tests about the WHO comparison, the scale
+# marker, the provenance panel's measurement block and the answer's retrieved
+# sources all got their subject for free. They were never testing the sample;
+# they were testing a surface that is only drawn when a reading exists, and the
+# sample was what happened to draw it. This fixture supplies the premise
+# explicitly, so those tests keep asserting what they were written to assert.
+LIVE_READING = {
+    "aqi": 168, "aqi_beyond_scale": False, "pm25": 90.0, "pm10": 160.0,
+    "dominant_pollutant": "pm25", "feed_aqi": 210, "feed_dominant": "pm25",
+    "city": "Delhi", "stale": False, "forecast": None,
+    "obs_time": "2026-07-21T10:00:00+05:30",
+}
+
+
+@pytest.fixture
+def live_feed(monkeypatch):
+    """Make ``waqi.get_aqi`` answer with a real-shaped live reading."""
+    from saafsaans.services import waqi
+
+    def _get(locality, es_client=None):
+        return ({**LIVE_READING, "station": locality}, "ok")
+
+    monkeypatch.setattr(waqi, "get_aqi", _get)
+    return LIVE_READING

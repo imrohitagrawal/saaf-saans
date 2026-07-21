@@ -161,7 +161,9 @@ def test_scale_position_clamps_and_survives_junk():
 def test_median_aqi_ignores_missing_readings():
     assert p.median_aqi([{"aqi": 204}, {"aqi": 191}, {"aqi": 143}, {"aqi": None}]) == 191
     assert p.median_aqi([{"aqi": 100}, {"aqi": 200}]) == 150
-    assert p.median_aqi([]) == 0
+    # None, not 0: 0 is a point on the CPCB scale and reads as clean air.
+    assert p.median_aqi([]) is None
+    assert p.median_aqi([{"aqi": None}, {"aqi": None}]) is None
 
 
 def test_sparkline_renders_svg_and_declines_thin_data():
@@ -181,7 +183,16 @@ def test_sparkline_survives_a_flat_series():
 # --- Provenance ------------------------------------------------------------
 def test_provenance_never_disguises_a_fallback_as_live():
     assert p.provenance_chip("ok", "2:00 PM") == "● LIVE · 2:00 PM"
-    assert "SAMPLE" in p.provenance_chip("fallback", "2:00 PM")
+    fallback = p.provenance_chip("fallback", "2:00 PM")
+    # Was `"SAMPLE" in ...`. The word changed because the thing changed: the
+    # fallback no longer carries a stand-in figure to call a sample. What the
+    # test is actually for -- that the fallback chip is never mistakable for
+    # the live one, and never borrows the clock it was handed -- is asserted
+    # directly rather than through the spelling that happened to be in use.
+    assert fallback != p.provenance_chip("ok", "2:00 PM")
+    assert "LIVE" not in fallback
+    assert "2:00 PM" not in fallback
+    assert fallback.startswith("◌")
 
 
 def test_pct_guards_zero_and_junk():
@@ -483,9 +494,9 @@ def test_who_line_translates_all_four_branches(hindi):
 
 def test_provenance_chip_translates_and_keeps_its_glyph(hindi):
     """The glyph is the only thing separating the two chips at a glance."""
-    hindi("prov", {"live": "● लाइव · {when}", "sample": "◌ नमूना — यह माप नहीं है"})
+    hindi("prov", {"live": "● लाइव · {when}", "no_reading": "◌ कोई रीडिंग नहीं"})
     assert p.provenance_chip("ok", "2:00 PM", lang="hi") == "● लाइव · 2:00 PM"
-    assert p.provenance_chip("fallback", "2:00 PM", lang="hi") == "◌ नमूना — यह माप नहीं है"
+    assert p.provenance_chip("fallback", "2:00 PM", lang="hi") == "◌ कोई रीडिंग नहीं"
 
 
 def test_outlook_day_labels_are_translated_not_strftimed(hindi):

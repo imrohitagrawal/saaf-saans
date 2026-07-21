@@ -133,7 +133,7 @@ def client():
         yield c
 
 
-def test_the_provenance_panel_separates_the_two_kinds_of_guidance(client):
+def test_the_provenance_panel_separates_the_two_kinds_of_guidance(client, live_feed):
     """The panel listed every source under one heading, so guidance chosen for
     the air alone looked as though it had been chosen for the reader."""
     client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})
@@ -151,7 +151,7 @@ def _stored_sources():
             for turn in store["turns"] for s in turn.get("sources", [])]
 
 
-def test_a_group_with_nothing_in_it_gets_no_heading(client):
+def test_a_group_with_nothing_in_it_gets_no_heading(client, live_feed):
     """An empty group must not print a heading over nothing."""
     client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})
     sources = _stored_sources()
@@ -163,7 +163,7 @@ def test_a_group_with_nothing_in_it_gets_no_heading(client):
     assert "General guidance for this air quality" not in opened
 
 
-def test_a_turn_stored_before_relevance_existed_still_renders(client):
+def test_a_turn_stored_before_relevance_existed_still_renders(client, live_feed):
     """The in-RAM transcript store survives this code change within one process
     lifetime, and its turns carry no relevance key at all."""
     client.post("/ask", params=PERSONA_ASTHMA, data={"question": "Can I jog?"})

@@ -18,14 +18,30 @@
             a proper noun a reader can match to the map. -#}
         <span class="place">{{ place(persona.locality) }}</span>
         <span class="prov">{{ prov_chip }}</span>
-        <span class="hero-pill">AQI {{ reading.aqi if reading.aqi is not none else '--' }} · {{ band_label | upper }}</span>
+        {#- No number and no band word without a measurement behind them. The
+            pill used to print an AQI derived from a hardcoded stand-in
+            concentration, in the same type as a real one. -#}
+        {% if has_reading %}
+        <span class="hero-pill">AQI {{ reading.aqi }} · {{ band_label | upper }}</span>
+        {% endif %}
       </div>
       <div class="hero-kicker">{{ kicker }}</div>
       <h1 class="verdict">{{ verdict }}</h1>
-      <p class="hero-advice">{{ T('band_advice', risk.band, risk.advice) }}</p>
+      {#- The band advice is keyed on a band. With no reading there is no band,
+          so the page gives the one instruction that does not depend on knowing
+          the air: treat it as unhealthy until we can tell you. -#}
+      <p class="hero-advice">{{ T('band_advice', risk.band, risk.advice) if has_reading
+                                else T('ui', 'advice_no_reading', 'Until we can tell you what the air is doing, take the precautions you would take on a bad day: keep hard exercise indoors, and carry your inhaler if you use one.') }}</p>
       <div class="hero-chips">
+        {#- The risk score with no reading is built on an assumed AQI, so the
+            number and its band word would be an invented severity. The chip
+            says what is actually known instead. -#}
+        {% if has_reading %}
         <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) | upper }}</span>
         <span class="chip-base">{{ T('ui', 'baseline_chip', 'healthy adult, same plans') }} · {{ baseline }}</span>
+        {% else %}
+        <span class="chip-risk">{{ T('ui', 'risk_no_reading', 'NO READING — WE CANNOT SCORE YOUR RISK') }}</span>
+        {% endif %}
       </div>
     </div>
 
@@ -41,7 +57,7 @@
   <p class="stale-note wide">
     {#- One string, no timestamp: the fallback has no observation time, and the
         clock that used to be printed here was simply "now" dressed as one. -#}
-    {{ T('ui', 'stale_note', 'The live feed is not answering for this area, so this sky and this advice use a typical figure for the place — a stand-in, not a measurement of the air right now. It will refresh when the feed returns.') }}
+    {{ T('ui', 'stale_note', 'The live feed is not answering for this area, so we have no number to show you. This page used to fill that gap with a typical figure for the place; it does not any more, because a figure nobody measured is worse than no figure at all. It will refresh when the feed returns.') }}
   </p>
   {% endif %}
 

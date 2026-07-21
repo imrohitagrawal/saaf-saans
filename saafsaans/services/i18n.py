@@ -113,6 +113,13 @@ HI: dict = {
         "Very High": "आज की हवा आपके फेफड़ों पर भारी पड़ेगी — घर के अंदर ही रहिए।",
         "Extreme": "बहुत ज़रूरी न हो तो बाहर मत निकलिए — यह हवा आपके लिए ख़तरनाक है।",
     },
+    # presenters.no_reading_verdict -- the hero headline when there is no
+    # reading at all. Its own group, not a sixth entry in "verdict": the five
+    # verdicts are keyed by risk band and each asserts something about the air,
+    # and this one exists precisely because no band and no assertion apply.
+    "hero": {
+        "no_reading": "{place} की हवा की कोई रीडिंग अभी हमारे पास नहीं है।",
+    },
     # risk.BAND_ADVICE -- the "what to do" line under the verdict.
     "band_advice": {
         "Low": "अपने काम आराम से कीजिए। कोई ख़ास सावधानी की ज़रूरत नहीं है।",
@@ -241,7 +248,9 @@ HI: dict = {
         # ``tag_cached`` is printed immediately before ``tag_old``, so the two
         # cannot both be "पुरानी" or the chip reads "पुरानी · 5 घंटे पुरानी".
         "tag_cached": "सहेजी हुई",
-        "tag_sample": "नमूना",
+        # Replaces "नमूना" (sample). The page no longer holds a stand-in figure
+        # to call a sample -- it holds nothing, and says so.
+        "tag_no_reading": "कोई रीडिंग नहीं",
         "tag_old": "पुरानी",
         "region_delhi": "दिल्ली",
         "region_ncr": "एनसीआर",
@@ -249,19 +258,13 @@ HI: dict = {
         "age_unit_min": "मिनट",
         "age_unit_hours": "घंटे",
         "age_unit_days": "दिन",
-        "stations": "स्टेशन",
-        # Follows the count and precedes the clock time, so it is phrased as a
-        # label ("the time the page loaded") rather than as a verb.
-        "page_loaded": "पेज लोड होने का समय",
-        "median_aqi": "बीच का (मध्यक) AQI",
-        "worst_first": "सबसे ख़राब पहले",
         # Names the two chips by the words they now carry in Hindi, not by
         # their English originals -- a legend that names a tag the page does
         # not print is a legend for a different page.
         "tag_legend": "‘सहेजी हुई’ का मतलब है कि उस जगह की रीडिंग हमारे पास है पर वह तीन घंटे "
-                      "से पुरानी है, और टैग बताता है कि कितनी पुरानी। ‘नमूना’ का मतलब है कि उस "
-                      "जगह की कोई रीडिंग हमारे पास है ही नहीं, इसलिए वहाँ का एक आम आँकड़ा "
-                      "दिखाया जा रहा है — उसे अभी की हवा नहीं, सिर्फ़ एक अंदाज़ा मानिए।",
+                      "से पुरानी है, और टैग बताता है कि कितनी पुरानी। ‘कोई रीडिंग नहीं’ का मतलब "
+                      "है कि उस जगह का कोई आँकड़ा हमारे पास है ही नहीं — इसलिए वहाँ कोई नंबर "
+                      "नहीं दिखाया जाता, क्योंकि हमारे पास है नहीं और हम बनाएँगे नहीं।",
         "sec_trend": "24 घंटे का रुझान",
         "last_24h": "पिछले 24 घंटे",
         "now": "अभी",
@@ -278,6 +281,14 @@ HI: dict = {
         # --- today.html: hero ---
         "sec_now": "अभी की हवा",
         "your_risk": "आपका ख़तरा",
+        # Replaces the score chip when there is no reading. The score is built
+        # on the air, and an assumed AQI would make the number an invented one.
+        "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
+        # Replaces the band advice when there is no band, because there is no
+        # reading. The one instruction that does not need to know the air.
+        "advice_no_reading": "जब तक हम आपको हवा का हाल न बता सकें, तब तक वही सावधानी "
+                             "बरतिए जो ख़राब दिन पर बरतते हैं: ज़ोर वाली कसरत घर के अंदर "
+                             "कीजिए, और अगर इनहेलर लेते हैं तो साथ रखिए।",
         # risk._BAND_TABLE labels, looked up as 'risk_band_' ~ label.
         "risk_band_Low": "कम",
         "risk_band_Moderate": "मध्यम",
@@ -373,9 +384,10 @@ HI: dict = {
         "q_mark": "प्र ·",
         # The heading on the first block of an answer, and on the block the
         # error path renders. One key, because it is one word on one card.
-        "stale_note": "इस इलाक़े के लिए लाइव फ़ीड जवाब नहीं दे रही, इसलिए यह आसमान और यह "
-                      "सलाह इस जगह के एक आम अनुमान पर आधारित है — यह अभी की हवा की माप "
-                      "नहीं है। फ़ीड लौटते ही यह अपने आप बदल जाएगा।",
+        "stale_note": "इस इलाक़े के लिए लाइव फ़ीड जवाब नहीं दे रही, इसलिए आपको दिखाने के लिए "
+                      "हमारे पास कोई आँकड़ा नहीं है। पहले यह पेज उस कमी को इस जगह के एक आम "
+                      "अनुमान से भर देता था; अब नहीं भरता, क्योंकि बिना मापा हुआ आँकड़ा कोई "
+                      "आँकड़ा न होने से भी बुरा है। फ़ीड लौटते ही यह अपने आप बदल जाएगा।",
         # The forwarded-link preview. Placeholders are substituted with
         # str.replace, not .format, so a stray brace cannot raise on a path
         # that runs on every page render.
@@ -384,8 +396,6 @@ HI: dict = {
                            "आसान भाषा में।",
         "no_obs_time": "रीडिंग का समय नहीं है",
         "share_title": "{place} की हवा अभी: {band}",
-        "share_title_sample": "{place} की हवा (नमूना): {band}",
-        "share_sample_note": "यह लाइव माप नहीं, इस जगह का एक आम अनुमान है।",
         "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
         "share_for": "यह सलाह {who} के लिए है।",
         "heading_verdict": "फ़ैसला",
@@ -694,6 +704,20 @@ HI: dict = {
         # leaves Devanagari untouched.
         "kicker": "इनके लिए: {persona}",
     },
+    # presenters.city_summary -- the City Pulse subtitle.
+    #
+    # A whole sentence per form, not the fragments the page used to interleave.
+    # Hindi puts the total first ("21 में से"), which no fixed English assembly
+    # order can produce, and the two forms exist because a median computed over
+    # zero readings is not a median -- the page used to print one anyway, off
+    # stand-in figures, and read "21 स्टेशन · बीच का (मध्यक) AQI 358" while
+    # holding nothing at all.
+    "city": {
+        "summary": "{total} में से {n} स्टेशन की रीडिंग हमारे पास है · पेज लोड होने का समय "
+                   "{now} · बीच का (मध्यक) AQI {median} · सबसे ख़राब पहले",
+        "summary_none": "{total} में से किसी भी स्टेशन की रीडिंग अभी हमारे पास नहीं है "
+                        "· पेज लोड होने का समय {now}",
+    },
     # presenters.comparison_line -- the gap to a healthy adult.
     #
     # The three commitments the English makes are kept: the comparison person
@@ -888,7 +912,9 @@ HI: dict = {
         "NCR": "एनसीआर",
     },
     "prov": {
-        "sample": "◌ नमूना — यह माप नहीं है",
+        # Was "◌ नमूना — यह माप नहीं है" (sample - this is not a measurement).
+        # There is no stand-in figure any more, so there is no sample to name.
+        "no_reading": "◌ कोई रीडिंग नहीं",
         "live": "● लाइव · {when}",
     },
     # presenters.sparkline_svg -- the accessible name of the 24-hour chart.

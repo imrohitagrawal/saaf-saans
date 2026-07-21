@@ -50,6 +50,19 @@ def verdict_for(band: str) -> str:
     return _VERDICTS.get(band, _VERDICTS["High"])
 
 
+def no_reading_verdict(locality: str, lang: str = "en") -> str:
+    """The hero headline when the app has no reading for this place.
+
+    Not one of the five band verdicts. Each of those asserts something about
+    the air ("this air is dangerous for you"), and the whole point of this
+    branch is that nobody knows what the air is. It names the place so a reader
+    can tell "we could not measure here" from "the site is broken".
+    """
+    return _fmt(lang, "hero", "no_reading",
+                "We have no air reading for {place} right now.",
+                place=i18n.place(lang, locality))
+
+
 # --- Persona ---------------------------------------------------------------
 # The persona appears in three places and must read as a sentence in all of
 # them. Joining the raw values with dots ("Senior · copd · school run · Noida")
@@ -343,11 +356,36 @@ def scale_position(aqi) -> float:
 
 
 # --- City ------------------------------------------------------------------
-def median_aqi(stations) -> int:
-    """Median AQI across stations, ignoring those with no reading."""
+def city_summary(count: int, total: int, median, now: str, lang: str = "en") -> str:
+    """The City Pulse subtitle, as one sentence per language.
+
+    Two forms rather than one with an optional clause. The page used to print
+    "21 stations - median AQI 358" while holding zero readings, because both
+    numbers were computed over stand-in figures. The count now names the
+    stations that actually answered against the total, and when none did there
+    is no median clause to write.
+    """
+    if median is None:
+        return _fmt(lang, "city", "summary_none",
+                    "We hold a reading for none of the {total} stations "
+                    "· page loaded {now}", total=total, now=now)
+    return _fmt(lang, "city", "summary",
+                "We hold a reading for {n} of {total} stations · page loaded {now} "
+                "· median AQI {median} · worst first",
+                n=count, total=total, median=median, now=now)
+
+
+def median_aqi(stations):
+    """Median AQI across stations, ignoring those with no reading.
+
+    ``None`` -- not 0 -- when nothing has a reading. 0 is a point on the scale
+    and reads as "the air is clean"; the caller must be able to tell "no
+    stations answered" from "every station answered zero" and drop the figure
+    rather than print it.
+    """
     values = sorted(s["aqi"] for s in (stations or []) if s.get("aqi") is not None)
     if not values:
-        return 0
+        return None
     mid = len(values) // 2
     if len(values) % 2:
         return values[mid]
@@ -391,18 +429,16 @@ def sparkline_svg(points, width: int = 560, height: int = 90,
 
 # --- Provenance ------------------------------------------------------------
 def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
-    """'● LIVE · 2:00 PM' or '◌ SAMPLE — not a reading'. Never disguise a fallback.
+    """'● LIVE · 2:00 PM' or '◌ NO READING'. Never disguise a fallback.
 
     The glyph is part of the string rather than prepended in code: it is the
     only thing distinguishing the two chips at a glance, and a translation that
-    lost it would make a stand-in look live.
+    lost it would make an absence look live.
 
-    The fallback chip says SAMPLE, not CACHED, because that is what it is.
-    ``waqi.get_aqi`` returns ``_fallback()`` on every failure, and that is a
-    hardcoded per-locality figure from ``waqi.SAMPLES`` -- no stored prior
-    reading is ever consulted on this path. Calling it CACHED claimed a
-    measurement that was never taken, and City Pulse's own legend defines the
-    two words apart, so the two pages contradicted each other.
+    The fallback chip used to say SAMPLE, which was accurate while a sample
+    existed: ``waqi._fallback`` served a hardcoded per-locality figure. It no
+    longer serves one, so there is no sample to name -- the chip says what is
+    actually true, that the app has no reading for this place right now.
 
     It carries no time either. ``_fallback`` sets ``obs_time`` to None, so the
     timestamp shown beside it was the current clock -- a fabricated observation
@@ -410,7 +446,7 @@ def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
     """
     if waqi_status == "ok":
         return _fmt(lang, "prov", "live", "● LIVE · {when}", when=when)
-    return i18n.t(lang, "prov", "sample", "◌ SAMPLE — not a reading")
+    return i18n.t(lang, "prov", "no_reading", "◌ NO READING")
 
 
 

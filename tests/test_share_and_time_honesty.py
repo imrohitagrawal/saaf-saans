@@ -20,7 +20,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import i18n
+from saafsaans.services import i18n, normalize
 from saafsaans.web.main import app, _fmt_time
 
 PERSONA = {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
@@ -34,53 +34,59 @@ def _meta(body: str, key: str) -> str:
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-def test_the_forwarded_card_says_a_sample_is_a_sample(lang):
+def test_the_forwarded_card_names_no_band_when_there_is_no_reading(lang):
     """The suite runs with no WAQI token, which is the shipped configuration,
-    so this is the default state of every share card the app emits."""
+    so this is the default state of every share card the app emits.
+
+    This replaces `test_the_forwarded_card_says_a_sample_is_a_sample`, which
+    asserted the card hedged a band word with "(sample)". Its premise was the
+    defect: the card had a band to hedge only because a hardcoded winter
+    concentration had been scored on the CPCB scale. The card must now carry no
+    band at all, which is a strictly stronger claim -- a hedge can be missed,
+    a word that is not on the card cannot be.
+    """
     with TestClient(app) as client:
         body = client.get("/", params={**PERSONA, "lang": lang}).text
     title = _meta(body, "og:title")
     description = _meta(body, "og:description")
     assert title, "no share card rendered"
 
-    # The title must be built from the sample key, not the live one. Built the
-    # same way the code builds it and compared whole, rather than sliced apart:
-    # a partial match would pass on a title assembled from the wrong template.
-    def matches(key, english):
-        """The title against a template, with {band} as a wildcard.
+    expected = i18n.t(lang, "ui", "share_no_reading",
+                      "{place}: no air reading right now").replace(
+                          "{place}", i18n.place(lang, PERSONA["locality"]))
+    assert title == expected, f"the card is not the no-reading card: {title!r}"
 
-        The band's case is the template's business, not this test's -- the hero
-        upper-cases it in CSS and the card does not -- so only the scaffolding
-        and the place are pinned here.
-        """
-        pattern = re.escape(i18n.t(lang, "ui", key, english)
-                            .replace("{place}", i18n.place(lang, PERSONA["locality"])))
-        return re.fullmatch(pattern.replace(re.escape("{band}"), ".+"), title)
-
-    assert matches("share_title_sample", "{place} air (sample): {band}"), (
-        f"the card title is not the sample title: {title!r}")
-    assert not matches("share_title", "{place} air right now: {band}"), (
-        f"the card claims a live reading on a sample: {title!r}")
-
-    note = i18n.t(lang, "ui", "share_sample_note",
-                  "This is a typical figure for the place, not a live measurement.")
-    assert note in description, (
-        f"the forwarded card for a SAMPLE reading carries no hedge. "
-        f"description={description!r}"
-    )
+    # PROPERTY: the title states no CPCB band, in either language. Scoped to
+    # the title on purpose. The band word is a CLAIM only where the card
+    # asserts it as this place's air, and that is the title -- the description
+    # is the app's Unknown meaning, whose Hindi legitimately contains "ख़राब"
+    # in the sentence telling the reader to ASSUME bad air until they know.
+    # Asserting over the description too would forbid the honest advice.
+    for band in ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"):
+        assert i18n.t(lang, "band_label", band, band) not in title, (band, title)
+        assert band not in title, (band, title)
+    # And the description is exactly the app's own no-reading meaning, so the
+    # card cannot say something the page does not.
+    assert description == i18n.t(lang, "aqi_meaning", "Unknown",
+                                 normalize.AQI_MEANING["Unknown"])
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_the_card_and_the_page_agree_about_the_reading(lang):
     """Whatever the page says about the feed, the card must say too. This is
-    the property; the wording is free to change."""
+    the property; the wording is free to change.
+
+    Rewritten from "do both say SAMPLE" to "do both say there is no reading",
+    because there is no sample any more. Still a two-sided agreement check, so
+    it fails if either surface starts claiming a reading the other does not.
+    """
     with TestClient(app) as client:
         body = client.get("/", params={**PERSONA, "lang": lang}).text
-    page_says_sample = i18n.t(lang, "prov", "sample", "◌ SAMPLE — not a reading") in body
-    card_says_sample = i18n.t(
-        lang, "ui", "share_sample_note",
-        "This is a typical figure for the place, not a live measurement.") in _meta(body, "og:description")
-    assert page_says_sample == card_says_sample, (
+    page_has_no_reading = i18n.t(lang, "prov", "no_reading", "\u25cc NO READING") in body
+    card_has_no_reading = _meta(body, "og:title") == i18n.t(
+        lang, "ui", "share_no_reading", "{place}: no air reading right now").replace(
+            "{place}", i18n.place(lang, PERSONA["locality"]))
+    assert page_has_no_reading == card_has_no_reading, (
         "the forwarded card and the page disagree about whether this reading "
         "was measured"
     )

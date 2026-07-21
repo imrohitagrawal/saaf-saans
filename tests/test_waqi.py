@@ -39,48 +39,62 @@ def test_no_token_returns_stale_no_http(monkeypatch):
     reading, status = waqi.get_aqi("ITO")
     assert status == "fallback"
     assert reading["stale"] is True
-    # The sample's AQI is derived from its concentrations, never stored, so
-    # the assertion has to derive it the same way rather than read it back.
-    sample = waqi.SAMPLES["ITO"]
-    assert reading["pm25"] == sample["pm25"]
-    assert reading["aqi"] == aqi_scale.cpcb_aqi(sample["pm25"], sample["pm10"])[0]
+    # This assertion is the inverse of the one it replaces. It used to pin the
+    # fallback to a hardcoded winter concentration pair for ITO (250/410, which
+    # the CPCB scale turned into "AQI 400 - VERY POOR" in July). The premise was
+    # the defect, not the number: there is no measurement, so there is no number.
+    assert reading["aqi"] is None
+    assert reading["pm25"] is None
     assert calls == []  # no network call attempted
 
 
-def test_fallback_varies_by_locality(monkeypatch):
+def test_a_fallback_carries_no_number_for_any_locality(monkeypatch):
+    """PROPERTY, over every locality: with no live feed there is nothing to
+    build a severity claim out of.
+
+    Written as a sweep over the whole reading rather than over `aqi` alone,
+    because every one of these fields is an input some downstream surface turns
+    into a band, a verdict, a risk driver or a WHO multiple.
+    """
     monkeypatch.setattr(config, "waqi_token", lambda: "")
-    aqis = {loc: waqi.get_aqi(loc)[0]["aqi"] for loc in waqi.SAMPLES}
-    # These moved when the samples stopped carrying a hand-written AQI and
-    # started deriving it from their own concentrations on the CPCB scale.
-    # Anand Vihar's PM2.5 of 380 is past CPCB's last published breakpoint, so
-    # it reports the floor of Severe rather than an invented interpolation.
-    assert aqis["Anand Vihar"] == 401
-    assert aqis["Rohini"] == 267
-    assert len(set(aqis.values())) >= 4  # localities are visibly distinct
-    # Unknown locality falls back to the Delhi default sample.
-    assert waqi.get_aqi("Nowhere")[0]["aqi"] == waqi.get_aqi("Delhi (city)")[0]["aqi"] == 369
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: pytest.fail("no fetch"))
+    for loc in list(waqi.LOCALITIES) + ["Nowhere"]:
+        reading, status = waqi.get_aqi(loc)
+        assert status == "fallback", loc
+        assert reading["stale"] is True, loc
+        for field in ("aqi", "pm25", "pm10", "dominant_pollutant",
+                      "feed_aqi", "feed_dominant", "obs_time"):
+            assert reading[field] is None, (loc, field, reading[field])
 
 
-def test_all_localities_have_feed_and_sample():
-    # Every UI locality must resolve to both a feed and a mock sample.
+def test_there_is_no_stand_in_concentration_table_to_fall_back_to():
+    """The inverse of the old `test_all_localities_have_feed_and_sample`.
+
+    That test asserted every locality HAS a hardcoded sample. Its premise was
+    the defect: the samples were 21 invented winter concentration pairs that
+    the CPCB scale then dressed as measurements. This asserts the module
+    carries no such table at all, so the fabrication cannot be reintroduced by
+    reconnecting something that is still lying around.
+    """
+    assert not hasattr(waqi, "SAMPLES")
+    for name in dir(waqi):
+        value = getattr(waqi, name)
+        if not isinstance(value, dict) or not value:
+            continue
+        # No module-level dict may map a locality to anything containing a
+        # particulate concentration.
+        for loc in waqi.LOCALITIES:
+            entry = value.get(loc)
+            assert not (isinstance(entry, dict)
+                        and {"pm25", "pm10"} & set(entry)), (name, loc)
+
+
+def test_all_localities_have_a_feed_entry():
     for loc in waqi.LOCALITIES:
         assert loc in waqi.FEED_MAP, f"{loc} missing feed"
-        assert loc in waqi.SAMPLES, f"{loc} missing sample"
     # Regions partition LOCALITIES with no overlaps.
     assert set(waqi.LOCALITIES) == set(waqi.REGIONS["Delhi"]) | set(waqi.REGIONS["NCR"])
     assert len(waqi.LOCALITIES) >= 20
-
-
-def test_fallback_carries_sample_dominant_pollutant(monkeypatch):
-    monkeypatch.setattr(config, "waqi_token", lambda: "")
-    # Gurugram's sample declares an ozone driver -> best-window can vary. Ozone
-    # is not one of the two particulates the app's own index is built from, so
-    # it belongs to feed_dominant; dominant_pollutant names whichever
-    # particulate actually drove our number, and can only ever be pm25 or pm10.
-    gurugram = waqi.get_aqi("Gurugram")[0]
-    assert gurugram["feed_dominant"] == "o3"
-    assert gurugram["dominant_pollutant"] in ("pm25", "pm10")
-    assert waqi.get_aqi("Rohini")[0]["feed_dominant"] is None
 
 
 def test_live_ok(monkeypatch):

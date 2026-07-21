@@ -289,31 +289,19 @@ def today_share_card(persona: dict, data: dict, verdict: str,
                                 "{place}: no air reading right now").replace("{place}", place),
                 "description": data["meaning"]}
     who = pr.persona_sentence(persona, with_place=False, lang=lang)
-    # The card must carry the same hedge the page does. It used to state the
-    # band as fact -- "Anand Vihar air right now: Severe" -- whether the figure
-    # was measured or a labelled stand-in, so the word SAMPLE existed only
-    # AFTER the recipient clicked. On the shipped configuration, where there is
-    # no WAQI token, every forwarded link was in that state. Forwarding is how
-    # this site is meant to travel, which makes the preview the surface most
-    # readers will ever see, and the one place the honesty had to hold hardest.
-    # Both keys written out literally, never composed. tests/test_i18n.py reads
-    # the requested keys back out of this file, so a key built from a variable
-    # is invisible to that parser -- and an invisible key is one nobody notices
-    # is missing from the corpus.
-    sampled = data.get("waqi_status") != "ok"
-    if sampled:
-        title = i18n.t(lang, "ui", "share_title_sample", "{place} air (sample): {band}")
-        note = " " + i18n.t(lang, "ui", "share_sample_note",
-                            "This is a typical figure for the place, not a live "
-                            "measurement.")
-    else:
-        title = i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
-        note = ""
+    # There is no longer a "(sample)" variant of this card, and that is a
+    # strengthening rather than a removal. The variant existed because a
+    # fallback used to arrive carrying a band derived from a hardcoded
+    # concentration, so the card had to hedge a severity word it should never
+    # have been given. A fallback now carries no AQI at all, so it is caught by
+    # the no-reading branch above and the card names no band -- the hedge is
+    # unreachable because the thing it hedged cannot be built.
+    title = i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
     return {
         "title": title.replace("{place}", place).replace("{band}", label),
         # The place is already in the title, so the persona phrase drops it.
         "description": verdict + " " + i18n.t(lang, "ui", "share_for",
-                                              "This is for {who}.").replace("{who}", who) + note,
+                                              "This is for {who}.").replace("{who}", who),
     }
 
 
@@ -445,7 +433,17 @@ def today(request: Request):
     turns = list(reversed(read_turns(sid)))
     open_prov = q.get("prov")
     band = data["risk"]["band"]
-    verdict = i18n.t(lang, "verdict", band, pr.verdict_for(band))
+    # The verdict is the single largest health directive on the site, and every
+    # one of the five band verdicts is a claim about the air ("this air is
+    # dangerous for you"). With no reading there is no air to make a claim
+    # about, so the headline names the absence instead. It used to inherit the
+    # verdict for whatever band the unknown-AQI base score happened to land in,
+    # which is how a place the app had never measured got told its lungs needed
+    # it indoors today.
+    has_reading = data["reading"].get("aqi") is not None
+    verdict = (i18n.t(lang, "verdict", band, pr.verdict_for(band)) if has_reading
+               else pr.no_reading_verdict(persona["locality"], lang=lang))
+    ctx["has_reading"] = has_reading
     # The band label and the meaning are translated here rather than in the
     # template because the share card is built from them too, and the card must
     # not name a band in a language the page does not use.
@@ -605,24 +603,13 @@ def ask(request: Request, question: str = Form(...)):
 
 
 # --- City Pulse ------------------------------------------------------------
-def _sample_aqi(loc: str):
-    """The labelled sample AQI for a locality, or None if it has no sample.
-
-    `waqi.SAMPLES` stores PM2.5 and PM10 *concentrations* and no AQI, on
-    purpose: the index is derived through the CPCB scale rather than stored, so
-    a sample can never drift away from the scale it sits on. The City Pulse
-    fallback used to read `SAMPLES[loc]["aqi"]` -- a key no row has ever
-    carried -- so it returned None for all 21 stations and the page rendered
-    "--", band Unknown, "0 stations" and "median AQI 0" while its own legend
-    promised "a typical figure for that place is shown instead". Deriving it is
-    the fix rather than deleting the fallback, because the legend, the SAMPLE
-    tag and the row are all already built for a figure being there.
-    """
-    sample = waqi.SAMPLES.get(loc)
-    if not sample:
-        return None
-    derived = aqi_scale.cpcb_aqi(sample.get("pm25"), sample.get("pm10"))
-    return derived[0] if derived else None
+# There is no `_sample_aqi` here any more. It derived an AQI from the hardcoded
+# winter concentration table and handed it to `normalize.band_for`, the "worst
+# first" sort, `count` and `median`. With no stored row for any station -- the
+# production state -- all 21 tiles took that branch, so the page printed
+# "median AQI 358" and sorted an invented 401 to the top while the same app's
+# home page showed the same station at AQI 86. A station with no reading now
+# has no number, and a tile with no number is counted in nothing.
 
 
 @app.get("/city")
@@ -649,18 +636,16 @@ def city(request: Request):
         # sat unused.
         stored = row.get("aqi") if row else None
         fresh = stored is not None and _is_fresh(row.get("ts"), hours=3)
-        # No usable stored reading: fall back to the labelled per-locality
-        # sample rather than showing a dead row. It costs no HTTP -- 21 live
-        # fetches would make this page crawl -- but it is a stand-in figure, not
-        # a reading we hold, so it must not carry the same tag as a genuine
-        # stored-but-old reading.
-        aqi = stored if stored is not None else _sample_aqi(loc)
+        # A station we hold nothing for gets no number and no band. The tile
+        # says so in words instead; there is nothing to stand in for it with.
+        aqi = stored
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi,
-                         "band": i18n.t(lang, "band_label", label, label),
+                         "band": i18n.t(lang, "band_label", label, label)
+                                 if aqi is not None else None,
                          "slug": slug,
                          "source": "live" if fresh else
-                                   ("cached" if stored is not None else "sample"),
+                                   ("cached" if stored is not None else "none"),
                          "age": None if stored is None or fresh
                                 else _age_label(row.get("ts"), lang),
                          "selected": loc == selected})
@@ -675,7 +660,11 @@ def city(request: Request):
     ctx.update({
         "delhi": group("Delhi"), "ncr": group("NCR"),
         "count": sum(1 for s in stations if s["aqi"] is not None),
+        "total": len(stations),
         "median": pr.median_aqi(stations),
+        "summary": pr.city_summary(
+            sum(1 for s in stations if s["aqi"] is not None), len(stations),
+            pr.median_aqi(stations), _fmt_stamp(lang), lang=lang),
         "now": _fmt_stamp(lang),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
