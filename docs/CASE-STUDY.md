@@ -175,7 +175,10 @@ defects, and shipping something honest and complete rather than something larger
 
 - **No real users.** Zero people outside the author have used this. Every usability claim
   is reasoning, not observation.
-- **Not deployed.** It runs locally. There is no public URL.
+- **Deployed, but unexercised.** It is live at https://saafsaans.fly.dev on one 256 MB
+  Fly.io machine scaled to zero. No traffic beyond the author's own, and the public
+  instance runs without `OPENROUTER_API_KEY`, so it answers from the rule-based
+  fallback rather than a model. A URL is not evidence that anything was used.
 - **Written with heavy AI assistance.** The code was largely produced by an AI assistant
   under direction. The human contribution was problem selection, quality standards,
   rejecting inadequate output, and the decision to stop — not line-by-line authorship.
@@ -223,13 +226,11 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
    that leads and must be avoided, and a check on whether the facilitator contaminated the
    session. **Do this before the Hindi sign-off** — the test will change the English copy,
    and a translation signed off against copy that then moves has to be reviewed twice.
-2. **Deploy publicly.** A reader currently has to clone and run it. A URL is worth more
-   than another feature.
-3. **Hindi sign-off.** The translation is drafted, committed and gated behind a banner; one
+2. **Hindi sign-off.** The translation is drafted, committed and gated behind a banner; one
    fluent Delhi Hindi speaker needs to read `services/i18n.py` end to end, checking the
    health instructions hardest — anything about an inhaler, a mask or seeking care must
    carry identical force, neither softened nor strengthened. The banner comes out only then.
-4. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
+3. **Read CDSCO's Oct 2025 draft guidance on medical device software.** It could not be
    retrieved during research and is the most decision-relevant unread document; it governs
    whether personalised health advice can legally ship in India.
 

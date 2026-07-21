@@ -10,7 +10,7 @@ Phase 2 is this repository — an **exposure ledger** whose headline is **inhale
 micrograms**. Same domain, same service layer, different wedge.
 
 This file records what to take, what to leave, and what phase 1 learned the hard way.
-The design spec (`docs/superpowers/specs/2026-07-19-exposure-ledger-design.md`) predates
+The design spec (`docs/phase-2/2026-07-19-exposure-ledger-design.md`) predates
 phase 1's completion and is stale where the two disagree — **this file wins**.
 
 ---

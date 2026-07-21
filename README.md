@@ -82,7 +82,8 @@ white, and in dark mode maroon `#7E0023` falls to ~1.4:1 — making the *most se
 ramp inverts its lightness direction between themes. The US EPA publishes its own accessible
 alternate ("ColorVision Assist") for the same reason.
 
-**Degradation is visible, never disguised.** A cached reading says `◌ CACHED`, a dead feed shows
+**Degradation is visible, never disguised.** On City Pulse a cached reading is tagged `CACHED`
+with its age beside it, a place held with no reading at all is tagged `SAMPLE`, a dead feed shows
 a notice, and a rule-based answer is logged as one. The Observability view exists to make that
 checkable rather than claimed.
 
@@ -164,10 +165,11 @@ saafsaans/
     templates/          base · today · city · system · guide
     static/app.css      design tokens, per-band sky, severity ramp
   services/
-    config · normalize · guard · waqi · forecast · risk · es · metrics · llm
+    aqi_scale · clock · config · normalize · guard · waqi · forecast · risk · es
+    metrics · llm
   data/advisories.py    43 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  698 tests, 24 files
+tests/                  773 tests, 25 files
 docs/                   design brief, screenshots, specs
 ```
 
