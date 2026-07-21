@@ -1135,3 +1135,23 @@ def test_the_scale_marker_is_hidden_from_assistive_technology():
         "the scale marker is announced to a screen reader, which reads the "
         "AQI number twice and then a bare caret"
     )
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+@pytest.mark.parametrize("path", ["/", "/city", "/system", "/guide"])
+def test_every_page_says_it_is_not_a_medical_device(path, lang):
+    """CDSCO's draft guidance on medical device software (21 Oct 2025) turns on
+    INTENDED USE as the maker states it, and its definition reaches software
+    intended for the "prevention ... or alleviation of any disease or
+    disorder". This app talks to people with asthma and COPD about whether to
+    go outside. What it does not claim to be therefore has to be as visible as
+    what it does, on every page and in both languages -- not buried in the
+    Guide, and not in English only for a Hindi reader.
+    """
+    from saafsaans.services import i18n
+    expected = i18n.t(lang, "ui", "footer_not_a_device",
+                      "This is a demonstration project, not a medical device, "
+                      "and not a substitute for advice from your doctor.")
+    with TestClient(app) as client:
+        body = client.get(path, params={**PERSONA, "lang": lang}).text
+    assert expected in body, f"{path} in {lang} does not disclaim being a device"

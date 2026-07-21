@@ -408,6 +408,10 @@ HI: dict = {
         "throttled_wait": "दोबारा कोशिश कीजिए लगभग",
         "throttled_minutes": "मिनट में",
         "disclaimer": "यह सामान्य जानकारी है, डॉक्टरी सलाह नहीं।",
+        # base.html footer, on every page. Not softened in Hindi: a reader who
+        # only reads the Hindi must be told exactly what the English reader is.
+        "footer_not_a_device": "यह एक प्रदर्शन परियोजना है — कोई मेडिकल डिवाइस "
+                               "नहीं, और आपके डॉक्टर की सलाह का विकल्प नहीं।",
         # main.py, when an answer cannot be built. Carries a safe default
         # instruction, so it must not be shortened to an apology.
         "answer_error": "आपकी सलाह तैयार करने में कुछ गड़बड़ हो गई। शक हो तो बाहर कम से कम "
