@@ -208,12 +208,12 @@ HI: dict = {
     # ``web/templates/*.html`` or of an ``i18n.t(lang, "ui", ...)`` in
     # ``web/main.py``. They are not derived from the English -- template chrome
     # has no source dict to key off -- so they are only correct by matching the
-    # call site, and ``test_ui_and_guide_carry_the_keys_the_templates_request``
+    # call site, and ``test_the_corpus_carries_every_key_the_code_requests``
     # parses the templates rather than trusting a list written here.
     #
     # Several strings arrive as fragments, not as a sentence with a ``{field}``:
     # the template prints a time, a count or a place name between two separate
-    # calls (``stale_before``/``stale_after``, ``prov_count_*``, ``no_trend_*``).
+    # calls (``prov_count_*``, ``no_trend_*``).
     # The Hindi is written so the pieces read as one natural sentence once the
     # template concatenates them, which sometimes means it is not a literal
     # split of the English fragments -- Hindi puts the noun before the
@@ -287,9 +287,6 @@ HI: dict = {
         "baseline_chip": "सेहतमंद बड़ा व्यक्ति, वही काम",
         "window_label": "अगर बाहर जाना ही पड़े",
         "window_note": "यह एक सामान्य पैटर्न है, हर घंटे का पूर्वानुमान नहीं",
-        # The clock time is printed between the two. ``stale_after`` follows the
-        # time with no separator in the template, so it carries its own leading
-        # space.
 
         # --- today.html: persona card ---
         "sec_persona": "आपका ब्यौरा",

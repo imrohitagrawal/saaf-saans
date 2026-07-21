@@ -32,6 +32,7 @@ so that fixing them forced the marks off rather than letting them rot. Neither
 was allowlisted, and that is the rule: the allowlist is for Latin that is
 CORRECT, never for Latin that is a bug.
 """
+import pathlib
 import re
 
 import pytest
@@ -89,18 +90,18 @@ ALLOWED = {
     # Same shape, and the reason is on the page: the Hindi copy reads
     # "प्रसूति विशेषज्ञ (obstetrician)" -- the Hindi term with the English one
     # glossed beside it, so the reader can match it to the word on a referral
-    # slip. Emitted by the pregnancy advisories (i18n.py:947, 1018, 1076, 1099)
-    # and visible in the provenance panel.
+    # slip. Emitted by the Hindi pregnancy advisories in i18n.py, every one of
+    # which carries the gloss, and visible in the provenance panel.
     "obstetrician",
-    # Same gloss, same reason: i18n.py:1061 reads "रोज़ चलने वाली (controller)
-    # दवा" -- the Hindi phrase with the English term in brackets after it, so a
-    # reader can match it to the label on the preventer inhaler. Emitted by the
-    # AQI>300 asthma advisory on the answer card. NOTE the neighbouring
-    # "action plan" on i18n.py:1062 is NOT glossed and is NOT listed here; see
-    # test_the_answer_itself_is_in_hindi.
+    # Same gloss, same reason: the Hindi asthma advisory in i18n.py reads
+    # "रोज़ चलने वाली (controller) दवा" -- the Hindi phrase with the English term
+    # in brackets after it, so a reader can match it to the label on the
+    # preventer inhaler. Emitted by the AQI>300 asthma advisory on the answer
+    # card. The neighbouring "action plan" of the English source needs no entry:
+    # it is translated outright, as "डॉक्टर की लिखी हुई हिदायतें".
     "controller",
     # The citation identifiers themselves, as the provenance panel renders them
-    # -- today.html:295 prints `s.source` raw into <span class="src-tag">.
+    # -- today.html prints `{{ s.source }}` raw into <span class="src-tag">.
     # These are index keys into data/advisories.py, not prose: the whole point
     # of showing them is that a sceptical reader can match a sentence on the
     # page to the row it came from. The bare acronyms above were listed for the
@@ -130,7 +131,7 @@ ALLOWED = {
 # and "Hindi" -- eighteen ordinary English words, everywhere, on every page. A
 # Hindi string that was four fifths English passed the whole suite silently.
 #
-# It was also unnecessary. base.html:74 renders the English banner inside
+# It was also unnecessary. base.html renders the English banner inside
 # <p class="notice-en" lang="en">, so _visible_text already strips it as a
 # self-declared English element, exactly like the citation strings. Removing
 # the line changes nothing the scan sees except the hole. Verified by scanning
@@ -386,9 +387,9 @@ def test_the_english_review_banner_needs_no_allowlist_seeding():
     """Why ALLOWED is no longer seeded from REVIEW_BANNER_EN.
 
     The banner's own English words legitimately appear on a Hindi page -- but
-    they appear inside an element the page marks lang="en" (base.html:74),
-    which _visible_text strips for exactly the reason it strips the citation
-    strings. Blanket-exempting those eighteen words everywhere therefore bought
+    they appear inside an element the page marks lang="en" -- the
+    <p class="notice-en"> in base.html -- which _visible_text strips for
+    exactly the reason it strips the citation strings. Blanket-exempting those eighteen words everywhere therefore bought
     the banner nothing, and cost the scan its teeth on every other surface.
 
     If the banner ever loses its wrapper this fails, and the fix is to restore
@@ -410,3 +411,19 @@ def test_the_english_review_banner_needs_no_allowlist_seeding():
         "Only 'English' (the language toggle must name itself) and 'inhaler' "
         "(a term the Hindi corpus keeps in Latin on purpose) have one."
     )
+
+
+def test_no_comment_here_cites_a_source_line_number():
+    """The reasons above are only useful if they point at the right thing.
+
+    Every ``file.py:NNN`` citation in this file had rotted: the referenced
+    lines held unrelated text, so a reviewer checking an allowlist entry was
+    sent to the wrong place and had to grep anyway. Line numbers move on every
+    edit to the file above the cited line, and nothing makes them fail when
+    they do. Quote the string or name the key instead -- those move with the
+    thing they describe. This test is what stops the next one being written.
+    """
+    source = pathlib.Path(__file__).read_text(encoding="utf-8")
+    cited = re.findall(r"[A-Za-z_]+\.(?:py|html|css|md):[0-9]+", source)
+    # This test's own regex literal is written so it cannot match itself.
+    assert not cited, f"line-number citations rot; quote the text instead: {cited}"
