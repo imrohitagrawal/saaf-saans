@@ -1155,3 +1155,23 @@ def test_every_page_says_it_is_not_a_medical_device(path, lang):
     with TestClient(app) as client:
         body = client.get(path, params={**PERSONA, "lang": lang}).text
     assert expected in body, f"{path} in {lang} does not disclaim being a device"
+
+
+def test_the_footer_sentences_are_not_welded_together():
+    """Jinja's `{#- ... -#}` strips whitespace on BOTH sides, so a comment
+    placed between two translated strings deleted the newline between them and
+    the footer rendered "... ACOG, EPA.This is a demonstration project".
+
+    Caught by looking at a screenshot, which is not a repeatable check, so it
+    is one now: no full stop in the footer may be immediately followed by a
+    letter.
+    """
+    import re
+
+    with TestClient(app) as client:
+        body = client.get("/", params=PERSONA).text
+    footer = body[body.find('class="foot"'):]
+    footer = footer[:footer.find("</footer>")]
+    text = re.sub(r"<[^>]+>", " ", footer)
+    welded = re.findall(r"[A-Za-z]\.[A-Z][a-z]", text)
+    assert not welded, f"footer sentences run together: {welded}"
