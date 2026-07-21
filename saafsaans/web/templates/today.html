@@ -164,7 +164,10 @@
           Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
       <span class="mono reading-meta">
         <a class="term" href="/?{{ q_term_aqi }}#reading" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
-        · {{ T('ui', 'cpcb_scale', "India's CPCB scale, from PM2.5 and PM10") }} · {{ obs_time }}
+        {#- Only the caption is branched, not this whole span: it also carries
+            the AQI glossary link above and the observation time below, both of
+            which must survive on a page with no reading. -#}
+        {% if scale_note %}· {{ scale_note }} {% endif %}· {{ obs_time }}
       </span>
     </div>
 
@@ -339,7 +342,7 @@
                       with the number it describes. AQI, PM2.5, PM10, WAQI and
                       EPA stay Latin: they are what the reading is called. -#}
                   <div class="prov-ground">
-                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} {{ T('ui', 'prov_our_scale', '(CPCB scale, from PM2.5 and PM10)') }}
+                    AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} {{ prov_scale_note(t.reading) }}
                     · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }} µg/m³
                     {#- `| upper` turned the feed's "pm25" into "PM25", a code
                         that exists nowhere, two tokens after the correctly

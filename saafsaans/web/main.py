@@ -480,6 +480,11 @@ def today(request: Request):
         # The domain the provenance panel prints, from the module that owns it
         # rather than written out in the template.
         "cpcb_host": cpcb.SOURCE_HOST,
+        # Says which particulates the index was actually worked out from. The
+        # caption used to claim both, unconditionally, over a reading that can
+        # be built from one.
+        "scale_note": pr.scale_note(data["reading"], lang),
+        "prov_scale_note": lambda reading: pr.prov_scale_note(reading, lang),
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
         "term": term, "persona_open": persona_open,
@@ -490,7 +495,12 @@ def today(request: Request):
         # Saying so next to the number is the point; saying it only in the
         # README would repeat the mistake this project exists to record.
         "risk_notice": i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE),
-        "who_line": pr.who_line(data["reading"].get("pm25"), lang=lang),
+        # has_index keys off the INDEX, not off a reading dict existing:
+        # waqi._fallback always returns a full dict, so "a reading exists"
+        # would print the explanation on every NO READING page in both
+        # languages.
+        "who_line": pr.who_line(data["reading"].get("pm25"), lang=lang,
+                                has_index=data["reading"].get("aqi") is not None),
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, lang,
                                 edit=None if persona_open else "1"),

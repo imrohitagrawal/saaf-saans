@@ -521,3 +521,77 @@ def test_english_is_unchanged_when_a_hindi_group_exists(hindi):
     hindi("persona", {"with_activity_and_place": "हिंदी"})
     assert p.persona_line(PERSONA) == \
         "an adult with asthma, planning outdoor exercise in Anand Vihar"
+
+
+# ------------------------------------- what the index was actually built from
+#
+# The caption was one unconditional sentence naming both particulates, printed
+# beside every reading. Measured at Wazirpur: CPCB PM2.5 "NA", PM10 129, index
+# 119 -- captioned as though both had been read.
+_SHAPES = {
+    "both": {"aqi": 168, "pm25": 90.0, "pm10": 160.0},
+    "pm25": {"aqi": 168, "pm25": 90.0, "pm10": None},
+    "pm10": {"aqi": 119, "pm25": None, "pm10": 129.0},
+    "neither": {"aqi": None, "pm25": None, "pm10": None},
+}
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_three_scale_captions_are_pairwise_distinct(lang):
+    """Guards the test below from being unfailable. If two captions were in a
+    substring relationship, the absence probes underneath would be checking
+    nothing."""
+    notes = [p.scale_note(_SHAPES[k], lang) for k in ("both", "pm25", "pm10")]
+    for i, a in enumerate(notes):
+        assert a, (lang, i)
+        for j, b in enumerate(notes):
+            if i != j:
+                assert a not in b, (lang, a, b)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_scale_note_names_only_the_particulates_that_were_measured(lang):
+    both = p.scale_note(_SHAPES["both"], lang)
+    only25 = p.scale_note(_SHAPES["pm25"], lang)
+    only10 = p.scale_note(_SHAPES["pm10"], lang)
+
+    assert "PM2.5" in both and "PM10" in both
+    assert "PM2.5" in only25
+    assert "PM10 " in only10 or only10.endswith("PM10")
+    # The claim that must NOT be made: a PM10-only reading captioned as though
+    # PM2.5 had been read too.
+    assert both not in only10 and both not in only25
+    assert p.scale_note(_SHAPES["neither"], lang) == ""
+    assert p.scale_note(None, lang) == ""
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_panel_scale_note_follows_the_same_four_branches(lang):
+    seen = {k: p.prov_scale_note(_SHAPES[k], lang) for k in _SHAPES}
+    assert seen["neither"] == ""
+    assert len({seen["both"], seen["pm25"], seen["pm10"]}) == 3
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_who_line_explains_its_own_absence(lang):
+    """A PM10-only reading has an index but no fine-particle figure, so the
+    comparison the Guide promises simply vanished and nothing said why."""
+    line = p.who_line(None, lang, has_index=True)
+    assert line
+    # Hard rule: no raw microgram and no particulate code on the reading card.
+    assert "PM2.5" not in line and "µg" not in line and "ug/m" not in line
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_who_line_stays_silent_when_nothing_was_measured(lang):
+    """The mirror. With no index there is nothing to explain the absence of,
+    and waqi._fallback returns a full dict on every NO READING page."""
+    assert p.who_line(None, lang) == ""
+    assert p.who_line(None, lang, has_index=False) == ""
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_real_pm25_still_produces_the_comparison(lang):
+    """And the explanation must not have replaced the sentence it explains."""
+    line = p.who_line(90.0, lang, has_index=True)
+    assert line and line != p.who_line(None, lang, has_index=True)

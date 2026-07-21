@@ -289,7 +289,59 @@ def who_multiple(pm25):
     return round(ratio, -int(magnitude))
 
 
-def who_line(pm25, lang: str = "en") -> str:
+def scale_note(reading, lang: str = "en") -> str:
+    """What the index on screen was actually worked out from, as one sentence.
+
+    The caption used to be one unconditional string -- "India\'s CPCB scale,
+    from PM2.5 and PM10" -- printed beside every reading, including the ones
+    built from a single particulate. Wazirpur, measured: CPCB PM2.5 "NA",
+    PM10 129, index 119, captioned as though both had been read.
+
+    Four whole sentences chosen here rather than fragments stitched in Jinja,
+    and each one a LITERAL ``i18n.t`` call: a key composed from a variable is
+    invisible to the corpus parser, and an invisible key is one nobody notices
+    is missing from the Hindi.
+
+    The empty string is the fourth branch, and the right answer: with no index
+    there is nothing to describe the provenance of.
+    """
+    if not reading or reading.get("aqi") is None:
+        return ""
+    has_pm25 = reading.get("pm25") is not None
+    has_pm10 = reading.get("pm10") is not None
+    if has_pm25 and has_pm10:
+        return i18n.t(lang, "ui", "cpcb_scale_both",
+                      "India\'s CPCB scale, from PM2.5 and PM10")
+    if has_pm25:
+        return i18n.t(lang, "ui", "cpcb_scale_pm25",
+                      "India\'s CPCB scale, from PM2.5 alone \u2014 PM10 was not "
+                      "reported here")
+    return i18n.t(lang, "ui", "cpcb_scale_pm10",
+                  "India\'s CPCB scale, from PM10 alone \u2014 PM2.5 was not "
+                  "reported here")
+
+
+def prov_scale_note(reading, lang: str = "en") -> str:
+    """The same fact in the provenance panel\'s own register, in brackets.
+
+    Separate strings rather than a shared one because the panel\'s line is a
+    parenthetical beside a figure, and the reading card\'s is a sentence.
+    """
+    if not reading or reading.get("aqi") is None:
+        return ""
+    has_pm25 = reading.get("pm25") is not None
+    has_pm10 = reading.get("pm10") is not None
+    if has_pm25 and has_pm10:
+        return i18n.t(lang, "ui", "prov_our_scale_both",
+                      "(CPCB scale, from PM2.5 and PM10)")
+    if has_pm25:
+        return i18n.t(lang, "ui", "prov_our_scale_pm25",
+                      "(CPCB scale, from PM2.5 alone)")
+    return i18n.t(lang, "ui", "prov_our_scale_pm10",
+                  "(CPCB scale, from PM10 alone)")
+
+
+def who_line(pm25, lang: str = "en", *, has_index: bool = False) -> str:
     """The WHO comparison as one plain sentence, or "" when it cannot be made.
 
     Deliberately phrased about the air *right now*, not about what the reader
@@ -313,6 +365,17 @@ def who_line(pm25, lang: str = "en") -> str:
     """
     multiple = who_multiple(pm25)
     if multiple is None:
+        # There IS a reading, and it just has no fine-particle figure in it --
+        # a PM10-only station. The sentence used to vanish silently, so the
+        # comparison the Guide promises simply was not there and nothing said
+        # why. It explains its own absence instead, without naming a
+        # particulate or a microgram: this line sits on the reading card where
+        # a lay reader meets it (see the unit rule above).
+        if has_index:
+            return i18n.t(lang, "who", "no_fine_particles",
+                          "The World Health Organization comparison is about the "
+                          "finest particles, and this station is not reporting "
+                          "them right now, so it is not shown.")
         return ""
     if multiple < 1:
         return i18n.t(lang, "who", "below",

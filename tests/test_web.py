@@ -580,14 +580,31 @@ def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
 
 
 # --- The corrected scale, on the page --------------------------------------
-def test_reading_card_no_longer_credits_a_bare_cpcb(client):
+def test_reading_card_no_longer_credits_a_bare_cpcb(client, live_feed):
     """The number is on the CPCB scale but computed from two pollutants where
     CPCB uses up to eight and requires three. A bare "CPCB" credit claimed a
-    provenance the figure does not have."""
+    provenance the figure does not have.
+
+    Moved onto ``live_feed``, and that is the whole point of the edit: this
+    test used to pass BECAUSE the page printed a two-particulate credit above
+    "AQI --" on a page holding no reading. Its premise was the false claim.
+    Both assertions are unchanged; the premise is now a reading that really
+    does carry both particulates. The sibling below asserts the no-reading
+    page, which is strictly more than this file checked before.
+    """
     # The credit now goes through i18n.t, so Jinja escapes the apostrophe.
     html = client.get("/").text.replace("&#39;", "'")
     assert "India's CPCB scale, from PM2.5 and PM10" in html
     assert "· CPCB · " not in html
+
+
+def test_a_page_with_no_reading_makes_no_scale_claim_at_all(client):
+    """There is no index, so there is nothing whose provenance to describe."""
+    html = client.get("/").text.replace("&#39;", "'")
+    assert "CPCB scale" not in html
+    # The rest of the meta line -- the glossary link and the observation time
+    # -- must survive: only the caption is branched, not the span holding it.
+    assert 'class="term"' in html
 
 
 def test_guide_states_that_the_feed_is_on_a_different_scale(client):
@@ -1034,7 +1051,7 @@ def test_the_provenance_ground_line_is_not_raw_english(client, hindi, live_feed)
     only the premise moved. The sibling test asserts the fallback page.
     """
     hindi("ui", "prov_feed_figure", "MARKER-FEED")
-    hindi("ui", "prov_our_scale", "MARKER-SCALE")
+    hindi("ui", "prov_our_scale_both", "MARKER-SCALE")
     client.post("/ask", params={**PERSONA, "lang": "hi"},
                 data={"question": "Can I go out?"})
     html = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
@@ -1341,3 +1358,72 @@ def test_the_wordmark_gloss_translates_the_name_and_promises_nothing():
     with TestClient(app) as client:
         body = client.get("/", params={**PERSONA, "lang": "en"}).text
     assert "breathe clean" not in body.lower(), "the masthead promises clean air"
+
+
+# ------------------------------ the shape that was actually measured at Wazirpur
+#
+# CPCB PM2.5 "NA", PM10 129 -> index 119. The page served that number under a
+# caption claiming both particulates had been read, and the WHO sentence
+# vanished with no explanation. Both halves are asserted here, on the real
+# page, in both languages.
+@pytest.fixture
+def pm10_only(monkeypatch):
+    from saafsaans.services import waqi
+
+    def _get(locality, es_client=None):
+        return waqi._reading(None, 129.0, station=locality, city="Delhi",
+                             stale=False, forecast=None,
+                             obs_time="2026-07-21T19:00:00+05:30",
+                             source="cpcb"), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", _get)
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_a_pm10_only_page_does_not_claim_pm25_was_read(client, pm10_only, lang):
+    import html as htmllib
+
+    from saafsaans.services import i18n
+    from saafsaans.web import presenters as pr
+
+    body = htmllib.unescape(client.get("/", params={**PERSONA, "lang": lang}).text)
+
+    both = i18n.t(lang, "ui", "cpcb_scale_both",
+                  "India's CPCB scale, from PM2.5 and PM10")
+    only10 = i18n.t(lang, "ui", "cpcb_scale_pm10",
+                    "India's CPCB scale, from PM10 alone — PM2.5 was not "
+                    "reported here")
+    assert both not in body, "the page claimed PM2.5 was read when it was not"
+    assert only10 in body
+
+    # And the WHO sentence explains its own absence instead of disappearing.
+    assert pr.who_line(None, lang, has_index=True) in body
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_a_two_particulate_page_still_claims_both(client, live_feed, lang):
+    """The mirror, so the narrowing cannot have deleted the true claim."""
+    import html as htmllib
+
+    from saafsaans.services import i18n
+
+    body = htmllib.unescape(client.get("/", params={**PERSONA, "lang": lang}).text)
+    assert i18n.t(lang, "ui", "cpcb_scale_both",
+                  "India's CPCB scale, from PM2.5 and PM10") in body
+    assert i18n.t(lang, "ui", "cpcb_scale_pm10",
+                  "India's CPCB scale, from PM10 alone — PM2.5 was not "
+                  "reported here") not in body
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_no_reading_page_does_not_explain_a_missing_who_line(client, lang):
+    """waqi._fallback returns a FULL dict, so "a reading exists" is true on
+    every NO READING page. Keying the explanation off that instead of off the
+    index would print "this station is not reporting them right now" on the
+    default page of a deployment holding no readings at all."""
+    import html as htmllib
+
+    from saafsaans.web import presenters as pr
+
+    body = htmllib.unescape(client.get("/", params={**PERSONA, "lang": lang}).text)
+    assert pr.who_line(None, lang, has_index=True) not in body

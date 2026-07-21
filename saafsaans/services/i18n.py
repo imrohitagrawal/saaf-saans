@@ -343,7 +343,12 @@ HI: dict = {
 
         # --- today.html: reading card ---
         "sec_reading": "रीडिंग",
-        "cpcb_scale": "भारत का CPCB पैमाना, PM2.5 और PM10 से",
+        # One key per case, because the caption is a CLAIM about what was
+        # measured. It used to be a single unconditional string and said both
+        # particulates over a reading built from one.
+        "cpcb_scale_both": "भारत का CPCB पैमाना, PM2.5 और PM10 से",
+        "cpcb_scale_pm25": "भारत का CPCB पैमाना, सिर्फ़ PM2.5 से — यहाँ PM10 दर्ज नहीं हुआ",
+        "cpcb_scale_pm10": "भारत का CPCB पैमाना, सिर्फ़ PM10 से — यहाँ PM2.5 दर्ज नहीं हुआ",
         "scale_low": "0 अच्छी",
         "scale_high": "गंभीर 500",
         "link_numbers": "इन नंबरों का मतलब क्या है? ›",
@@ -462,7 +467,9 @@ HI: dict = {
         # US EPA keeps its Latin initials: it is the agency that publishes the
         # scale, and a reader checking the figure needs the name it is filed
         # under.
-        "prov_our_scale": "(CPCB पैमाना, PM2.5 और PM10 से)",
+        "prov_our_scale_both": "(CPCB पैमाना, PM2.5 और PM10 से)",
+        "prov_our_scale_pm25": "(CPCB पैमाना, सिर्फ़ PM2.5 से)",
+        "prov_our_scale_pm10": "(CPCB पैमाना, सिर्फ़ PM10 से)",
         "prov_dominant": "मुख्य प्रदूषक",
         "prov_feed_figure": "WAQI का अपना आँकड़ा",
         "prov_feed_scale": "(US EPA पैमाना)",
@@ -885,6 +892,12 @@ HI: dict = {
     # the guideline is *for a whole day*. No dose and no daily average is
     # claimed, and "गुना" means "times as much", not "times more than".
     "who": {
+        # Printed when there IS an index but no fine-particle figure behind it
+        # -- a station reporting PM10 only. The line used to vanish silently.
+        # No particulate name and no microgram: this sits on the reading card.
+        "no_fine_particles": "विश्व स्वास्थ्य संगठन की तुलना सबसे महीन कणों के बारे में है, और "
+                             "यह स्टेशन अभी उन्हें दर्ज नहीं कर रहा, इसलिए वह पंक्ति नहीं "
+                             "दिखाई जा रही।",
         "below": "अभी यहाँ की हवा विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित स्तर से साफ़ "
                  "है।",
         "about_at": "अभी यहाँ की हवा क़रीब-क़रीब विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित "
