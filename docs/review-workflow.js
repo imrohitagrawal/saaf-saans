@@ -25,20 +25,26 @@ export const meta = {
   ],
 }
 
-// A JSON-ENCODED STRING is the failure this guard exists for. Passed one, every
-// property read below returns undefined, `dimensions` falls back to all the
-// built-ins, and the run LOOKS like a clean 61-agent success while reviewing
-// something other than what was asked for -- which is exactly what happened
-// once, costing a full round. Fail loudly instead.
-if (typeof args === 'string') {
-  throw new Error(
-    'args arrived as a string, not an object. Pass real JSON in the tool call ' +
-    '({root: "...", dimensions: [...]}), not a JSON-encoded string. Every custom ' +
-    'dimension would otherwise be silently dropped for the built-in list.')
+// Some harnesses hand `args` through as a JSON-ENCODED STRING. Left unparsed,
+// every property read below returns undefined, `dimensions` silently falls back
+// to the whole built-in list, and the run LOOKS like a clean success while
+// reviewing something other than what was asked for. That happened once here
+// and cost a full round of 61 agents. Parse, and fail loudly if it is neither.
+let opts = args
+if (typeof opts === 'string') {
+  try {
+    opts = JSON.parse(opts)
+  } catch (e) {
+    throw new Error(`args was a string but not valid JSON: ${e.message}`)
+  }
 }
+if (opts != null && typeof opts !== 'object') {
+  throw new Error(`args must be an object or a JSON string, got ${typeof opts}`)
+}
+const args_ = opts
 
-const root = (args && args.root) || '.'
-const exclude = (args && args.exclude) || '.venv, node_modules, dist, build, vendor'
+const root = (args_ && args_.root) || '.'
+const exclude = (args_ && args_.exclude) || '.venv, node_modules, dist, build, vendor'
 
 // Each prompt asks for file:line and proof, and forbids style opinions. Findings
 // without a reproduction are noise that survives refutation on vagueness alone.
@@ -58,7 +64,7 @@ const BUILT_IN = {
   'tests': `Audit the test suite in ${root}. Find: tests that cannot fail (no meaningful assertion), tests coupled to implementation rather than behaviour, missing coverage of documented guarantees, side-effecting tests that touch shared state or real services, and slow tests. Report file:line.`,
 }
 
-const dimensions = ((args && args.dimensions) || Object.keys(BUILT_IN)).map(d =>
+const dimensions = ((args_ && args_.dimensions) || Object.keys(BUILT_IN)).map(d =>
   typeof d === 'string' ? { key: d, prompt: BUILT_IN[d] } : d
 ).filter(d => d.prompt)
 
