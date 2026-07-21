@@ -924,3 +924,72 @@ def test_no_template_carries_an_inline_font_size(sheet, hindi_pages):
              if why == "inline style" and size + 0.001 < DEVANAGARI_FLOOR]
     assert under, ("no inline font-size puts Devanagari under the floor any more -- clear "
                    "INLINE_FONT_SIZE_DEBT rather than leaving a dead exemption")
+
+
+# --- 7. The band ramp as text, not as a swatch ------------------------------
+# `.dot` paints --ink as a 9px swatch, where SC 1.4.11's 3:1 is the right floor.
+# `.station .bd` paints the SAME token as 11px text, where SC 1.4.3 asks 4.5:1,
+# and no test measured it -- so the ramp was tuned once, for the swatch.
+
+BANDS = ("g1", "g2", "g3", "g4", "g5", "g6")
+AA_NON_TEXT = 3.0
+
+
+def _band_backdrops(sheet, pages):
+    """Every background a `.station .bd` is actually painted on, as tokens.
+
+    Read off the rendered rows rather than assumed: the selected row used to
+    take a fill of its own, and that fill was where the ramp failed worst.
+    """
+    backgrounds = {}
+    for selector, decls in sheet["top"]:
+        if "background" in decls and selector.startswith(".station"):
+            token = re.fullmatch(r"var\((--[\w-]+)\)", decls["background"].strip())
+            if token:
+                backgrounds[selector] = token.group(1)
+    tokens = {"--surface"}          # .station-list itself
+    for root in pages.values():
+        for node in _walk(root):
+            if "station" not in _classes(node):
+                continue
+            for selector, token in backgrounds.items():
+                attr = re.search(r'\[([\w-]+)="([^"]*)"\]', selector)
+                if attr and node["attrs"].get(attr.group(1)) == attr.group(2):
+                    tokens.add(token)
+    return sorted(tokens)
+
+
+def test_every_band_word_on_city_clears_the_text_floor_in_both_themes(sheet, pages):
+    """The six band words on /city are the ramp used as small text. Measure all
+    six, on every background a row is painted on, in both themes -- fixing one
+    band by breaking another is the failure mode this guards."""
+    css = _strip_comments(sheet["raw"])
+    bd = _decls(sheet["top"], ".station .bd")
+    assert bd.get("color") == "var(--ink)", (
+        ".station .bd no longer paints the band ink -- this test measures the wrong thing")
+    size = _px(bd["font-size"])
+    assert size < 18.66, f"{size}px would be large text, where the floor is 3:1 not 4.5:1"
+
+    backdrops = _band_backdrops(sheet, pages)
+    failures = []
+    for theme, block in THEMES:
+        for backdrop in backdrops:
+            behind = _token(css, block, backdrop)
+            for band in BANDS:
+                ratio = _ratio(_token(css, block, f"--{band}"), behind)
+                if ratio < AA_TEXT:
+                    failures.append(f"{theme} .band-{band} .bd on {backdrop}: {ratio:.2f}:1")
+    assert not failures, ("band words below the %s:1 text floor:\n  " % AA_TEXT
+                          + "\n  ".join(failures))
+
+
+def test_the_band_dot_stays_above_the_non_text_floor_in_both_themes(sheet):
+    """The other half of the same token: the 9px swatch is non-text, so 3:1 is
+    the right floor for it -- and raising a band for the text floor must not be
+    read as licence to let the swatch drift."""
+    css = _strip_comments(sheet["raw"])
+    for theme, block in THEMES:
+        surface = _token(css, block, "--surface")
+        for band in BANDS:
+            ratio = _ratio(_token(css, block, f"--{band}"), surface)
+            assert ratio >= AA_NON_TEXT, f"{theme} .band-{band} dot: {ratio:.2f}:1"

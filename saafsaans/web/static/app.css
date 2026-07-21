@@ -33,8 +33,15 @@
      luminance (g2 sat brighter than g3-g5, so a Poor reading receded while a
      Satisfactory one advanced). Same hue families; luminance now climbs with
      severity, so severity tracks contrast-against-background in both themes.
-     Measured against --surface: 3.89 / 5.04 / 5.81 / 6.23 / 7.36 / 10.76 : 1. */
-  --g1: #4A7FB0; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
+     Measured against --surface: 4.63 / 5.04 / 5.81 / 6.23 / 7.36 / 10.76 : 1.
+
+     g1 was #4A7FB0 and measured 3.89:1. That is the 3:1 non-text threshold
+     (SC 1.4.11), which is the right floor for the 9px `.dot` swatch and the
+     wrong one for `.station .bd`, which paints the same token as 11px text and
+     needs 4.5 (SC 1.4.3). Lightened along its own hue until it clears the text
+     floor, and no further: its luminance is 0.245 against g2's 0.271, so the
+     ramp still climbs with severity. */
+  --g1: #5A8CBA; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
   --n1: #1C2938; --n2: #1B2C31; --n3: #322815; --n4: #362216; --n5: #351D1B; --n6: #3A1F18;
   --gx: #8B877E; --nx: #232834;
 }
@@ -282,7 +289,15 @@ select, input[type="text"] {
            color: var(--text); font-family: var(--body); font-size: 14px; cursor: pointer;
            text-align: left; width: 100%; text-decoration: none; }
 .station:first-child { border-top: none; }
-.station[aria-current="true"] { background: var(--accent-tint); }
+/* The selected row is marked with a rail rather than a fill. It used to take a
+   --accent-tint background, and the band word sits on it in --ink: that measured
+   4.12:1 (g1) and 4.31:1 (g2) in light, and 3.48:1 (g1) in dark -- below the 4.5
+   floor on the row the page selects by default. No ramp value fixes it, because
+   the tint leaves a luminance window about 0.008 wide for two bands to fit in;
+   the backdrop is what has to change. Nothing is lost: the rail is a stronger
+   selection mark than the wash was, aria-current still says it, and the bold
+   name below still says it a second time. */
+.station[aria-current="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .station[aria-current="true"] .nm { font-weight: 600; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
        background: var(--ink); margin-right: 8px; vertical-align: baseline; }
