@@ -21,35 +21,51 @@
         {#- No number and no band word without a measurement behind them. The
             pill used to print an AQI derived from a hardcoded stand-in
             concentration, in the same type as a real one. -#}
-        {% if has_reading %}
-        <span class="hero-pill">AQI {{ reading.aqi }} · {{ band_label | upper }}</span>
-        {% endif %}
+        {%- if has_reading %}
+        {#- The number is a fact and survives; the band WORD is a claim about
+            the air now, so it belongs to a current reading only. This is the
+            same split /city makes on its tiles for the same reason. -#}
+        <span class="hero-pill">AQI {{ reading.aqi }}{% if is_current %} · {{ band_label | upper }}{% endif %}</span>
+        {%- endif %}
       </div>
       <div class="hero-kicker">{{ kicker }}</div>
       <h1 class="verdict">{{ verdict }}</h1>
       {#- The band advice is keyed on a band. With no reading there is no band,
           so the page gives the one instruction that does not depend on knowing
           the air: treat it as unhealthy until we can tell you. -#}
-      <p class="hero-advice">{{ T('band_advice', risk.band, risk.advice) if has_reading
-                                else T('ui', 'advice_no_reading', 'Until we can tell you what the air is doing, take the precautions you would take on a bad day: keep hard exercise indoors, and carry your inhaler if you use one.') }}</p>
+      {#- Three ways. The held line carries the explanation for the whole hero:
+          the band word, the colour, the risk score and the go-out window are
+          all absent below, and this run's standard is that a disappearing
+          element accounts for itself rather than just vanishing. -#}
+      <p class="hero-advice">{% if is_current %}{{ T('band_advice', risk.band, risk.advice) }}{% elif has_reading %}{{ T('ui', 'advice_held', 'We could not get a newer measurement, so nothing here is worked out from this one — no band, no colour, no risk score and no window. The reading itself, and the time it was taken, are below. Until we can refresh it, take the precautions you would take on a bad day: keep hard exercise indoors, and carry your inhaler if you use one.') }}{% else %}{{ T('ui', 'advice_no_reading', 'Until we can tell you what the air is doing, take the precautions you would take on a bad day: keep hard exercise indoors, and carry your inhaler if you use one.') }}{% endif %}</p>
       <div class="hero-chips">
         {#- The risk score with no reading is built on an assumed AQI, so the
             number and its band word would be an invented severity. The chip
             says what is actually known instead. -#}
-        {% if has_reading %}
+        {% if is_current %}
         <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) | upper }}</span>
         <span class="chip-base">{{ T('ui', 'baseline_chip', 'healthy adult, same plans') }} · {{ baseline }}</span>
+        {% elif has_reading %}
+        <span class="chip-risk">{{ T('ui', 'risk_held', 'HELD READING — WE CANNOT SCORE YOUR RISK') }}</span>
         {% else %}
         <span class="chip-risk">{{ T('ui', 'risk_no_reading', 'NO READING — WE CANNOT SCORE YOUR RISK') }}</span>
         {% endif %}
       </div>
     </div>
 
+    {#- The window is keyed off the severity as well as the hour (best_window
+        returns "No safe outdoor window today" above 300), so it is worked out
+        from the reading and goes with the rest of it. It is dropped rather
+        than replaced: the no-reading rationale states "AQI reading is
+        unavailable", which is false here -- there IS a reading, it is just not
+        current. The held advice line above says why the block is gone. -#}
+    {% if is_current or not has_reading %}
     <div class="hero-window">
       <span class="lbl">{{ T('ui', 'window_label', 'IF YOU MUST GO OUT') }}</span>
       <span class="val">{{ window.window }}</span>
       <span class="caveat">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
     </div>
+    {% endif %}
   </section>
 
   {# Never disguise a cached reading as live. #}
@@ -158,7 +174,9 @@
   <section class="card band-{{ band }}" id="reading" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
     <div class="row" style="align-items:baseline;gap:12px">
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
-      <span class="band-chip">{{ band_label | upper }}</span>
+      {#- Suppressed, not neutralised to "Unknown": a held reading's band is
+          not unknown, it is simply not what this page is entitled to state. -#}
+      {% if is_current %}<span class="band-chip">{{ band_label | upper }}</span>{% endif %}
       {#- A class, not an inline size: an inline declaration outranks every
           selector, so a size written here is permanently out of reach of the
           Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
@@ -176,7 +194,7 @@
         position it is a severity ramp printed under a page that has no
         severity to report, and its end labels name bands ("0 good ... severe
         500") that no reading earned. -#}
-    {% if has_reading %}
+    {% if is_current %}
     <div class="scale-wrap">
       {#- No marker when there is no index. A feed can report ozone and no
           particulate at all, which this app refuses to convert -- so the

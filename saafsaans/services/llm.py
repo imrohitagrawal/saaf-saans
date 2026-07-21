@@ -103,7 +103,20 @@ def build_user_message(reading: dict, persona: dict, advisories: list, question:
     than the verdict printed above its answer, which is the same disagreement
     the rule-based fallback had.
     """
-    stale_tag = " | STALE DATA" if reading.get("stale") else ""
+    # Two different absences, two different markers. ``stale`` is true on
+    # exactly one path -- waqi._fallback, which carries no numbers at all --
+    # and gets STALE DATA. ``retained`` carries REAL numbers that we could not
+    # refresh, so the model must not be told there is no reading; it must be
+    # told the numbers are not current, or it answers in the present tense
+    # about air measured up to three hours ago while the chip six lines above
+    # the answer says CACHED. freshness() was threaded through five
+    # presentation surfaces in this run and zero generation surfaces.
+    if reading.get("stale"):
+        stale_tag = " | STALE DATA"
+    elif reading.get("retained"):
+        stale_tag = " | HELD READING, NOT CURRENT: describe it as an earlier measurement, never as the air right now"
+    else:
+        stale_tag = ""
     aqi_line = (
         f"Live AQI ({locality}, {timestamp}): {reading.get('aqi')} | "
         f"PM2.5: {reading.get('pm25')} ug/m3 | dominant: {reading.get('dominant_pollutant')}"
@@ -414,8 +427,16 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
     # numbers at all. The suffix used to read " (using cached sample data)",
     # naming a cached sample that has not existed since the SAMPLES table was
     # deleted -- glued to every precaution the app emits while the feed is down.
-    stale = i18n.t(lang, "answer", "stale_suffix",
-                   " (we have no reading for this area)") if reading.get("stale") else ""
+    stale = ""
+    if reading.get("stale"):
+        stale = i18n.t(lang, "answer", "stale_suffix",
+                       " (we have no reading for this area)")
+    elif reading.get("retained"):
+        # Not the stale suffix: there IS a reading. What it lacks is a fresh
+        # fetch behind it, and the same word the chip and /city use says so.
+        stale = i18n.t(lang, "answer", "held_suffix",
+                       " (from an earlier reading we are holding, not the air "
+                       "right now)")
 
     precautions = [f"{top}{stale}"]
     if detected:

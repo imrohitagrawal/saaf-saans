@@ -63,6 +63,21 @@ def no_reading_verdict(locality: str, lang: str = "en") -> str:
                 place=i18n.place(lang, locality))
 
 
+def held_verdict(locality: str, lang: str = "en") -> str:
+    """The hero headline when the only reading we have is one we are holding.
+
+    Not a band verdict and not the no-reading one. A held reading is a real
+    measurement with its own observation time -- saying "we have no air
+    reading" over a number printed further down the same page would be the
+    two-surfaces-disagree defect in miniature. But it is not the air now
+    either, so it earns none of the five band verdicts, each of which asserts
+    something about the air ("this air is dangerous for you").
+    """
+    return _fmt(lang, "hero", "held",
+                "We are holding an earlier reading for {place}.",
+                place=i18n.place(lang, locality))
+
+
 # --- Persona ---------------------------------------------------------------
 # The persona appears in three places and must read as a sentence in all of
 # them. Joining the raw values with dots ("Senior · copd · school run · Noida")

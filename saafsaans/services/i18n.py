@@ -119,6 +119,10 @@ HI: dict = {
     # and this one exists precisely because no band and no assertion apply.
     "hero": {
         "no_reading": "{place} की हवा की कोई रीडिंग अभी हमारे पास नहीं है।",
+        # Deliberately not the line above. A held reading IS a reading -- its
+        # number is printed further down the same page -- so saying we have
+        # none would make the page disagree with itself.
+        "held": "{place} के लिए हम एक पुरानी रीडिंग सहेजे हुए हैं।",
     },
     # risk.BAND_ADVICE -- the "what to do" line under the verdict.
     "band_advice": {
@@ -289,6 +293,7 @@ HI: dict = {
         # Replaces the score chip when there is no reading. The score is built
         # on the air, and an assumed AQI would make the number an invented one.
         "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
+        "risk_held": "सहेजी हुई रीडिंग — आपका ख़तरा नहीं आँका जा सकता",
         # Wraps the last stored reading and its date. Two fragments because the
         # template interleaves the number and the date between them, and Hindi
         # puts the date before the verb: "<date> को यहाँ आख़िरी बार AQI <n> दर्ज
@@ -301,6 +306,15 @@ HI: dict = {
         "advice_no_reading": "जब तक हम आपको हवा का हाल न बता सकें, तब तक वही सावधानी "
                              "बरतिए जो ख़राब दिन पर बरतते हैं: ज़ोर वाली कसरत घर के अंदर "
                              "कीजिए, और अगर इनहेलर लेते हैं तो साथ रखिए।",
+        # Replaces the band advice when the only reading we have is one we are
+        # holding. It also accounts for the band, the colour, the risk score
+        # and the go-out window all being absent from the same hero.
+        "advice_held": "हमें नई माप नहीं मिल सकी, इसलिए इस रीडिंग से यहाँ कुछ भी नहीं "
+                       "निकाला गया है: न कोई श्रेणी, न रंग, न ख़तरे का अंक, न बाहर "
+                       "निकलने का समय। रीडिंग और उसके मापे जाने का समय नीचे दिया है। "
+                       "जब तक हम इसे ताज़ा न कर सकें, तब तक वही सावधानी बरतिए जो ख़राब "
+                       "दिन पर बरतते हैं: ज़ोर वाली कसरत घर के अंदर कीजिए, और अगर "
+                       "इनहेलर लेते हैं तो साथ रखिए।",
         # risk._BAND_TABLE labels, looked up as 'risk_band_' ~ label.
         "risk_band_Low": "कम",
         "risk_band_Moderate": "मध्यम",
@@ -414,6 +428,8 @@ HI: dict = {
         "no_obs_time": "रीडिंग का समय नहीं है",
         "share_title": "{place} की हवा अभी: {band}",
         "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
+        # Names no band, for the same reason the hero does not.
+        "share_held": "{place}: हम एक पुरानी हवा की रीडिंग सहेजे हुए हैं",
         "share_for": "यह सलाह {who} के लिए है।",
         "heading_verdict": "फ़ैसला",
         "heading_what_to_do": "क्या करें",
@@ -597,9 +613,10 @@ HI: dict = {
                                "इसी नेटवर्क को दोबारा छापती है। जब दोनों में से कहीं भी कुछ न "
                                "मिले, तो उस जगह का कोई नंबर नहीं दिखाया जाता: वह हमारे पास है "
                                "ही नहीं, और हम उसे गढ़ेंगे नहीं। अगर उस जगह की कोई पुरानी माप "
-                               "हमारे पास है, तो हम बताते हैं कि वह कितनी थी और किस दिन ली गई "
-                               "थी — और उससे और कुछ नहीं निकाला जाता: न कोई श्रेणी, न रंग, न "
-                               "सलाह। शहर की नब्ज़ पर ‘सहेजी हुई’ टैग उस रीडिंग पर लगता है जो "
+                               "हमारे पास है, तो हम बताते हैं कि वह कितनी थी और कब ली गई "
+                               "थी — और उससे और कुछ नहीं निकाला जाता: न श्रेणी का नाम, न रंग, "
+                               "न ख़तरे का अंक, न बाहर निकलने का समय। यह ‘आज’ वाले पेज पर भी "
+                               "उतना ही लागू होता है जितना शहर की नब्ज़ पर। शहर की नब्ज़ पर ‘सहेजी हुई’ टैग उस रीडिंग पर लगता है जो "
                                "हमारे पास पहले से है और हम उसे ही दिखा रहे हैं — अभी-अभी आई "
                                "हुई नहीं — और साथ में यह भी लिखा होता है कि माप कितना पुराना "
                                "है; और जिस जगह की कोई रीडिंग हमारे पास है ही नहीं, उस पर ‘कोई "
@@ -883,6 +900,8 @@ HI: dict = {
         # Appended straight onto the advisory sentence, so it keeps the leading
         # space the English has.
         "stale_suffix": " (इस इलाक़े की कोई रीडिंग हमारे पास नहीं है)",
+        # Not the line above: there IS a reading, it is just not the air now.
+        "held_suffix": " (यह हमारी सहेजी हुई पुरानी रीडिंग से है, अभी की हवा से नहीं)",
         "precaution_mask_high": "बाहर अच्छी तरह फ़िट होने वाला N95/FFP2 मास्क पहनें और घर के "
                                 "अंदर एयर प्यूरीफ़ायर चलाएँ।",
         "precaution_mask_low": "N95 पास रखें और हवा की गुणवत्ता में बदलाव पर नज़र रखें।",

@@ -285,6 +285,19 @@ def today_share_card(persona: dict, data: dict, verdict: str,
     label = label or label_en
     # The forwarded card is read by the same person as the page.
     place = i18n.place(lang, persona["locality"])
+    # Checked BEFORE the no-reading branch, which the neutralised category
+    # would otherwise capture: "no air reading right now" is false when a
+    # number is printed on the page the card links to. The card names no band
+    # for the same reason the hero does not -- it is not the air now -- and
+    # this is the surface that mattered most, because a forwarded card is the
+    # first thing most readers ever see and it used to preview a held reading
+    # as "{place} air right now: Very Poor".
+    if (data["reading"].get("aqi") is not None
+            and data["reading"].get("retained")):
+        return {"title": i18n.t(lang, "ui", "share_held",
+                                "{place}: we are holding an earlier air "
+                                "reading").replace("{place}", place),
+                "description": data["meaning"]}
     if data["reading"].get("aqi") is None or label_en == "Unknown":
         return {"title": i18n.t(lang, "ui", "share_no_reading",
                                 "{place}: no air reading right now").replace("{place}", place),
@@ -426,6 +439,35 @@ def today(request: Request):
 
     ctx = base_context(request, persona, theme, lang, "today")
     data = advisor_data(persona, lang)
+
+    # THREE STATES, not two, and the same three /city has shown since 88ef869.
+    #
+    # `has_reading` is "there is a number". `is_current` is "that number is the
+    # air now", which is what every severity claim on this page rests on: the
+    # band word, the colour ramp, the risk score, the band advice, the scale
+    # marker and the forwarded card. A HELD reading -- real numbers we already
+    # fetched, re-served because the upstream stopped answering -- has the
+    # first and not the second.
+    #
+    # It was rendered with the full hero: band-g5, "AQI 369 - VERY POOR",
+    # "YOUR RISK - 91/100 - EXTREME" and "Do not go outdoors", beside a chip
+    # reading CACHED -- while /city gave the identical reading in the same
+    # minute a grey band-less tile with no band word, and the Guide told the
+    # reader that nothing is worked out from a held reading. Two pages of one
+    # app disagreeing about a measurement is the defect /city was rewritten to
+    # remove; it survived here because this route never consulted freshness.
+    fresh = pr.freshness(data["waqi_status"], data["reading"])
+    has_reading = data["reading"].get("aqi") is not None
+    is_current = has_reading and fresh == "live"
+    if has_reading and not is_current:
+        # Neutralised at the source, so every consumer of `band` and
+        # `category` -- hero, reading card, share card -- is corrected once
+        # rather than each branching for itself, which is how the collapsed
+        # provenance label and the expanded line came to disagree already.
+        # `reading` is untouched: the number and its observation time are
+        # facts, and they still render.
+        data["band"] = normalize.band_slug(None)
+        data["category"] = normalize.aqi_category(None)
     ctx.update(data)
 
     term = q.get("term") if q.get("term") in TERMS else None
@@ -444,10 +486,11 @@ def today(request: Request):
     # verdict for whatever band the unknown-AQI base score happened to land in,
     # which is how a place the app had never measured got told its lungs needed
     # it indoors today.
-    has_reading = data["reading"].get("aqi") is not None
-    verdict = (i18n.t(lang, "verdict", band, pr.verdict_for(band)) if has_reading
-               else pr.no_reading_verdict(persona["locality"], lang=lang))
+    verdict = (i18n.t(lang, "verdict", band, pr.verdict_for(band)) if is_current
+               else (pr.held_verdict(persona["locality"], lang=lang) if has_reading
+                     else pr.no_reading_verdict(persona["locality"], lang=lang)))
     ctx["has_reading"] = has_reading
+    ctx["is_current"] = is_current
     # With no live reading, say what we DID last see and when -- the owner
     # decision, and the only honest thing left to put in that space. It is a
     # real measurement with its own date attached, so it is a fact rather than

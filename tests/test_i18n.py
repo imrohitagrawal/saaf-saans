@@ -462,7 +462,27 @@ _ENGLISH_DEFAULTS = _english_defaults()
 # fragments with, so these are the keys whose values legitimately carry a
 # placeholder. There is no longer a `share_title_sample`: a fallback carries no
 # AQI, so it takes the no-reading card and there is no band to hedge.
-SHARE_KEYS = {"share_title", "share_no_reading", "share_for"}
+SHARE_KEYS = {"share_title", "share_no_reading", "share_held", "share_for"}
+
+
+def test_every_exempted_key_really_is_a_share_card_key():
+    """Guards the exemption above from being used as a way to go green.
+
+    SHARE_KEYS is hand-written, and the test it feeds only ever gets LOOSER as
+    the set grows -- so a key added here to silence a genuine stray placeholder
+    would never be noticed. Every member must actually be requested by
+    ``main.today_share_card``, which is the only builder allowed to substitute
+    into a translated string; anything else with a placeholder is a defect.
+    """
+    import inspect
+
+    from saafsaans.web import main
+
+    source = inspect.getsource(main.today_share_card)
+    for key in SHARE_KEYS:
+        assert f'"{key}"' in source, (
+            f"{key} is exempted from the placeholder rule but is not a share "
+            f"card key")
 
 
 def test_the_chrome_uses_no_format_placeholders():
