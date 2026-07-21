@@ -27,7 +27,10 @@ TAG_KEYS = (("tag_cached", "CACHED"), ("tag_no_reading", "NO READING"))
 # The vocabulary of the deleted stand-in behaviour. These are spellings that
 # must appear on NO page: the app cannot show a sample or a stand-in figure any
 # more, so any page that names one is describing a different app.
-RETIRED = {"en": ("SAMPLE", "stand-in"), "hi": ("नमूना", "अंदाज़न")}
+# Matched case-insensitively, because the same claim was made in three
+# registers: the Guide's "stand-in figure", the City Pulse tag "SAMPLE", and the
+# provenance panel's "cached sample (feed missed)".
+RETIRED = {"en": ("sample", "stand-in"), "hi": ("नमूना", "अंदाज़न")}
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -46,9 +49,20 @@ def test_guide_describes_the_tags_the_app_actually_prints(lang):
 def test_no_page_still_promises_a_stand_in_figure(lang, path):
     """Swept across the reader-facing pages, not just the Guide, because the
     claim was duplicated: the same vocabulary lived in the Guide answer, the
-    City Pulse legend and the provenance panel, and each was fixed on its own
-    schedule."""
+    City Pulse legend, the provenance panel and the answer body, and each was
+    fixed on its own schedule.
+
+    An ANSWER is asked for first and the provenance panel is opened, so the
+    transcript is inside the swept body. A sweep of the empty page would miss
+    the provenance count, the panel's detail line and the answer's own
+    "(using cached sample data)" suffix -- which is exactly how all three
+    survived the release that deleted the sample.
+    """
     with TestClient(app) as c:
-        body = htmllib.unescape(c.get(path, params={"lang": lang}).text)
+        c.post("/ask", params={"lang": lang},
+               data={"question": "Can I go for a run this evening?"},
+               follow_redirects=True)
+        body = htmllib.unescape(c.get(path, params={"lang": lang, "prov": "0"}).text)
+    low = body.lower()
     for word in RETIRED[lang]:
-        assert word not in body, (lang, path, word)
+        assert word.lower() not in low, (lang, path, word)

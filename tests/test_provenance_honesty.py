@@ -32,19 +32,47 @@ def _answered(client, lang):
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-def test_a_sample_reading_is_never_counted_as_a_live_one(lang):
-    """With no WAQI token the reading is a labelled sample, which is the
+def test_a_missing_reading_is_never_counted_as_a_live_one(lang):
+    """With no WAQI token there is no reading at all, which is the
     configuration the public deployment actually runs in -- so this is the
-    default state of the page, not an edge case."""
+    default state of the page, not an edge case.
+
+    This test used to assert `prov_count_before_sample` -- "1 sample reading +"
+    -- was PRESENT, and so pinned the false claim in place after the sample was
+    deleted: the panel counted one reading when the fallback carries none. The
+    key is renamed and the assertion follows it. The count is the thing being
+    checked, not the wording: it must not be one.
+    """
     with TestClient(app) as client:
         body, turn = _answered(client, lang)
     live = i18n.t(lang, "ui", "prov_count_before", "1 live reading +")
     assert live not in turn, (
-        f"the collapsed provenance label claims {live!r} on a page serving a "
-        f"sample. The expanded line in the same panel says it is a sample."
+        f"the collapsed provenance label claims {live!r} on a page holding no "
+        f"reading. The expanded line in the same panel says there is none."
     )
-    sample = i18n.t(lang, "ui", "prov_count_before_sample", "1 sample reading +")
-    assert sample in turn
+    none = i18n.t(lang, "ui", "prov_count_before_none", "no reading +")
+    assert none in turn
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_panel_claims_no_measurement_when_none_was_taken(lang):
+    """The expanded panel is the audit trail, so every claim inside it is load
+    bearing -- including the kicker above the figures, which was unconditional
+    and asserted "Measured at the time" over a row of dashes."""
+    with TestClient(app) as client:
+        client.post("/ask", params={**PERSONA, "lang": lang},
+                    data={"question": "Can I go out?"})
+        body = client.get("/", params={**PERSONA, "lang": lang}).text
+        turn_id = body.split('id="turn-')[1].split('"')[0]
+        opened = client.get("/", params={**PERSONA, "lang": lang,
+                                         "prov": turn_id}).text
+    panel = opened[opened.find('class="prov-body"'):]
+    measured = i18n.t(lang, "ui", "prov_measured", "Measured at the time")
+    assert measured not in panel, (lang, measured)
+    assert i18n.t(lang, "ui", "prov_not_measured",
+                  "Nothing was measured at the time") in panel, lang
+    assert i18n.t(lang, "ui", "prov_none",
+                  "no reading (the feed did not answer)") in panel, lang
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)

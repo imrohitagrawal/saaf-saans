@@ -319,12 +319,17 @@
                     reading in the one line most readers see without clicking --
                     and the Guide promises specifically that a stand-in is never
                     dressed as live. -#}
-                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') if t.waqi_status == 'ok' else T('ui', 'prov_count_before_sample', '1 sample reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
+                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') if t.waqi_status == 'ok' else T('ui', 'prov_count_before_none', 'no reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
               </a>
               {% if open_prov == t.id %}
               <div class="prov-body">
                 <div>
-                  <div class="kicker">{{ T('ui', 'prov_measured', 'Measured at the time') }}</div>
+                  {#- Branched, because the kicker is a claim. It was unconditional, so it
+                      asserted "Measured at the time" directly above a row of dashes
+                      on every fallback turn -- in the one panel that exists to say
+                      what the answer rests on. -#}
+                  <div class="kicker">{{ T('ui', 'prov_measured', 'Measured at the time') if t.waqi_status == 'ok'
+                                          else T('ui', 'prov_not_measured', 'Nothing was measured at the time') }}</div>
                   {#- Every figure keeps its own place between two translated
                       labels, so no translation can be edited into disagreeing
                       with the number it describes. AQI, PM2.5, PM10, WAQI and
@@ -337,7 +342,7 @@
                         written PM2.5 on this same line. -#}
                     · {{ T('ui', 'prov_dominant', 'dominant') }} {{ pollutant(t.reading.dominant_pollutant) }}
                     · {{ T('ui', 'prov_feed_figure', "WAQI's own figure") }} {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} {{ T('ui', 'prov_feed_scale', '(US EPA scale)') }}
-                    · {{ T('ui', 'prov_live', 'live reading') if t.waqi_status == 'ok' else T('ui', 'prov_cached', 'cached sample (feed missed)') }}
+                    · {{ T('ui', 'prov_live', 'live reading') if t.waqi_status == 'ok' else T('ui', 'prov_none', 'no reading (the feed did not answer)') }}
                   </div>
                 </div>
                 {% if t.sources %}

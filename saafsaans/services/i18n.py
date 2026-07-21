@@ -438,9 +438,14 @@ HI: dict = {
         "prov_label": "यह जवाब किस पर आधारित है",
         # The source count is printed between the two.
         "prov_count_before": "1 लाइव रीडिंग +",
-        "prov_count_before_sample": "1 नमूना रीडिंग +",
+        # No reading at all, so no count: the fallback carries no numbers.
+        # This key used to read "1 नमूना रीडिंग +" and counted a sample that
+        # the app no longer has.
+        "prov_count_before_none": "कोई रीडिंग नहीं +",
         "prov_count_after": "गाइडेंस स्रोत",
         "prov_measured": "उस समय मापा गया",
+        # The kicker used to be unconditional and sat above a row of dashes.
+        "prov_not_measured": "उस समय कुछ भी मापा नहीं गया",
         "prov_published": "इस्तेमाल की गई प्रकाशित गाइडेंस",
         # The two groups inside that list: chosen for the reader's own
         # condition, activity or age, and chosen for the air alone.
@@ -456,7 +461,7 @@ HI: dict = {
         "prov_feed_figure": "WAQI का अपना आँकड़ा",
         "prov_feed_scale": "(US EPA पैमाना)",
         "prov_live": "लाइव रीडिंग",
-        "prov_cached": "सहेजा हुआ नमूना (फ़ीड नहीं मिली)",
+        "prov_none": "कोई रीडिंग नहीं (फ़ीड ने जवाब नहीं दिया)",
 
         # --- system.html ---
         # This view was left in English on the grounds that it is
@@ -842,7 +847,7 @@ HI: dict = {
                             "निकलें और बाहर N95 पहनें।",
         # Appended straight onto the advisory sentence, so it keeps the leading
         # space the English has.
-        "stale_suffix": " (सहेजा हुआ नमूना डेटा इस्तेमाल किया गया है)",
+        "stale_suffix": " (इस इलाक़े की कोई रीडिंग हमारे पास नहीं है)",
         "precaution_mask_high": "बाहर अच्छी तरह फ़िट होने वाला N95/FFP2 मास्क पहनें और घर के "
                                 "अंदर एयर प्यूरीफ़ायर चलाएँ।",
         "precaution_mask_low": "N95 पास रखें और हवा की गुणवत्ता में बदलाव पर नज़र रखें।",

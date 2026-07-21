@@ -344,8 +344,8 @@ def test_provenance_opens_per_turn_independently(client):
 
 
 @pytest.mark.parametrize("status, says, not_says", [
-    ("ok", "live reading +", "sample reading +"),
-    ("fallback", "sample reading +", "live reading +"),
+    ("ok", "live reading +", "no reading +"),
+    ("fallback", "no reading +", "live reading +"),
 ])
 def test_provenance_label_states_what_it_contains(client, monkeypatch,
                                                   status, says, not_says):

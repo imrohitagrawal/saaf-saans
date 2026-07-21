@@ -410,8 +410,12 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
                      "Air quality data is limited right now; when in doubt, minimise "
                      "outdoor exposure and wear an N95 outside.")
     top = (advisory_text(advisories[0], lang) if advisories else "") or generic
+    # `stale` is true on exactly one path: waqi._fallback, which returns no
+    # numbers at all. The suffix used to read " (using cached sample data)",
+    # naming a cached sample that has not existed since the SAMPLES table was
+    # deleted -- glued to every precaution the app emits while the feed is down.
     stale = i18n.t(lang, "answer", "stale_suffix",
-                   " (using cached sample data)") if reading.get("stale") else ""
+                   " (we have no reading for this area)") if reading.get("stale") else ""
 
     precautions = [f"{top}{stale}"]
     if detected:
