@@ -602,6 +602,51 @@ def test_the_panel_scale_note_follows_the_same_four_branches(lang):
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_panel_scale_note_names_the_instrument_that_produced_the_number(lang):
+    """WHICH caption goes with WHICH shape, which distinctness cannot say.
+
+    The test above asserts only that the three captions differ, so swapping the
+    PM2.5-only and PM10-only branches left the entire suite green -- verified
+    by mutation on a clean tree. The panel is the surface the app points a
+    sceptical reader at to check provenance, and the swapped version makes a
+    false claim about which instrument produced the number, on the same line as
+    the figure that contradicts it.
+
+    The particulate codes stay Latin in both languages (they are what the
+    reading is called), so this reads as behaviour rather than as a spelling:
+    the caption names the particulate that was measured and does not name the
+    one that was not. Unlike the reading-card caption, the panel's
+    parenthetical never mentions the missing particulate, so the absence probe
+    is meaningful here.
+    """
+    assert "PM10" not in "PM2.5" and "PM2.5" not in "PM10"
+
+    both = p.prov_scale_note(_SHAPES["both"], lang)
+    assert "PM2.5" in both and "PM10" in both, (lang, both)
+
+    only25 = p.prov_scale_note(_SHAPES["pm25"], lang)
+    assert "PM2.5" in only25, (lang, only25)
+    assert "PM10" not in only25, (lang, only25)
+
+    only10 = p.prov_scale_note(_SHAPES["pm10"], lang)
+    assert "PM10" in only10, (lang, only10)
+    assert "PM2.5" not in only10, (lang, only10)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_two_scale_captions_never_disagree_about_one_reading(lang):
+    """The card caption and the panel caption describe the same reading in two
+    registers. The card's is guarded; the panel's was not, so the two could
+    drift into naming different instruments for one number on one page."""
+    for shape in ("both", "pm25", "pm10"):
+        card = p.scale_note(_SHAPES[shape], lang)
+        panel = p.prov_scale_note(_SHAPES[shape], lang)
+        for token in ("PM2.5", "PM10"):
+            if token in panel:
+                assert token in card, (lang, shape, token, card, panel)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_the_who_line_explains_its_own_absence(lang):
     """A PM10-only reading has an index but no fine-particle figure, so the
     comparison the Guide promises simply vanished and nothing said why."""

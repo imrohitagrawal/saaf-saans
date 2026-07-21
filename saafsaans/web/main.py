@@ -370,6 +370,12 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         # The footer names the primary source on every page, so the host comes
         # from the module that owns it rather than from a template literal.
         "cpcb_host": cpcb.SOURCE_HOST,
+        # The footer names the sources on EVERY page, so it must name the ones
+        # this deployment actually has. Read from the same predicates /health
+        # reports, not from a second pair, so the page and the health endpoint
+        # cannot disagree about which sources exist.
+        "source_cpcb": config.cpcb_available(),
+        "source_waqi": config.waqi_available(),
     }
 
 

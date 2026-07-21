@@ -100,7 +100,20 @@
        only source list that appears on EVERY page. The comment markers here
        are deliberately the plain kind: the whitespace-stripping form eats the
        newline on both sides and welds this sentence onto the one above it. #}
-    {{ T('ui', 'footer_sources_before', 'Data: CPCB via') }} <span lang="en">{{ cpcb_host }}</span>{{ T('ui', 'footer_sources_after', ', WAQI as fallback · advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.') }}
+    {#- Branched on what is actually configured. This claim was
+        unconditional, and this run made it MORE specific -- it names a host a
+        reader can open -- without making it conditional, so a deployment with
+        no CPCB key told every reader on every page, in both languages, that
+        the data comes from CPCB via data.gov.in when no reading on that
+        deployment had ever come from there. Verified with all credentials
+        blanked: /health returned cpcb False, waqi False, and the footer said
+        it anyway. Same predicates /health reports, so the two cannot
+        disagree. -#}
+    {% if source_cpcb and source_waqi %}{{ T('ui', 'footer_sources_before', 'Data: CPCB via') }} <span lang="en">{{ cpcb_host }}</span>{{ T('ui', 'footer_sources_after', ', WAQI as fallback') }}
+    {%- elif source_cpcb %}{{ T('ui', 'footer_sources_before', 'Data: CPCB via') }} <span lang="en">{{ cpcb_host }}</span>
+    {%- elif source_waqi %}{{ T('ui', 'footer_sources_waqi_only', 'Data: the WAQI feed') }}
+    {%- else %}{{ T('ui', 'footer_sources_none', 'Data: no live source is configured on this deployment, so no reading here is live') }}
+    {%- endif %} {{ T('ui', 'footer_advisories', '· advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.') }}
     {# Stated on every page, not only in the Guide. CDSCO's draft guidance on
         medical device software (21 Oct 2025) turns on INTENDED USE as the
         maker states it, and its definition of a medical device reaches

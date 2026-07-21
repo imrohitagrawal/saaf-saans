@@ -171,19 +171,88 @@ def test_the_conversion_claim_is_scoped_to_the_feed_it_applies_to(lang):
         assert "EPA" not in para, (lang, para)
 
 
-@pytest.mark.parametrize("lang", i18n.LANGUAGES)
-@pytest.mark.parametrize("path", ["/", "/guide", "/city"])
-def test_every_page_footer_names_the_primary_source(lang, path):
-    """The only source list on EVERY page. It said "Data: WAQI/CPCB" --
-    fallback first, primary second, and no host at all."""
-    from saafsaans.services import cpcb
+def _source_clause(lang, path):
+    """The footer's source sentence, WITHOUT the advisories list.
 
+    The split matters. The advisories tail names "CPCB, WHO, GINA, GOLD, AHA,
+    ACOG, EPA", so an assertion that "CPCB" appears anywhere in the footer is
+    true however the source clause reads -- including when it names no source
+    at all. Everything below is scoped to the clause that makes the claim.
+    """
     with TestClient(app) as c:
         body = htmllib.unescape(c.get(path, params={"lang": lang}).text)
     footer = body[body.find('class="foot"'):]
     footer = footer[:footer.find("</footer>")]
     assert len(footer) > 50, (lang, path, "no footer rendered")
-    assert cpcb.SOURCE_NAME in footer, (lang, path)
-    assert cpcb.SOURCE_HOST in footer, (lang, path)
-    assert footer.index(cpcb.SOURCE_NAME) < footer.index("WAQI"), (
+    tail = i18n.t(lang, "ui", "footer_advisories",
+                  "· advisories: CPCB, WHO, GINA, GOLD, AHA, ACOG, EPA.")
+    cut = footer.find(tail)
+    assert cut > 0, (lang, path, "the advisories list did not render")
+    return footer[:cut]
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("path", ["/", "/guide", "/city"])
+def test_the_footer_names_both_sources_when_both_are_configured(
+        monkeypatch, lang, path):
+    """The only source list on EVERY page. It said "Data: WAQI/CPCB" --
+    fallback first, primary second, and no host at all."""
+    from saafsaans.services import config, cpcb
+
+    monkeypatch.setattr(config, "cpcb_available", lambda: True)
+    monkeypatch.setattr(config, "waqi_available", lambda: True)
+    clause = _source_clause(lang, path)
+    assert cpcb.SOURCE_NAME in clause, (lang, path)
+    assert cpcb.SOURCE_HOST in clause, (lang, path)
+    assert clause.index(cpcb.SOURCE_NAME) < clause.index("WAQI"), (
         lang, path, "the fallback is named before the primary source")
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("path", ["/", "/guide", "/city"])
+def test_the_footer_names_no_source_the_deployment_does_not_have(
+        monkeypatch, lang, path):
+    """The claim was unconditional, and this run made it MORE specific --
+    naming a host the reader can open -- without making it conditional.
+
+    Verified against the shipped tip with every credential blanked: /health
+    returned {'cpcb': False, 'waqi': False} while every page told the reader,
+    in both languages, that the data comes from CPCB via data.gov.in with WAQI
+    as a fallback. No reading on that deployment had ever come from either.
+    """
+    from saafsaans.services import config, cpcb
+
+    monkeypatch.setattr(config, "cpcb_available", lambda: False)
+    monkeypatch.setattr(config, "waqi_available", lambda: False)
+    clause = _source_clause(lang, path)
+    assert cpcb.SOURCE_HOST not in clause, (lang, path, clause)
+    assert cpcb.SOURCE_NAME not in clause, (lang, path, clause)
+    assert "WAQI" not in clause, (lang, path, clause)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("configured", ["cpcb", "waqi"])
+def test_the_footer_names_exactly_the_one_source_that_is_configured(
+        monkeypatch, lang, configured):
+    """The two half-configured states, which are the ones a partial deploy
+    actually lands in. Each must name its own source and not the other."""
+    from saafsaans.services import config, cpcb
+
+    monkeypatch.setattr(config, "cpcb_available", lambda: configured == "cpcb")
+    monkeypatch.setattr(config, "waqi_available", lambda: configured == "waqi")
+    clause = _source_clause(lang, "/")
+    if configured == "cpcb":
+        assert cpcb.SOURCE_HOST in clause and "WAQI" not in clause, clause
+    else:
+        assert "WAQI" in clause and cpcb.SOURCE_HOST not in clause, clause
+
+
+def test_the_footer_reads_the_same_predicates_health_reports():
+    """One oracle. Two predicates for "is this source configured" is how a
+    footer comes to claim a capability the health endpoint denies."""
+    from saafsaans.services import config
+
+    with TestClient(app) as c:
+        health = c.get("/health").json()
+    assert health["cpcb"] == config.cpcb_available()
+    assert health["waqi"] == config.waqi_available()
