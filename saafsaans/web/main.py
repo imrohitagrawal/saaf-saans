@@ -289,12 +289,31 @@ def today_share_card(persona: dict, data: dict, verdict: str,
                                 "{place}: no air reading right now").replace("{place}", place),
                 "description": data["meaning"]}
     who = pr.persona_sentence(persona, with_place=False, lang=lang)
+    # The card must carry the same hedge the page does. It used to state the
+    # band as fact -- "Anand Vihar air right now: Severe" -- whether the figure
+    # was measured or a labelled stand-in, so the word SAMPLE existed only
+    # AFTER the recipient clicked. On the shipped configuration, where there is
+    # no WAQI token, every forwarded link was in that state. Forwarding is how
+    # this site is meant to travel, which makes the preview the surface most
+    # readers will ever see, and the one place the honesty had to hold hardest.
+    # Both keys written out literally, never composed. tests/test_i18n.py reads
+    # the requested keys back out of this file, so a key built from a variable
+    # is invisible to that parser -- and an invisible key is one nobody notices
+    # is missing from the corpus.
+    sampled = data.get("waqi_status") != "ok"
+    if sampled:
+        title = i18n.t(lang, "ui", "share_title_sample", "{place} air (sample): {band}")
+        note = " " + i18n.t(lang, "ui", "share_sample_note",
+                            "This is a typical figure for the place, not a live "
+                            "measurement.")
+    else:
+        title = i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
+        note = ""
     return {
-        "title": i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
-                     .replace("{place}", place).replace("{band}", label),
+        "title": title.replace("{place}", place).replace("{band}", label),
         # The place is already in the title, so the persona phrase drops it.
         "description": verdict + " " + i18n.t(lang, "ui", "share_for",
-                                              "This is for {who}.").replace("{who}", who),
+                                              "This is for {who}.").replace("{who}", who) + note,
     }
 
 
@@ -347,16 +366,26 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
     }
 
 
-def _fmt_time(iso: str = None) -> str:
-    """'2:00 PM' in IST. Falls back to now when the feed gave no timestamp."""
+def _fmt_time(iso: str = None, lang: str = "en") -> str:
+    """'2:00 PM' in IST, or a phrase saying there is no observation time.
+
+    It used to fall back to ``now``, which printed the page-load clock in the
+    slot where a reading's own timestamp goes -- so a sample with no
+    observation time looked like a measurement taken this minute, and the
+    number changed on every refresh. The fallback reading has no observation
+    time by definition (``waqi._fallback`` sets it to None), which is the
+    configuration the app ships in, so this was the normal case rather than
+    the edge one.
+    """
     dt = None
     if iso:
         try:
             dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
         except ValueError:
             dt = None
-    dt = (dt or datetime.now(timezone.utc)).astimezone(IST)
-    return dt.strftime("%-I:%M %p")
+    if dt is None:
+        return i18n.t(lang, "ui", "no_obs_time", "no reading time")
+    return dt.astimezone(IST).strftime("%-I:%M %p")
 
 
 # --- Today -----------------------------------------------------------------
@@ -409,7 +438,7 @@ def today(request: Request):
 
     term = q.get("term") if q.get("term") in TERMS else None
     persona_open = q.get("edit") == "1"
-    obs_time = _fmt_time(data["reading"].get("obs_time"))
+    obs_time = _fmt_time(data["reading"].get("obs_time"), lang)
 
     # Newest first, and the whole history: a user tracking a decision needs to
     # re-read what they already asked, not have it replaced by the next answer.

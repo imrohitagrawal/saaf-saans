@@ -385,7 +385,10 @@ HI: dict = {
         "share_site_title": "साफ़ साँस — दिल्ली की हवा, आपके शरीर के हिसाब से",
         "share_site_desc": "देखिए कि आज आपके इलाक़े की हवा आपके लिए क्या मायने रखती है, "
                            "आसान भाषा में।",
+        "no_obs_time": "रीडिंग का समय नहीं है",
         "share_title": "{place} की हवा अभी: {band}",
+        "share_title_sample": "{place} की हवा (नमूना): {band}",
+        "share_sample_note": "यह लाइव माप नहीं, इस जगह का एक आम अनुमान है।",
         "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
         "share_for": "यह सलाह {who} के लिए है।",
         "heading_verdict": "फ़ैसला",

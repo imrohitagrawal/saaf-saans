@@ -458,7 +458,11 @@ def _english_defaults():
 _ENGLISH_DEFAULTS = _english_defaults()
 
 
-SHARE_KEYS = {"share_title", "share_no_reading", "share_for"}
+# The share card lives in <head>, where there is no template to interleave
+# fragments with, so these are the keys whose values legitimately carry a
+# placeholder. `share_title_sample` is the same key as `share_title` for a
+# reading the app is NOT presenting as live, and takes the same two fields.
+SHARE_KEYS = {"share_title", "share_title_sample", "share_no_reading", "share_for"}
 
 
 def test_the_chrome_uses_no_format_placeholders():
@@ -482,6 +486,7 @@ def test_the_share_card_placeholders_survive_translation():
     """If a translation drops {place} the card silently loses the locality; if
     it renames one, the brace reaches the reader."""
     for key, fields in (("share_title", {"{place}", "{band}"}),
+                        ("share_title_sample", {"{place}", "{band}"}),
                         ("share_no_reading", {"{place}"}),
                         ("share_for", {"{who}"})):
         value = i18n.HI["ui"][key]
