@@ -663,7 +663,7 @@ def test_share_card_states_the_locality_band_and_verdict_the_page_shows(monkeypa
     body = _pinned_today(monkeypatch, 420)
     flat = html.unescape(body)
     title = _meta(body, "og:title")
-    assert title == "Anand Vihar air right now: Severe"
+    assert title == "Anand Vihar air today: Severe"
     assert "Severe" in flat                       # the band the page displays
     description = _meta(body, "og:description")
     assert "an adult with asthma, planning outdoor exercise" in description

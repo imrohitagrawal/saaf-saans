@@ -246,3 +246,18 @@ wrong.
 
 Both surfaces are in scope for correction. Neither is corrected by this document; this
 document establishes the fact that requires it.
+
+**Followed up.** Both have since been corrected. `guide.html` `who_1_after` now states
+that what the line compares against depends on the source, and `presenters.who_line` no
+longer claims a window at all: "Right now the air here holds about six times as much..."
+became "The air here holds about six times as much...", in all four branches and both
+languages, along with the hero's `sec_now` label and the forwarded card's `share_title`.
+
+The claim was REMOVED rather than reworded per source. Wording it per source would need
+eight more translated sentences and would still be unactionable for the reader, because
+the reading card never names the source -- `source` surfaces only inside the per-turn
+provenance panel, and only once expanded. What is left is true of a 24-hour mean and of a
+latest-hour value alike. The guideline half of the sentence still says "for a whole day",
+which is what WHO's 15 µg/m³ figure is, and
+`test_who_line_claims_no_averaging_window_in_either_language` pins the absence over every
+branch in both languages.

@@ -310,7 +310,9 @@ def today_share_card(persona: dict, data: dict, verdict: str,
     # have been given. A fallback now carries no AQI at all, so it is caught by
     # the no-reading branch above and the card names no band -- the hedge is
     # unreachable because the thing it hedged cannot be built.
-    title = i18n.t(lang, "ui", "share_title", "{place} air right now: {band}")
+    # "today", not "right now": ADR 0005 measured CPCB's avg_value to be a
+    # rolling 24-hour mean, and this card names the band worked out from it.
+    title = i18n.t(lang, "ui", "share_title", "{place} air today: {band}")
     return {
         "title": title.replace("{place}", place).replace("{band}", label),
         # The place is already in the title, so the persona phrase drops it.

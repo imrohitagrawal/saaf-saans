@@ -359,22 +359,30 @@ def prov_scale_note(reading, lang: str = "en") -> str:
 def who_line(pm25, lang: str = "en", *, has_index: bool = False) -> str:
     """The WHO comparison as one plain sentence, or "" when it cannot be made.
 
-    Deliberately phrased about the air *right now*, not about what the reader
-    has breathed today. WHO's 15 µg/m3 figure is a 24-hour mean, and is itself
-    defined as the 99th percentile of the annual distribution of those means --
-    not a ceiling for any one day. Saying "today you breathed in ten times more
-    than is safe in a day" would assert an inhaled dose the app has no basis to
-    compute. The mismatch is kept visible in the sentence -- "right now"
-    against "for a whole day" -- and explained in full in the Guide.
+    THE SENTENCE MAKES NO CLAIM ABOUT WHEN. It used to open "Right now the air
+    here...", and docs/decisions/0005-averaging-window.md establishes by
+    measurement that this is false on the primary path: CPCB's avg_value is a
+    rolling 24-hour mean, WAQI's iaqi is a sub-index of the latest hour, and
+    CPCB answers for up to 18 of the 21 localities. One sentence, in both
+    languages, was describing two different quantities and getting one of them
+    wrong -- and getting it wrong in the direction that matters, because on a
+    CPCB reading the app is comparing a 24-hour mean against WHO's 24-hour
+    guideline, which is the RIGHT comparison, while telling the reader it is
+    not making it.
 
-    What the app holds depends on which source answered, and this docstring
-    used to state one of the two as though it were both: "a single
-    near-instantaneous station reading". By measurement
-    (docs/decisions/0005-averaging-window.md) CPCB's avg_value is a rolling
-    24-hour mean and WAQI's iaqi is the latest hour, so the sentence's "right
-    now" is true of a WAQI reading and understates what a CPCB reading is. The
-    Guide now says that in the copy a reader sees; wording the line itself per
-    source is a separate change and is NOT made here.
+    The claim is removed rather than reworded per source. Wording it per source
+    would need eight more translated sentences and would still be unactionable
+    for the reader: the reading card never names the source, which surfaces
+    only inside the per-turn provenance panel, and only once expanded. What is
+    left is true of both sources and of both windows.
+
+    What survives is the other half of the honesty constraint, and it must
+    survive translation: the guideline is *for a whole day*, and no inhaled
+    dose is claimed. WHO's 15 µg/m3 figure is a 24-hour mean, itself defined as
+    the 99th percentile of the annual distribution of those means rather than a
+    ceiling for any one day. Saying "today you breathed in ten times more than
+    is safe in a day" would assert a dose the app has no basis to compute. The
+    Guide (guide.html who_1_after, who_2) carries the full explanation.
 
     No microgram figure appears here: this sentence sits on the reading card
     where a lay reader meets it, and the unit belongs in the Guide.
@@ -401,21 +409,21 @@ def who_line(pm25, lang: str = "en", *, has_index: bool = False) -> str:
         return ""
     if multiple < 1:
         return i18n.t(lang, "who", "below",
-                      "Right now the air here is cleaner than the World Health "
+                      "The air here is cleaner than the World Health "
                       "Organization's safe level for a whole day.")
     if multiple < 2:
         return i18n.t(lang, "who", "about_at",
-                      "Right now the air here is about at the World Health "
+                      "The air here is about at the World Health "
                       "Organization's safe level for a whole day.")
     english_word = _MULTIPLE_WORDS.get(int(multiple))
     if english_word is None:
         return i18n.t(lang, "who", "far_more",
-                      "Right now the air here holds far more of this pollution than "
+                      "The air here holds far more of this pollution than "
                       "the World Health Organization's safe level for a whole day "
                       "allows.")
     word = i18n.t(lang, "who", f"multiple_{int(multiple)}", english_word)
     return _fmt(lang, "who", "multiple",
-                "Right now the air here holds about {word} of this pollution as the "
+                "The air here holds about {word} of this pollution as the "
                 "World Health Organization's safe level for a whole day.", word=word)
 
 

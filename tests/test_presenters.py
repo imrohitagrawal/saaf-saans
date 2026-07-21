@@ -351,16 +351,45 @@ def test_who_line_says_as_much_as_not_more_than():
 
 
 def test_who_line_does_not_claim_a_dose_the_app_cannot_know():
-    """The app holds one near-instantaneous reading. WHO's 15 µg/m3 is a
-    24-hour mean, itself defined as the 99th percentile of a year of them. A
-    sentence saying "today you breathed in..." would assert both a daily
-    average the app does not have and an inhaled dose it cannot compute. The
-    mismatch is kept visible instead: "right now" against "for a whole day"."""
+    """WHO's 15 µg/m3 is a 24-hour mean, itself defined as the 99th percentile
+    of a year of them. A sentence saying "today you breathed in..." would
+    assert an inhaled dose the app cannot compute. The guideline must keep
+    saying it is for a whole day."""
     line = p.who_line(84)
-    assert "right now" in line.lower()
     assert "whole day" in line
     for forbidden in ("you breathed", "breathed in", "today you"):
         assert forbidden not in line.lower(), forbidden
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("pm25", [7.5, 20.0, 84.0, 150.0, 15000.0])
+def test_who_line_claims_no_averaging_window_in_either_language(lang, pm25):
+    """The critical correction, over EVERY branch and BOTH languages.
+
+    This test replaces one that asserted `"right now" in line.lower()`, which
+    held a false claim in place: docs/decisions/0005-averaging-window.md
+    resolves by measurement that CPCB's avg_value is a rolling 24-hour mean,
+    and CPCB is the primary source for up to 18 of the 21 localities. On that
+    path the sentence asserted an instantaneous quantity the app does not
+    have -- and asserted it while making exactly the daily-mean-against-
+    daily-guideline comparison it was denying.
+
+    The test was wrong, not the ADR: the ADR measured the feed, and the
+    assertion only pinned a spelling. The claim is REMOVED rather than
+    reworded per source, so what is asserted here is that no branch in either
+    language names a window for the READING, while the branch still names the
+    guideline's own window.
+    """
+    line = p.who_line(pm25, lang)
+    assert line
+    # Case-folded. The English sentences open the phrase, so it is capitalised
+    # there -- an un-folded check for "right now" silently passed against
+    # "Right now the air here...", which is the exact claim being removed.
+    # Devanagari is caseless, so the same fold is harmless for the Hindi.
+    folded = line.lower()
+    for claim in ("right now", "अभी", "इस समय", "latest hour", "24-hour",
+                  "24 hours", "24 घंटे", "पिछले दिन"):
+        assert claim not in folded, (lang, pm25, claim)
 
 
 def test_who_line_carries_no_microgram_figure():

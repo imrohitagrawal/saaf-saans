@@ -288,7 +288,7 @@ HI: dict = {
                          "फ़ीड जवाब देते ही यह भरता जाएगा।",
 
         # --- today.html: hero ---
-        "sec_now": "अभी की हवा",
+        "sec_now": "आज की हवा",
         "your_risk": "आपका ख़तरा",
         # Replaces the score chip when there is no reading. The score is built
         # on the air, and an assumed AQI would make the number an invented one.
@@ -426,7 +426,7 @@ HI: dict = {
         "share_site_desc": "देखिए कि आज आपके इलाक़े की हवा आपके लिए क्या मायने रखती है, "
                            "आसान भाषा में।",
         "no_obs_time": "रीडिंग का समय नहीं है",
-        "share_title": "{place} की हवा अभी: {band}",
+        "share_title": "{place} की हवा आज: {band}",
         "share_no_reading": "{place}: अभी कोई रीडिंग नहीं है",
         # Names no band, for the same reason the hero does not.
         "share_held": "{place}: हम एक पुरानी हवा की रीडिंग सहेजे हुए हैं",
@@ -916,10 +916,12 @@ HI: dict = {
     },
     # presenters.who_line -- the comparison with the WHO guideline.
     #
-    # Two things must survive translation, because the Guide explains them and
-    # the sentence would otherwise overstate: it is the air *right now*, and
-    # the guideline is *for a whole day*. No dose and no daily average is
-    # claimed, and "गुना" means "times as much", not "times more than".
+    # The sentence makes NO claim about when. "अभी" ("right now") was removed
+    # from all four branches: ADR 0005 measured CPCB's avg_value to be a
+    # rolling 24-hour mean, so on the primary path the claim was false. What
+    # must survive translation is the guideline being *for a whole day*, with
+    # no dose and no daily average claimed of the reading itself, and "गुना"
+    # meaning "times as much" rather than "times more than".
     "who": {
         # Printed when there IS an index but no fine-particle figure behind it
         # -- a station reporting PM10 only. The line used to vanish silently.
@@ -927,13 +929,13 @@ HI: dict = {
         "no_fine_particles": "विश्व स्वास्थ्य संगठन की तुलना सबसे महीन कणों के बारे में है, और "
                              "यह स्टेशन अभी उन्हें दर्ज नहीं कर रहा, इसलिए वह पंक्ति नहीं "
                              "दिखाई जा रही।",
-        "below": "अभी यहाँ की हवा विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित स्तर से साफ़ "
+        "below": "यहाँ की हवा विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित स्तर से साफ़ "
                  "है।",
-        "about_at": "अभी यहाँ की हवा क़रीब-क़रीब विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित "
+        "about_at": "यहाँ की हवा क़रीब-क़रीब विश्व स्वास्थ्य संगठन के पूरे दिन के सुरक्षित "
                     "स्तर पर है।",
-        "far_more": "अभी यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
+        "far_more": "यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
                     "सुरक्षित स्तर से कहीं ज़्यादा है।",
-        "multiple": "अभी यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
+        "multiple": "यहाँ की हवा में यह प्रदूषण विश्व स्वास्थ्य संगठन के पूरे दिन के "
                     "सुरक्षित स्तर से क़रीब {word} है।",
         # Spelled out, as in the English, so the sentence reads rather than
         # being scanned.
