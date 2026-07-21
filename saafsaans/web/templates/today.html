@@ -127,7 +127,14 @@
     </form>
     {% endif %}
 
+    {#- The comparison quotes two risk scores ("A healthy adult ... would be at
+        79. Your 91 ..."). Both are derived from the AQI, so with no reading
+        both are derived from the ASSUMED one -- the same invented severity the
+        risk chip was suppressed for, arriving by a second route. The drivers
+        below stay: their first chip names the absence rather than a figure. -#}
+    {% if has_reading %}
     <p class="compare">{{ compare }}</p>
+    {% endif %}
     <div class="drivers">
       {% for d in risk.drivers %}<span class="driver">{{ d }}</span>{% endfor %}
     </div>
@@ -151,6 +158,12 @@
       </span>
     </div>
 
+    {#- The whole scale disappears with the reading, not just its caret. The bar
+        exists to POSITION a measurement on the CPCB scale; with nothing to
+        position it is a severity ramp printed under a page that has no
+        severity to report, and its end labels name bands ("0 good ... severe
+        500") that no reading earned. -#}
+    {% if has_reading %}
     <div class="scale-wrap">
       {#- No marker when there is no index. A feed can report ozone and no
           particulate at all, which this app refuses to convert -- so the
@@ -170,6 +183,7 @@
       </div>
       <div class="scale-ends" aria-hidden="true"><span>{{ T('ui', 'scale_low', '0 good') }}</span><span>200</span><span>{{ T('ui', 'scale_high', 'severe 500') }}</span></div>
     </div>
+    {% endif %}
 
     <div class="pollutants">
       <div>

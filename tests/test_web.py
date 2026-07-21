@@ -61,7 +61,10 @@ def test_theme_switches_the_root_attribute():
 
 
 # --- Today -----------------------------------------------------------------
-def test_today_shows_the_persona_specific_verdict_and_comparison(client):
+def test_today_shows_the_persona_specific_verdict_and_comparison(client, live_feed):
+    # Needs a reading: the healthy-adult comparison quotes two risk scores
+    # derived from the AQI, so with none the page deliberately omits it rather
+    # than quote scores built on an assumed figure.
     body = client.get("/", params=PERSONA).text
     assert "FOR AN ADULT WITH ASTHMA, PLANNING OUTDOOR EXERCISE" in body
     assert "healthy adult" in body            # the gap is the product's point

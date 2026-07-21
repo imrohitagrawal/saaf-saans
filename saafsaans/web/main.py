@@ -18,6 +18,7 @@ persisted, because the persona is sensitive and must not reach an index.
 import time
 import uuid
 from collections import OrderedDict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
@@ -612,6 +613,45 @@ def ask(request: Request, question: str = Form(...)):
 # has no number, and a tile with no number is counted in nothing.
 
 
+# How many localities to ask WAQI about at once. The page needs 21 answers and
+# a serial loop would be 21 round trips on one 256MB machine that scales to
+# zero. It is bounded rather than unbounded because the point is to overlap the
+# waiting, not to open 21 sockets at a stranger's API in one burst.
+#
+# In the common case this costs no HTTP at all: get_aqi is memoised per locality
+# for 600s and shared between every visitor, so only the entries that actually
+# expired are fetched, and its per-locality fetch lock collapses a thundering
+# herd on a cold cache into one request each.
+_CITY_FETCH_WORKERS = 8
+
+
+def _live_grid(es_client) -> dict:
+    """``{locality: (reading, status)}`` from the SAME source the Today page uses.
+
+    This is the fix for City Pulse's central defect. /city had no live path at
+    all: its only data call was ``metrics.station_grid``, which reads the
+    Elasticsearch aqi-readings index, and that index is written from exactly one
+    place -- ``waqi._fetch_uncached`` -- when a visitor loads the HOME page for
+    one locality on a cache miss. Nothing ever back-filled the other twenty. In
+    production the index answered with nothing, so every tile fell through to
+    the hardcoded sample, and the same app served "Rohini LIVE AQI 86" on / and
+    "Rohini SAMPLE AQI 267" on /city in the same minute. It was never a cache,
+    timeout or freshness bug: it was a second data path with a fabricated
+    fallback.
+
+    Asking ``waqi.get_aqi`` here means the two pages cannot disagree, because
+    there is no longer a second source for them to disagree from. It also
+    repairs the index asymmetry for free: all 21 stations get refreshed and
+    indexed, instead of only the one the visitor happened to pick.
+    """
+    with ThreadPoolExecutor(max_workers=_CITY_FETCH_WORKERS) as pool:
+        # get_aqi never raises by contract, so there is no error branch to write
+        # here; a failure arrives as ("fallback", no numbers) like any other.
+        return dict(zip(waqi.LOCALITIES,
+                        pool.map(lambda loc: waqi.get_aqi(loc, es_client),
+                                 waqi.LOCALITIES)))
+
+
 @app.get("/city")
 def city(request: Request):
     persona = read_persona(request)
@@ -622,31 +662,41 @@ def city(request: Request):
     if selected not in waqi.LOCALITIES:
         selected = persona["locality"]
 
+    live = _live_grid(client)
     grid = {r.get("station"): r for r in metrics.station_grid(client, waqi.LOCALITIES)}
     stations = []
     for loc in waqi.LOCALITIES:
         row = grid.get(loc)
-        # A stored reading is only "live" if it is recent. Treating a week-old
-        # document as current would present stale air as the air outside now --
-        # the one thing this product promises never to do.
+        reading, status = live.get(loc, (None, "fallback"))
+        live_aqi = reading.get("aqi") if status == "ok" and reading else None
+        # A stored reading is only "cached" if we hold one at all. Treating a
+        # week-old document as current would present stale air as the air
+        # outside now -- the one thing this product promises never to do -- so
+        # the stored branch always carries its age.
         # A row we hold but which carries no aqi tells the reader nothing, so it
-        # is worth exactly as much as no row at all. The fallback therefore keys
-        # off the VALUE, not off the row's existence -- keying off the row left
-        # a locality showing "--"/Unknown while a labelled sample figure for it
-        # sat unused.
+        # is worth exactly as much as no row at all: the branch keys off the
+        # VALUE, not off the row's existence.
         stored = row.get("aqi") if row else None
         fresh = stored is not None and _is_fresh(row.get("ts"), hours=3)
-        # A station we hold nothing for gets no number and no band. The tile
-        # says so in words instead; there is nothing to stand in for it with.
-        aqi = stored
+        # Live first, because it is the measurement. Then what we stored last,
+        # WITH ITS AGE, because a real reading from six hours ago is worth
+        # something and the reader can price it once they know when it was.
+        # A station we hold nothing for gets no number and no band; there is
+        # nothing to stand in for it with.
+        aqi = live_aqi if live_aqi is not None else stored
+        if live_aqi is not None:
+            source = "live"
+        elif stored is not None:
+            source = "live" if fresh else "cached"
+        else:
+            source = "none"
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi,
                          "band": i18n.t(lang, "band_label", label, label)
                                  if aqi is not None else None,
                          "slug": slug,
-                         "source": "live" if fresh else
-                                   ("cached" if stored is not None else "none"),
-                         "age": None if stored is None or fresh
+                         "source": source,
+                         "age": None if source != "cached"
                                 else _age_label(row.get("ts"), lang),
                          "selected": loc == selected})
 
