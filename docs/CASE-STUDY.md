@@ -5,6 +5,24 @@ What was built, what the evidence said, and why the follow-up was cancelled.
 Written 2026-07-20. Every number here is reproducible from this repository or from the
 cited sources. Where something is unverified or self-reported, it says so.
 
+> **This file is now the narrative, not the register.** As of 2026-07-21 the docs are split
+> by genre: [`INDEX.md`](INDEX.md) is the map, [`decisions/`](decisions/) holds one file per
+> decision, [`research/`](research/) holds the evidence. This case study keeps the *story* —
+> how those decisions were reached — and links out rather than restating them. Where a
+> section below is now owned by a decision doc, a pointer says so. Nothing has been deleted.
+>
+> New since this file was written, and **not** described below:
+> - [decisions/0001](decisions/0001-zero-javascript.md) — zero JavaScript, logged as an
+>   **open, undecided** question with no recorded evidence behind it.
+> - [decisions/0002](decisions/0002-sample-data-honesty.md) — a sample must never drive
+>   severity; the ITO "AQI 400 · dangerous for you" defect and its fix.
+> - [decisions/0003](decisions/0003-notifications-and-the-pull-ritual.md) — why push stays
+>   cancelled, and the pull ritual that replaces it.
+> - [decisions/0004](decisions/0004-value-proposition.md) — "the same air is not the same
+>   dose for you"; the personal delta already in `presenters.py` and buried.
+> - [research/2026-07-exposure-evidence.md](research/2026-07-exposure-evidence.md) — the
+>   exposure and behaviour evidence, **including 9 refuted claims**.
+
 ---
 
 ## 1. Timeline
@@ -109,6 +127,11 @@ Others, condensed:
 Three studies, 172 agents, ~4.76M tokens, each claim attacked by independent refuters
 before counting.
 
+> A later round is recorded separately in
+> [research/2026-07-exposure-evidence.md](research/2026-07-exposure-evidence.md): 25 claims,
+> **9 refuted (36%)**. It also withdraws that round's "zero Indian/LMIC studies" framing —
+> CHAI, Kanpur and two Delhi commute studies exist. The kill-rate lesson below held again.
+
 **Kill rates matter more than findings.** In the evidence study, **7 of 14 claims were
 refuted** — a 50% failure rate on claims that had already passed a first pass. Two of my
 own confident statements about a government forecast product died there.
@@ -159,6 +182,12 @@ form, in a market where the differentiating feature had already been built by ot
 
 Effort was redirected to finishing v1: correcting the false privacy claim, fixing the 24
 defects, and shipping something honest and complete rather than something larger.
+
+> Two follow-ups now live outside this file. The *positive* statement of what the app is
+> for — the personal delta, rather than the cancelled ledger — is
+> [decision 0004](decisions/0004-value-proposition.md). The related cancellation of push
+> notifications, which this section does not cover, is reasoned in
+> [decision 0003](decisions/0003-notifications-and-the-pull-ritual.md).
 
 ## 6. What this demonstrates — and what it does not
 
@@ -252,6 +281,16 @@ development" cannot show a kill rate at all, because nothing was ever set up to 
    render writes a reading to Elasticsearch, so that index grows with traffic rather than
    with observations; and `metrics.security_stats` runs an unbounded date histogram whose
    result the caller discards.
+
+   > **Correction, 2026-07-21 — three of these four have since been built**, and this item
+   > is left in place with its correction rather than rewritten, matching the precedent set
+   > in §11 below. (a) `/ask` and `/system/simulate` **are** throttled:
+   > `saafsaans/services/ratelimit.py` exists and is called at `web/main.py:508` and `:797`.
+   > (b) The WAQI fetch **is** cached: `services/waqi.py:30-31`, `_CACHE_TTL = 600`. (c) The
+   > unbounded histogram **is** gone: `services/metrics.py:102-108` records its removal.
+   > Only the fourth — the ES index growing with traffic rather than with observations —
+   > remains, and [decision 0002](decisions/0002-sample-data-honesty.md) touches it: today
+   > only the locality a visitor happens to pick is ever refreshed.
 7. **Self-host the fonts, or decide not to.** Four faces load from Google, so a visitor's IP
    reaches a third party on every page view. The persona does not leak — see the threat model
    in the README — but the IP does, and the fix is a change to the deploy artifact whose
@@ -445,6 +484,13 @@ findings, because a dimension whose reviewer finds nothing is otherwise indistin
 from a dimension that never ran.
 
 ## 11. Decisions taken autonomously
+
+> **Decisions taken from 2026-07-21 onward live in [`decisions/`](decisions/)**, one file
+> per decision, each carrying assumptions / analysis / data points / what changed our mind /
+> what we kept / what we are modifying / risks accepted / what would falsify it. The
+> subsections below are the earlier runs and stay here as narrative. Where a decision below
+> has since been superseded or formalised, the decision doc is authoritative and this file
+> is the account of how it was reached.
 
 ### Decisions taken in the hindi-2 run, 21 July 2026
 
