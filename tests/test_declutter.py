@@ -408,3 +408,39 @@ def test_the_stale_note_is_not_demoted():
         assert 'class="stale-note' in today[lang], (
             f"{lang}: the stale-feed notice is not rendered, so this proved nothing")
         assert "caveat" not in re.search(r'class="(stale-note[^"]*)"', today[lang]).group(1)
+
+
+# --- Elements the sweep left without a rule ---------------------------------
+def test_every_class_the_no_reading_state_emits_is_styled():
+    """The no-reading state is the SHIPPED state -- no WAQI token in production
+    -- and it was the least-styled part of the site, because its elements were
+    added late and none of them appears on a page with a reading.
+
+    `.last-real` is the one dated measurement the app prints. It had no rule at
+    all, so it inherited `.stale-note` and ran on as one paragraph with the
+    apology explaining why there is no number. Asserted over the classes the
+    templates actually emit for this state rather than a list typed here, so a
+    new element in the same state is covered by the same check.
+    """
+    from saafsaans.web import main as web_main
+
+    css = CSS_PATH.read_text()
+    # A stored reading, so the last-real line is in the state under test. The
+    # shipped deployment has no ELASTIC_* credentials and therefore no client,
+    # which is exactly why this element went unstyled: it renders on no page any
+    # default-configured test ever looks at.
+    real_grid, real_client = web_main.metrics.station_grid, web_main.get_client
+    web_main.metrics.station_grid = lambda client, locs: [
+        {"station": "ITO", "aqi": 149, "ts": "2026-06-23T11:00:00+05:30"}]
+    web_main.get_client = lambda: object()
+    try:
+        with TestClient(app) as c:
+            body = c.get("/", params={**PERSONA, "locality": "ITO"}).text
+    finally:
+        web_main.metrics.station_grid, web_main.get_client = real_grid, real_client
+
+    emitted = set(re.findall(r'class="([a-z0-9 \-]+)"', body))
+    classes = {cls for group in emitted for cls in group.split()}
+    for cls in ("stale-note", "last-real"):
+        assert cls in classes, (cls, "the no-reading state did not render it")
+        assert re.search(r"\.%s\b" % re.escape(cls), css), cls

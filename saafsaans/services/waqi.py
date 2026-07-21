@@ -1,10 +1,11 @@
 """Live AQI fetch from the WAQI feed API, with a demo-safe fallback.
 
-``get_aqi`` never raises and (in practice) always returns a reading: on any
-failure — no token, station 404, timeout, bad JSON, non-numeric AQI — it
-returns a clearly-labelled cached sample so the demo cannot die. The WAQI
-status ("ok" / "fallback") is returned *separately* from the reading so it is
-never written into the aqi-readings index.
+``get_aqi`` never raises: on any failure — no token, station 404, timeout, bad
+JSON, non-numeric AQI — it returns a reading whose every numeric field is None,
+so nothing downstream can compute a severity from it. There is no stand-in
+figure; see ``_fallback``. The WAQI status ("ok" / "fallback") is returned
+*separately* from the reading so it is never written into the aqi-readings
+index.
 """
 import re
 import threading
@@ -86,7 +87,7 @@ TIMEOUT = 5
 #
 # No slug here is trusted on its own: get_aqi re-checks the returned station
 # name against the locality on every fetch (see _corroborates), so a feed that
-# starts answering for somewhere else degrades to a labelled sample rather than
+# starts answering for somewhere else yields no reading at all, rather than
 # being shown as this locality's air.
 FEED_MAP = {
     # --- Delhi stations ---
@@ -103,7 +104,7 @@ FEED_MAP = {
     "Okhla": "@10116",              # DITE Okhla
     # WAQI carries no station for these two. Mapping them to anything else
     # would be showing another neighbourhood's air under their name, so they
-    # get no feed and always render as the labelled cached sample.
+    # get no feed and render as NO READING unless we hold a stored one.
     "Ashok Vihar": None,
     "Nehru Nagar": None,
     "Patparganj": "@10704",         # Mother Dairy Plant, Parparganj
@@ -131,7 +132,7 @@ MAX_OBS_AGE = timedelta(hours=12)
 # Locality label -> the spelling that actually appears in the feed's station
 # name, for the few where they differ. Kept deliberately tiny: a locality
 # missing from here just has to match on its own name, and the failure mode of
-# a missing alias is a false mismatch, which shows a labelled sample. The
+# a missing alias is a false mismatch, which shows no reading. The
 # opposite error -- accepting the wrong station -- is the one that would put a
 # false claim on screen, and no entry here can cause it.
 FEED_NAME_ALIASES = {
@@ -215,7 +216,7 @@ def _fallback(locality: str = None):
     Suppressing the number is not the same as saying nothing. What the reader
     is owed instead -- this station's last REAL reading and how old it is --
     comes from the aqi-readings index, which is what the app actually observed,
-    and is attached by the caller (see ``main.last_real_reading``). It is not
+    and is attached by the caller (see ``main._last_real_reading``). It is not
     attached here because this value is cached, and a cached "last reported
     23 June" would itself go stale.
     """
@@ -302,7 +303,7 @@ def _fetch_feed(feed: str, token: str):
     obs_time = (data.get("time") or {}).get("iso")
     # An observation from weeks ago is not a live reading, whatever the feed's
     # status field says. Treated as unusable here so it can never reach the UI
-    # with status "ok"; the locality degrades to its labelled sample instead.
+    # with status "ok"; the locality falls back to no reading instead.
     if _obs_too_old(obs_time):
         return None
 

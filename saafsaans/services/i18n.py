@@ -491,7 +491,7 @@ HI: dict = {
         # Spelled out rather than left as "p95": a Latin token of that shape is
         # jargon in either language, and the Hindi names the thing it measures.
         "sys_kpi_p95": "95वाँ प्रतिशतक जवाब समय",
-        "sys_kpi_feed_fallback": "फ़ीड नहीं मिली → सहेजी हुई",
+        "sys_kpi_feed_fallback": "फ़ीड नहीं मिली → कोई रीडिंग नहीं",
         "sys_kpi_rule_fallback": "नियम-आधारित जवाब",
         "sys_kpi_tokens": "ख़र्च हुए टोकन",
         "sys_kpi_blocked_7d": "रोकी गईं, पिछले 7 दिन",

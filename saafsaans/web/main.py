@@ -843,7 +843,14 @@ def system(request: Request):
                 {"v": f'{k.get("latency_p95", 0) / 1000:.1f} s',
                  "l": i18n.t(lang, "ui", "sys_kpi_p95", "p95 response")},
                 {"v": f'{k.get("waqi_fallback_rate", 0) * 100:.1f}%',
-                 "l": i18n.t(lang, "ui", "sys_kpi_feed_fallback", "feed misses → cached")},
+                 # NOT "feed misses -> cached". A feed miss routes to waqi._fallback,
+                 # which returns a reading with every numeric field None: nothing
+                 # is cached and nothing is served. The old label told an operator
+                 # that 42% of requests were answered from cache when in fact they
+                 # were answered with no number at all, and it collided with
+                 # city.html's CACHED, which means something else again.
+                 "l": i18n.t(lang, "ui", "sys_kpi_feed_fallback",
+                             "feed misses → no reading")},
                 {"v": f'{k.get("llm_fallback_rate", 0) * 100:.1f}%',
                  "l": i18n.t(lang, "ui", "sys_kpi_rule_fallback", "rule-based fallbacks")},
                 {"v": f'{k.get("total_tokens", 0) / 1000:.1f}k',

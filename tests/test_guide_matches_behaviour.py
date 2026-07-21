@@ -66,3 +66,30 @@ def test_no_page_still_promises_a_stand_in_figure(lang, path):
     low = body.lower()
     for word in RETIRED[lang]:
         assert word.lower() not in low, (lang, path, word)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_system_view_does_not_call_a_feed_miss_a_cache_hit(lang):
+    """The KPI over `waqi_fallback_rate` was labelled "feed misses → cached".
+
+    A feed miss routes to `waqi._fallback`, which returns a reading with every
+    numeric field None. Nothing is cached and nothing is served, so an operator
+    reading "42%" was told 42% of requests came from cache when in fact they
+    were answered with no number at all. It also collided with City Pulse's
+    CACHED, which means something else again -- a stored reading we do hold.
+    Same word, two definitions, on the two pages that exist to explain the app.
+
+    The property: the label for this KPI must not use the CACHED tag word.
+    """
+    from saafsaans.web import main as web_main
+    real = web_main.get_client
+    web_main.get_client = lambda: object()
+    try:
+        with TestClient(app) as c:
+            body = htmllib.unescape(c.get("/system", params={"lang": lang}).text)
+    finally:
+        web_main.get_client = real
+    label = i18n.t(lang, "ui", "sys_kpi_feed_fallback", "feed misses → no reading")
+    assert label in body, (lang, label)
+    cached = i18n.t(lang, "ui", "tag_cached", "CACHED")
+    assert cached.lower() not in label.lower(), (lang, label, cached)

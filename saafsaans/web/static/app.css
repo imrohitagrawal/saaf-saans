@@ -193,6 +193,12 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-window .val { font-family: var(--disp); font-weight: 600; font-size: 17px; }
 .stale-note { margin: 0; font-size: 13px; color: var(--text-2); background: var(--surface);
               border: 1px dashed var(--border-s); border-radius: 10px; padding: 10px 14px; }
+/* The last real reading and its date, inside the note above. It had no rule at
+   all, so it inherited `.stale-note` and ran on as one paragraph with the
+   sentence explaining why there is no number -- the one dated measurement on the
+   page, visually indistinguishable from the apology around it. Its own line, and
+   the figure in the same mono face the rest of the site uses for measurements. */
+.last-real { display: block; margin-top: 6px; color: var(--text-1); }
 
 /* --------------------------------------------------------------- persona -- */
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -317,6 +323,11 @@ select, input[type="text"] {
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
+/* A station with no live reading prints no band word, which left an empty but
+   still 76px-wide grid cell on every such tile -- 21 of 21 in the shipped
+   no-token configuration, pushing every number away from the right edge for no
+   reason. The cell collapses when it has nothing to say. */
+.station .bd:empty { width: 0; }
 /* The 24-hour trend card's header row. These three were written inline in
    city.html, which put their sizes at a specificity no `:lang(hi)` rule can
    reach; the Hindi floor below can only apply to them from here. `.trend-head`
