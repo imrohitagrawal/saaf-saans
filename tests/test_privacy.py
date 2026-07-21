@@ -1,5 +1,6 @@
 """Privacy invariants: no raw persona leaves the process into any index."""
 import pathlib
+import re
 import uuid
 
 import pytest
@@ -328,3 +329,40 @@ def test_the_only_third_party_origin_is_the_font_host():
                for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', body)}
     assert origins <= {"https://fonts.googleapis.com", "https://fonts.gstatic.com"}, (
         f"a new third-party origin appears on the page: {origins}")
+
+
+# A credential name that reaches an external service. Deliberately a shape rule
+# rather than a list: a list would be an allowlist somebody edits to go green,
+# which is exactly the move this repository forbids. PORT or LOG_LEVEL do not
+# match; anything that carries a key, a token or an endpoint does.
+_CREDENTIAL_SHAPE = re.compile(r"(_KEY|_TOKEN|_SECRET|_PASSWORD|_CLOUD_ID|_URL)$")
+
+
+def test_every_credential_config_reads_is_blanked_by_the_test_harness():
+    """A credential config can read but conftest does not blank makes the whole
+    suite live.
+
+    ``services/config`` calls ``load_dotenv()`` at import, so a checkout with a
+    real ``.env`` -- which this one has -- hands every credential to every test
+    unless the session fixture pops it first. Adding a sixth credential to
+    config.py and forgetting conftest is invisible: nothing fails, the tests
+    just quietly start calling the real API.
+
+    Asserted as a PROPERTY over what config.py actually reads, not as a copy of
+    the names, so the NEXT credential is caught by this test rather than by
+    somebody remembering the fixture exists.
+    """
+    from pathlib import Path
+
+    from tests.conftest import BLANKED_CREDENTIALS
+
+    source = (Path(__file__).parent.parent / "saafsaans" / "services"
+              / "config.py").read_text(encoding="utf-8")
+    read_by_config = set(re.findall(r'_clean\(\s*"([A-Z0-9_]+)"\s*\)', source))
+    assert read_by_config, "the parser found no _clean() calls -- it stopped reading config.py"
+
+    credentials = {n for n in read_by_config if _CREDENTIAL_SHAPE.search(n)}
+    missing = sorted(credentials - set(BLANKED_CREDENTIALS))
+    assert not missing, (
+        f"config.py reads {missing} but tests/conftest.py does not blank it -- "
+        f"the suite will make live calls against it")

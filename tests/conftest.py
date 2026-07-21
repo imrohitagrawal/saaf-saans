@@ -15,14 +15,24 @@ offline paths, which is what these tests are for.
 """
 import pytest
 
+# Every credential the app reads to reach an external service. A name missing
+# here is not a small oversight: the suite silently starts making live calls,
+# which is how a run once took three minutes instead of thirty seconds and
+# depended on Delhi's weather. Named as a module constant rather than inlined
+# below so test_privacy can assert this list against what config.py actually
+# reads -- the next credential to be added is caught by that test, not by
+# somebody remembering this file exists.
+BLANKED_CREDENTIALS = (
+    "ELASTIC_URL", "ELASTIC_CLOUD_ID", "ELASTIC_API_KEY",
+    "WAQI_TOKEN", "OPENROUTER_API_KEY", "CPCB_API_KEY",
+)
+
 
 @pytest.fixture(autouse=True, scope="session")
 def _no_live_external_calls():
     import os
 
-    saved = {k: os.environ.pop(k, None)
-             for k in ("ELASTIC_URL", "ELASTIC_CLOUD_ID", "ELASTIC_API_KEY",
-                       "WAQI_TOKEN", "OPENROUTER_API_KEY")}
+    saved = {k: os.environ.pop(k, None) for k in BLANKED_CREDENTIALS}
     from saafsaans.web import main
     main._client = None
     yield
