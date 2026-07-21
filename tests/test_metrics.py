@@ -163,11 +163,13 @@ def test_station_grid_shape_and_numbers():
     # `ts` is the reading's age, so it is the OBSERVATION time, falling back to
     # the write time for rows indexed before obs_time was stored. Neither row
     # here carries one, so both fall back -- that is the compatibility path.
+    # No "written" key. It was emitted and asserted here, and grep found no
+    # consumer anywhere in saafsaans/ -- both /city and _last_real_reading read
+    # `ts`. An assertion on it described this fixture round-tripping through the
+    # function rather than any behaviour the app has.
     assert out == [
-        {"station": "Anand Vihar", "aqi": 402, "ts": "2026-07-18T10:00:00Z",
-         "written": "2026-07-18T10:00:00Z"},
-        {"station": "Rohini", "aqi": 188, "ts": "2026-07-18T10:00:00Z",
-         "written": "2026-07-18T10:00:00Z"},
+        {"station": "Anand Vihar", "aqi": 402, "ts": "2026-07-18T10:00:00Z"},
+        {"station": "Rohini", "aqi": 188, "ts": "2026-07-18T10:00:00Z"},
     ]
 
 
@@ -184,8 +186,42 @@ def test_station_grid_ages_a_row_by_when_the_air_was_measured():
         ]}}},
     ]}}}
     out = metrics.station_grid(FakeESClient(resp), ["ITO"])
+    # The point of the row: `ts` is the OBSERVATION time, not the write time
+    # nearly a month later that sits beside it in the same document.
     assert out[0]["ts"] == "2026-06-23T11:00:00+05:30"
-    assert out[0]["written"] == "2026-07-19T06:00:00Z"
+    assert out[0]["ts"] != "2026-07-19T06:00:00Z"
+
+
+def test_station_grid_asks_for_the_stations_it_was_given():
+    """The agg must CONSTRAIN by station, not merely be sized from the list.
+
+    `localities` used to be read for its length alone, so the query was "the top
+    `len+5` station keys by document count" and the caller filtered whatever came
+    back. `main._last_real_reading` passes a one-element list: it was asking for
+    ten arbitrary stations and hoping the one it wanted was among them. With 21
+    localities all being written on every /city render, any station outside the
+    top ten by doc count returned nothing and its last-real-reading line silently
+    never rendered -- no error, no test, no output.
+    """
+    client = FakeESClient({"aggregations": {"stations": {"buckets": []}}})
+    metrics.station_grid(client, ["ITO"])
+    terms = client.calls[0]["aggs"]["stations"]["terms"]
+    assert terms.get("include") == ["ITO"], terms
+
+
+def test_station_grid_can_return_every_locality_at_once():
+    """The size must not truncate the include list. An include of 21 keys with a
+    size of 10 drops eleven stations exactly as silently as no include at all --
+    which is what /city asks for on every render."""
+    keys = ["S%d" % i for i in range(21)]
+    resp = {"aggregations": {"stations": {"buckets": [
+        {"key": k, "latest": {"hits": {"hits": [
+            {"_source": {"aqi": 100, "@timestamp": "2026-07-18T10:00:00Z"}}]}}}
+        for k in keys]}}}
+    client = FakeESClient(resp)
+    out = metrics.station_grid(client, keys)
+    assert client.calls[0]["aggs"]["stations"]["terms"]["size"] >= len(keys)
+    assert [r["station"] for r in out] == keys
 
 
 def test_station_grid_none_client_empty_list():

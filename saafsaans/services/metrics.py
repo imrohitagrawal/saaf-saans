@@ -263,20 +263,38 @@ def aqi_trend(client, locality: str = None, hours: int = 24) -> dict:
 
 
 def station_grid(client, localities: list) -> list:
-    """Latest reading per station, one row per station with a live reading.
+    """Latest reading per station, for the stations in ``localities``.
 
     Uses a terms agg over station with a size-1 top_hits sorted by newest
     @timestamp. Returns ``[]`` on a None client, no data, or any error.
+
+    ``localities`` is an INCLUDE list on the agg, not decoration. It used to be
+    read only for its length -- `size = max(len(localities), 5) + 5` -- and
+    Elasticsearch then returned the top N station keys by DOC COUNT, whoever
+    they happened to be. `main._last_real_reading` calls this with a
+    one-element list and filters the result client-side, so it was asking for
+    ten arbitrary stations and keeping the one it wanted if it happened to be
+    among them. With 21 localities, and `_live_grid` now writing all 21 on every
+    /city render, a locality outside the top ten by document count got no row
+    back and its last-real-reading line silently never rendered.
+
+    `size` is taken from the include list for the same reason: an include of 21
+    keys with a size of 10 truncates in exactly the same way.
     """
     if client is None:
         return []
     try:
+        terms = {"field": "station",
+                 "size": max(len(localities or []), 5) + 5}
+        if localities:
+            terms["include"] = list(localities)
+            terms["size"] = len(localities)
         resp = client.search(
             index=INDEX_READINGS,
             size=0,
             aggs={
                 "stations": {
-                    "terms": {"field": "station", "size": max(len(localities or []), 5) + 5},
+                    "terms": terms,
                     "aggs": {
                         "latest": {
                             "top_hits": {
@@ -303,7 +321,6 @@ def station_grid(client, localities: list) -> list:
                 # reading's age is a fact about the observation, not about our
                 # fetch schedule, and the two can differ by weeks.
                 "ts": src.get("obs_time") or src.get("@timestamp"),
-                "written": src.get("@timestamp"),
             })
         return rows
     except Exception:
