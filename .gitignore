@@ -7,3 +7,7 @@ venv/
 
 # Local-only notes: drafts, personal write-ups. Never pushed.
 /private/
+
+# macOS Finder metadata. Three of these were tracked before this entry
+# existed, so they are removed from the index in the same commit.
+.DS_Store
