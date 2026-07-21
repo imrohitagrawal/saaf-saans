@@ -90,7 +90,6 @@ a:hover { color: var(--text); }
 .mono { font-family: var(--mono); }
 .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
           text-transform: uppercase; color: var(--text-3); }
-.muted { color: var(--text-3); }
 h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .page-h1 { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
 .page-sub { margin: 0; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
@@ -113,7 +112,12 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    stops applying rather than two rules fighting over the element. */
 .caveat { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; font-weight: 400;
           color: var(--text-3); text-wrap: pretty; }
-.caveat a { color: var(--accent); text-decoration: none; }
+/* The underline stays. --accent measures 1.21:1 (light) and 1.72:1 (dark)
+   against --text-3, the colour of the sentence the link sits inside, so colour
+   alone leaves the link indistinguishable from the prose around it -- SC 1.4.1
+   wants 3:1 before colour may carry that on its own. The base `a` rule's
+   text-underline-offset keeps it off the Devanagari descenders. */
+.caveat a { color: var(--accent); }
 .caveat.on-tint { color: var(--text-2); }
 /* The window is a baseline-aligned flex row, and a flex item is blockified, so
    .caveat's top margin would push this one out of the alignment it shares with
@@ -246,9 +250,6 @@ select, input[type="text"] {
 .caption { margin: 10px 0 0; font-size: 11.5px; color: var(--text-3); text-wrap: pretty; }
 
 /* ------------------------------------------------------------------- ask -- */
-.ask-cols { margin-top: 16px; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-.ask-main { flex: 3 1 380px; min-width: 0; }
-.ask-side { flex: 2 1 300px; min-width: 0; }
 .q { display: flex; gap: 10px; }
 .q .mark { font-family: var(--mono); font-size: 12px; color: var(--text-3); flex: none; padding-top: 2px; }
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
@@ -369,7 +370,6 @@ select, input[type="text"] {
 /* ---------------------------------------------- persona, thread, guide ---- */
 .pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px; }
 .hint { margin: 8px 0 0; font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
-.hint a { text-decoration: none; }
 .fields { align-items: flex-end; }
 .fields label { flex: 1 1 200px; }
 .fields .btn { padding: 9px 18px; border-radius: 8px; font-size: 13.5px; }
@@ -429,6 +429,14 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
 .notice .notice-en { font-size: 12.5px; color: var(--text-2); }
 
 /* ------------------------------------------------------- a11y remedies ---- */
+/* The header is sticky, so anything the browser scrolls to lands underneath it:
+   the skip link's own #main, and every focus move the tab key has to scroll for.
+   scroll-padding keeps that region out of the scrollport. The value clears the
+   header at its unwrapped height, which tests/test_a11y.py computes from the
+   controls inside it; a wrapped header on a narrow viewport is taller and needs
+   a browser to measure. */
+html { scroll-padding-top: 76px; }
+
 /* Skip link: the sticky header repeats six controls on every page. */
 .skip { position: absolute; left: -9999px; top: 0; z-index: 100;
         background: var(--surface); color: var(--text); padding: 10px 16px;
@@ -448,9 +456,15 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
 /* Touch-target floors. Padding is raised rather than overlaying pseudo-elements,
    which would intercept pointer events on neighbouring controls.
 
-   Heights here are measured, not eyeballed: a box is font-size x 1.55 plus
-   padding plus border, and tests/test_a11y.py recomputes every one of them
-   from this file against the 44px floor. `.term` is held at the 24px floor
+   Heights here are measured, not eyeballed: a box is font-size x the
+   line-height that reaches it, plus padding plus border, and tests/test_a11y.py
+   recomputes every one of them from this file against the 44px floor. Note
+   WHICH line-height: the flex-centring rule near the end of this file sets 1.2
+   on the five pill-shaped controls, so those do NOT get the body's 1.55, and
+   the padding below is sized against 1.2. That is the whole of the difference
+   between these numbers and the ones that stood here before -- every one of
+   the five was under 44px, by up to 3.8px, because the padding had been sized
+   against a line-height the control does not have. `.term` is held at the 24px floor
    instead: the AQI link genuinely is an inline target in running text, which
    cannot be enlarged without prising the lines apart, and the two pollutant
    labels are given the same treatment so the three read as one control type.
@@ -461,12 +475,12 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
    that is how the persona editor's own toggle stayed a 31px target. */
 .wordmark { padding: 6px 0; }
 .nav a { padding: 13px 12px 11px; }
-.seg a, .seg button { padding: 14px 16px; }
-.pill-btn { padding: 14px 16px; }
-.pill-btn.strong { padding: 14px 18px; }
-.prov-btn { padding: 14px 16px; }
-.btn { padding: 12px 20px; }
-.fields .btn { padding: 12px 18px; }
+.seg a, .seg button { padding: 16px; }
+.pill-btn { padding: 15px 16px; }
+.pill-btn.strong { padding: 15px 18px; }
+.prov-btn { padding: 16px; }
+.btn { padding: 14px 20px; }
+.fields .btn { padding: 14px 18px; }
 select { padding: 12px 10px; }
 .term { display: inline-block; padding: 6px 0; }
 @media (pointer: fine) {
@@ -636,6 +650,12 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .band-chip { padding-top: 5px; padding-bottom: 1px; }
 :lang(hi) .driver    { padding-top: 6px; padding-bottom: 2px; }
 :lang(hi) .hero-pill { padding-top: 5px; padding-bottom: 1px; }
+/* The same 2px shift, re-derived on the touch padding rather than the mouse
+   padding. It used to read 13/9 against a 15/15 floor, which quietly spent 6px
+   of the target to buy a 4px optical move and left the Hindi persona toggle a
+   39px control. The shift is what is wanted; the subtraction was not. Total
+   preserved at 30px, so the box is the height the floor asks for and the ink
+   still sits where the eye expects it. */
 @media (pointer: coarse) {
-  :lang(hi) .pill-btn { padding-top: 13px; padding-bottom: 9px; }
+  :lang(hi) .pill-btn { padding-top: 17px; padding-bottom: 13px; }
 }

@@ -28,8 +28,10 @@ CSS_PATH = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
 PERSONA = {"locality": "Anand Vihar", "age": "Adult",
            "condition": "Asthma", "activity": "Outdoor exercise", "theme": "light"}
 
-# The narrowest phone the site targets, and the line-height every box inherits
-# from `body`. Both are inputs to the measurements, not conclusions of them.
+# The narrowest phone the site targets, and the line-height a box inherits from
+# `body` when nothing nearer declares one. Both are inputs to the measurements,
+# not conclusions of them -- and the second is a fallback, not an assumption:
+# `_line_height` reads the declared value wherever there is one.
 VIEWPORT = 375
 BODY_LINE_HEIGHT = 1.55
 BODY_FONT_SIZE = 15.0
@@ -356,13 +358,57 @@ CONTROLS = {
 }
 
 
+def _resolve_edges(shorthand):
+    """A padding shorthand as (top, bottom)."""
+    parts = [(_px(p) or 0.0) for p in (shorthand or "").split()]
+    if not parts:
+        return 0.0, 0.0
+    return parts[0], (parts[2] if len(parts) >= 3 else parts[0])
+
+
+def _padding_y(rules, chain):
+    """Vertical padding down `chain`, with `padding-top`/`padding-bottom`
+    longhands overriding the shorthand set earlier in the same chain.
+
+    The chain is in ascending specificity, so a later entry wins -- which is how
+    the Devanagari optical shift (longhands) refines the touch floor (shorthand)
+    rather than being averaged with it.
+    """
+    top = bottom = 0.0
+    for key in chain:
+        decls = _decls(rules, key)
+        if "padding" in decls:
+            top, bottom = _resolve_edges(decls["padding"])
+        if "padding-top" in decls:
+            top = _px(decls["padding-top"]) or 0.0
+        if "padding-bottom" in decls:
+            bottom = _px(decls["padding-bottom"]) or 0.0
+    return top + bottom
+
+
+def _line_height(decls, font):
+    """The line box, in px, from whatever the cascade actually hands this control.
+
+    NOT a constant. `body` sets 1.55, but the flex-centring rule sets 1.2 on the
+    five pill-shaped controls, and assuming 1.55 for those overstates every one
+    of their heights by 0.35 x font-size -- which is precisely how five targets
+    sat under the 44px floor while this file reported them over it.
+    """
+    declared = (decls.get("line-height") or "").strip()
+    if declared:
+        as_px = _px(declared)
+        if as_px is not None:
+            return as_px
+        return round(font * float(declared), 2)
+    return round(font * BODY_LINE_HEIGHT, 2)
+
+
 def _measured_height(rules, chain, inherited_font):
     decls = {}
     for key in chain:
         decls.update(_decls(rules, key))
     font = _px(decls.get("font-size", "")) or inherited_font
-    content = round(font * BODY_LINE_HEIGHT, 2)
-    box = content + _edges(decls.get("padding"), "y") + _border(decls, "y")
+    box = _line_height(decls, font) + _padding_y(rules, chain) + _border(decls, "y")
     return max(box, _px(decls.get("min-height", "")) or 0.0)
 
 
@@ -408,6 +454,59 @@ def test_coarse_pointer_touch_targets_clear_the_floor(sheet, pages):
         if height + 0.05 < floor:
             too_small.append(f"{label} ({' -> '.join(chain)}): {height:.1f}px < {floor}px")
     assert not too_small, "coarse-pointer targets below the floor:\n  " + "\n  ".join(too_small)
+
+
+# The same controls once a Devanagari label is in them. Hindi changes two of the
+# three inputs to the height -- the size floor raises the font, and the optical
+# correction rewrites the padding as longhands -- so a Latin measurement says
+# nothing about them. `:lang(hi) .pill-btn` is the case that was 39px.
+HINDI_CONTROLS = {
+    "persona editor toggle": [".pill-btn", ":lang(hi) .pill-btn"],
+    "segment option": [".seg a", ":lang(hi) .seg a"],
+    "provenance button": [".prov-btn", ":lang(hi) .prov-btn"],
+}
+
+
+def test_hindi_controls_clear_the_touch_floor_on_a_coarse_pointer(sheet, hindi_pages):
+    """A coarse pointer is where the floor has to hold, and it is also the only
+    context the Devanagari optical shift is written for. Measure the two
+    together: top-level rules, then the `(pointer: coarse)` block over them."""
+    rules = sheet["top"] + sheet["media"].get("(pointer: coarse)", [])
+    too_small = []
+    for label, chain in HINDI_CONTROLS.items():
+        height = _measured_height(rules, chain,
+                                  _smallest_inherited_font(sheet, hindi_pages, chain))
+        if height + 0.05 < TARGET_FLOOR:
+            too_small.append(f"{label} ({' -> '.join(chain)}): {height:.1f}px < {TARGET_FLOOR}px")
+    assert not too_small, ("Hindi coarse-pointer targets below the floor:\n  "
+                           + "\n  ".join(too_small))
+
+
+def test_the_devanagari_optical_shift_moves_padding_without_spending_it(sheet):
+    """The shift exists to drop the ink a couple of pixels inside a box whose
+    height is already decided. Any rule that changes the TOTAL is not shifting
+    the ink, it is resizing the target -- which is the defect, not the remedy.
+
+    Checked inside `(pointer: coarse)`, because that is the context where the
+    total is a touch floor rather than a density choice. The top-level copies of
+    these shifts sit on chips, which are not targets at all.
+    """
+    context = "(pointer: coarse)"
+    rules = sheet["top"] + sheet["media"][context]
+    checked = 0
+    for selector, decls in sheet["media"][context]:
+        if not selector.startswith(":lang(hi)") or "padding-top" not in decls:
+            continue
+        base = selector[len(":lang(hi)"):].strip()
+        shorthand = _decls(sheet["top"], base).get("padding")
+        assert shorthand, f"{selector} refines {base}, which sets no padding to refine"
+        before = sum(_resolve_edges(shorthand))
+        after = _padding_y(rules, [base, selector])
+        checked += 1
+        assert after == before, (
+            f"{context} {selector}: total vertical padding {after}px against {before}px "
+            f"on {base} -- the optical shift is spending target height, not moving ink")
+    assert checked, f"no Devanagari optical shift found in {context} -- nothing was measured"
 
 
 def test_pointer_fine_only_ever_reduces_a_target(sheet, pages):
@@ -612,6 +711,41 @@ def test_the_caveat_palette_clears_the_text_floor_in_both_themes(sheet):
     assert "background" not in caveat, (
         ".caveat has gained a background; --text-3 does not clear the floor on every "
         "panel colour this site uses, which is why it had none")
+
+
+def test_no_link_in_running_prose_is_marked_by_colour_alone(sheet):
+    """SC 1.4.1: colour may distinguish a link from the sentence around it only
+    if the two colours differ by 3:1. `--accent` against `--text-3` does not
+    come close, so the underline the UA gives every `a[href]` is the only thing
+    telling a reader there is a link there -- and two rules used to remove it.
+
+    Running prose is identified by the property this stylesheet uses to mark it:
+    `text-wrap: pretty`. That keeps the check off `.nav a` and `.seg a`, which
+    are standalone controls in a bar, not links inside a sentence.
+    """
+    css = _strip_comments(sheet["raw"])
+    prose = {part.strip()[1:] for selector, decls in sheet["top"]
+             for part in selector.split(",")
+             if decls.get("text-wrap") == "pretty"
+             and re.fullmatch(r"\.[A-Za-z0-9_-]+", part.strip())}
+    assert {"caveat", "hint"} <= prose, f"prose classes no longer include the caveat: {prose}"
+
+    base_link = _decls(sheet["top"], "a")["color"]
+    for css_class in sorted(prose):
+        own = _decls(sheet["top"], f".{css_class}").get("color")
+        link = _decls(sheet["top"], f".{css_class} a").get("color", base_link)
+        if not own:
+            continue
+        for theme, block in THEMES:
+            ratio = _ratio(_token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", link).group(1)),
+                           _token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", own).group(1)))
+            if ratio >= AA_NON_TEXT:
+                continue
+            stripped = _decls(sheet["top"], f".{css_class} a").get("text-decoration")
+            assert stripped != "none", (
+                f"{theme} .{css_class} a: link colour is {ratio:.2f}:1 against the prose it "
+                f"sits in, under {AA_NON_TEXT}:1, and the rule removes the underline -- "
+                "nothing is left to identify it as a link")
 
 
 def test_the_hero_caveat_is_readable_over_every_sky_in_both_themes(sheet):
@@ -999,6 +1133,64 @@ MEDIA_OBLIGATIONS = {
     "(pointer: coarse)": "raises padding; never lowers it below the top-level value",
     "(prefers-reduced-motion: reduce)": "kills motion and declares nothing else",
 }
+
+
+# --- 9. The sticky header does not swallow what is scrolled to --------------
+def test_scroll_padding_clears_the_sticky_header(sheet, pages):
+    """`.hdr` is `position: sticky`, so the top of the scrollport is covered.
+    Without `scroll-padding-top` the skip link's own `#main` target, and every
+    focus move the browser has to scroll for, land underneath it.
+
+    The value is checked against the header computed from this stylesheet: its
+    own vertical padding, the tallest control it holds, and its bottom border.
+    That is the unwrapped header; a header that has wrapped onto a second row is
+    taller and needs a rendering engine to measure, so this is a lower bound.
+    """
+    assert any("sticky" in decls.get("position", "") for selector, decls in sheet["top"]
+               if selector == ".hdr"), ".hdr is no longer sticky -- this test measures nothing"
+    anchors = {node["attrs"]["href"] for root in pages.values() for node in _walk(root)
+               if node["tag"] == "a" and node["attrs"].get("href", "").startswith("#")}
+    assert anchors, "no in-page anchor rendered -- nothing would be scrolled under the header"
+
+    inner = _decls(sheet["top"], ".hdr-in")
+    tallest = max(_measured_height(sheet["top"], chain,
+                                   _smallest_inherited_font(sheet, pages, chain))
+                  for chain in ([".wordmark", ".wordmark b"], [".nav a"], [".seg a"]))
+    border = _px((_decls(sheet["top"], ".hdr").get("border-bottom", "").split() or [""])[0]) or 0.0
+    needed = _edges(inner.get("padding"), "y") + tallest + border
+
+    declared = _px(_decls(sheet["top"], "html").get("scroll-padding-top", ""))
+    assert declared is not None, (
+        f"nothing sets scroll-padding-top, and the sticky header covers {needed:.1f}px "
+        f"of the scrollport that {sorted(anchors)} scroll into")
+    assert declared >= needed, (
+        f"scroll-padding-top is {declared}px against a {needed:.1f}px header")
+
+
+# --- 10. No rule paints something the site never renders --------------------
+def test_no_class_in_the_stylesheet_is_unreachable(sheet, pages, hindi_pages):
+    """A rule for markup that no longer exists is a claim about the design that
+    is not true. A class counts as reachable if it appears in a template source
+    (which covers states no fixture happens to render, like the stale-data note)
+    or on a rendered page, or is composed from a variable -- `band-{{ slug }}`
+    reaches `.band-gx`, which only a station with no reading ever renders."""
+    import pathlib
+    declared = set()
+    for selector, _ in sheet["top"] + [r for rules in sheet["media"].values() for r in rules]:
+        declared.update(re.findall(r"\.([A-Za-z][\w-]*)", selector))
+    reachable = "\n".join(path.read_text() for path
+                          in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")))
+    rendered = {css_class for trees in (pages, hindi_pages) for root in trees.values()
+                for node in _walk(root) for css_class in _classes(node)}
+
+    def composed(css_class):
+        """A template building this name out of a stem plus an expression."""
+        return any(re.search(re.escape(css_class[:cut + 1]) + r"\{\{", reachable)
+                   for cut, char in enumerate(css_class) if char == "-")
+
+    dead = sorted(c for c in declared
+                  if c not in reachable and c not in rendered and not composed(c))
+    assert not dead, f"styled but never applied: {dead}"
 
 
 def test_every_media_block_states_what_holds_inside_it(sheet):
