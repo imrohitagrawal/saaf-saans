@@ -131,6 +131,20 @@ STATION_ALIAS = {
 # operates, so it has no CPCB row and must not be looked up as one.
 NOT_A_STATION = {"Delhi (city)"}
 
+# Every locality this module structurally cannot answer for, DERIVED from the
+# tables above rather than written out again, so adding a STATION_ALIAS entry
+# removes a locality from here automatically and the two cannot drift.
+#
+# Without this, Greater Noida and Ghaziabad each issued a full paged city fetch
+# (up to MAX_PAGES=4 requests at TIMEOUT=8s) and then failed to match, because
+# neither has a STATION_ALIAS entry and no CPCB station's pre-comma segment
+# normalises to their name. Measured on a cold /city render: 6 CPCB HTTP
+# requests, 2 of which structurally could not yield a reading, each holding one
+# of the 8 pool workers for the whole of main._CITY_FETCH_BUDGET while
+# localities that would have rendered LIVE rendered NO READING instead.
+UNADDRESSABLE = NOT_A_STATION | {loc for loc in CITY_OF
+                                 if loc not in STATION_ALIAS}
+
 # A success is good for as long as the upstream publishes (hourly). A FAILURE
 # is retried far sooner: one timeout used to blank a whole city for ten
 # minutes, which was observed live -- Gurugram fell back to NO READING while
@@ -320,11 +334,29 @@ def _fetch_and_store(city: str):
         records = _fetch_city(city)
     except Exception:
         records = None
-    if records is None:
-        # Cache the failure too, briefly. A source that is down stays down for
-        # a while, and retrying per render turns a slow upstream into a slow
-        # site -- the same reasoning as waqi's fallback cache.
+    grouped = _group(records or [])
+    if not grouped:
+        # NO USABLE MEASUREMENTS -- and deliberately one branch, not two.
+        #
+        # This used to test ``records is None``, so it covered the transport
+        # error and not the response that returns normally carrying no rows.
+        # An empty 200 (rate limit, key quota, a re-indexed resource, a
+        # filters[city] value the resource momentarily does not know) therefore
+        # blanked the whole city while a complete payload sat unused in
+        # _last_good -- the identical user-visible defect retention exists to
+        # fix, surviving on the other failure mode. It also disagreed with
+        # itself between renders: the first render blanked the city and every
+        # render for the next 60s took the failure-marker path in _stations and
+        # served the held payload.
+        #
+        # What the two have in common is the only thing the reader needs: we
+        # could not get a new measurement. The prose says exactly that and no
+        # longer asserts that the source failed to answer, because on this path
+        # it did answer -- it just had nothing in it.
         with _lock:
+            # Cache the miss briefly. A source that is down stays down for a
+            # while, and retrying per render turns a slow upstream into a slow
+            # site -- the same reasoning as waqi's fallback cache.
             _cache[city] = (time.time(), {})
         # One transient timeout used to blank a whole city -- observed live,
         # Gurugram went NO READING while all four of its stations were
@@ -334,6 +366,14 @@ def _fetch_and_store(city: str):
         # its own obs_time rather than by our fetch time.
         return _retained(city)
 
+    with _lock:
+        _cache[city] = (time.time(), grouped)
+        _last_good[city] = (time.time(), grouped)
+    return grouped, False
+
+
+def _group(records):
+    """Rows (one per pollutant per station) grouped into one slot per station."""
     grouped: dict = {}
     for row in records:
         name = row.get("station")
@@ -350,12 +390,7 @@ def _fetch_and_store(city: str):
         # that parses so a single malformed row cannot blank the timestamp.
         if slot["obs_time"] is None:
             slot["obs_time"] = _obs_time(row.get("last_update"))
-
-    with _lock:
-        _cache[city] = (time.time(), grouped)
-        if grouped:
-            _last_good[city] = (time.time(), grouped)
-    return grouped, False
+    return grouped
 
 
 def values_for(locality: str):
@@ -371,7 +406,7 @@ def values_for(locality: str):
     measurements with their own ``obs_time``; what changes is what the page is
     allowed to call them.
     """
-    if not available() or locality in NOT_A_STATION:
+    if not available() or locality in UNADDRESSABLE:
         return None
 
     city = CITY_OF.get(locality, DEFAULT_CITY)

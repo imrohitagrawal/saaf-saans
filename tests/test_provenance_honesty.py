@@ -74,7 +74,7 @@ def test_the_panel_claims_no_measurement_when_none_was_taken(lang):
     assert i18n.t(lang, "ui", "prov_not_measured",
                   "Nothing was measured at the time") in panel, lang
     assert i18n.t(lang, "ui", "prov_none",
-                  "no reading (the feed did not answer)") in panel, lang
+                  "no reading (neither source answered)") in panel, lang
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -158,8 +158,8 @@ def test_a_held_reading_is_never_described_as_live(monkeypatch, lang):
                   "Measured earlier, not at the time") in expanded
     assert i18n.t(lang, "ui", "prov_live", "live reading") not in expanded
     assert i18n.t(lang, "ui", "prov_held",
-                  "held reading (the source did not answer, so we kept the "
-                  "last one)") in expanded
+                  "held reading (we could not get a new one, so we kept "
+                  "the last)") in expanded
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)

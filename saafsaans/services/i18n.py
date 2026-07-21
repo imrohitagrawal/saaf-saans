@@ -401,10 +401,10 @@ HI: dict = {
         "q_mark": "प्र ·",
         # The heading on the first block of an answer, and on the block the
         # error path renders. One key, because it is one word on one card.
-        "stale_note": "इस इलाक़े के लिए लाइव फ़ीड जवाब नहीं दे रही, इसलिए आपको दिखाने के लिए "
-                      "हमारे पास कोई आँकड़ा नहीं है। पहले यह पेज उस कमी को इस जगह के एक आम "
-                      "अनुमान से भर देता था; अब नहीं भरता, क्योंकि बिना मापा हुआ आँकड़ा कोई "
-                      "आँकड़ा न होने से भी बुरा है। फ़ीड लौटते ही यह अपने आप बदल जाएगा।",
+        "stale_note": "इस इलाक़े के लिए दोनों में से कोई भी स्रोत जवाब नहीं दे रहा, इसलिए आपको "
+                      "दिखाने के लिए हमारे पास कोई आँकड़ा नहीं है। पहले यह पेज उस कमी को इस जगह "
+                      "के एक आम अनुमान से भर देता था; अब नहीं भरता, क्योंकि बिना मापा हुआ आँकड़ा "
+                      "कोई आँकड़ा न होने से भी बुरा है। किसी स्रोत के लौटते ही यह अपने आप बदल जाएगा।",
         # The forwarded-link preview. Placeholders are substituted with
         # str.replace, not .format, so a stray brace cannot raise on a path
         # that runs on every page render.
@@ -481,8 +481,8 @@ HI: dict = {
         "prov_source_cpcb_before": "सीधे CPCB से लिया गया, प्रकाशित",
         "prov_source_cpcb_after": "पर — किसी फ़ीड के ज़रिए नहीं",
         "prov_live": "लाइव रीडिंग",
-        "prov_none": "कोई रीडिंग नहीं (फ़ीड ने जवाब नहीं दिया)",
-        "prov_held": "सहेजी हुई रीडिंग (स्रोत ने जवाब नहीं दिया, इसलिए हमने पिछली रीडिंग रखी है)",
+        "prov_none": "कोई रीडिंग नहीं (किसी भी स्रोत ने जवाब नहीं दिया)",
+        "prov_held": "सहेजी हुई रीडिंग (नई रीडिंग नहीं मिल सकी, इसलिए हमने पिछली रखी है)",
 
         # --- system.html ---
         # This view was left in English on the grounds that it is

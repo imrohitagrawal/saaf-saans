@@ -942,3 +942,76 @@ def test_a_held_reading_is_cached_on_the_short_ttl(feed, monkeypatch):
     feed(rows("Wazirpur, Delhi - DPCC", pm25=120, pm10=140))
     reading, _status = waqi.get_aqi("Wazirpur")
     assert reading["retained"] is False and reading["pm25"] == 120
+
+
+# ------------------------------- a successful-but-empty answer is still a miss
+def test_an_empty_but_successful_response_serves_the_last_good_payload(feed, monkeypatch):
+    """Retention used to branch on ``records is None``, which is set only when
+    _fetch_city RAISES. A 200 carrying no rows (rate limit, key quota, a
+    re-indexed resource, an unrecognised filters[city]) yielded records == []
+    -> grouped == {} -> stored and returned as no reading, skipping _retained
+    entirely while a complete payload sat in _last_good. Same user-visible
+    defect as the timeout, on the other failure mode."""
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, pm10=86, city="Gurugram"))
+    assert cpcb.values_for("Gurugram")["pm25"] == 77
+    _age_the_cache("Gurugram", cpcb._TTL + 1)
+
+    feed([])  # answers normally, publishes nothing
+    held = cpcb.values_for("Gurugram")
+
+    assert held is not None, "an empty response blanked a city we hold a payload for"
+    assert held["pm25"] == 77 and held["retained"] is True
+
+
+def test_two_consecutive_renders_agree_about_an_empty_response(feed, monkeypatch):
+    """The first render blanked the city and the second served the held payload,
+    because the empty grouping was filed as a failure marker and _stations'
+    marker path calls _retained. One upstream state, two answers."""
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, pm10=86, city="Gurugram"))
+    cpcb.values_for("Gurugram")
+    _age_the_cache("Gurugram", cpcb._TTL + 1)
+
+    feed([])
+    first = cpcb.values_for("Gurugram")
+    second = cpcb.values_for("Gurugram")
+
+    assert first is not None and second is not None
+    assert (first["pm25"], first["retained"]) == (second["pm25"], second["retained"])
+
+
+def test_an_empty_response_with_nothing_held_is_still_no_reading(feed):
+    """The mirror. Retention must not conjure a reading for a city we never
+    successfully measured."""
+    feed([])
+    assert cpcb.values_for("Gurugram") is None
+
+
+# ------------------------------ a locality with no pinned station costs nothing
+def test_a_locality_with_no_pinned_station_makes_no_upstream_call(feed):
+    """Greater Noida and Ghaziabad are in CITY_OF but have no STATION_ALIAS, and
+    no CPCB station's pre-comma segment normalises to their names -- so each one
+    used to issue a full paged city fetch (up to MAX_PAGES requests at TIMEOUT
+    each) that structurally could not match. On a cold /city render those two
+    held two of the eight pool workers for the whole fetch budget, so localities
+    that would have rendered LIVE rendered NO READING instead."""
+    feed(rows("Sanjay Nagar, Ghaziabad - UPPCB", pm25=80, pm10=120,
+              city="Ghaziabad"))
+    for locality in ("Greater Noida", "Ghaziabad", "Delhi (city)"):
+        assert cpcb.values_for(locality) is None, locality
+    assert feed.calls == [], f"upstream was called for: {feed.calls}"
+
+
+def test_a_locality_with_a_pinned_station_still_fetches(feed):
+    """The mirror, or the guard above could be short-circuiting everything."""
+    feed(rows("Sector-51, Gurugram - HSPCB", pm25=77, pm10=86, city="Gurugram"))
+    assert cpcb.values_for("Gurugram")["pm25"] == 77
+    assert feed.calls == ["Gurugram"]
+
+
+def test_the_unaddressable_set_is_derived_from_the_tables():
+    """Written out by hand it would drift: pinning a Ghaziabad station in
+    STATION_ALIAS must make that locality addressable in the same edit."""
+    assert cpcb.UNADDRESSABLE == {"Delhi (city)", "Greater Noida", "Ghaziabad"}
+    assert all(loc not in cpcb.STATION_ALIAS for loc in cpcb.UNADDRESSABLE)
+    for loc in cpcb.STATION_ALIAS:
+        assert loc not in cpcb.UNADDRESSABLE, loc

@@ -57,7 +57,7 @@
   <p class="stale-note wide">
     {#- One string, no timestamp: the fallback has no observation time, and the
         clock that used to be printed here was simply "now" dressed as one. -#}
-    {{ T('ui', 'stale_note', 'The feeds are not answering for this area, so we have no number to show you. This page used to fill that gap with a typical figure for the place; it does not any more, because a figure nobody measured is worse than no figure at all. It will refresh when the feed returns.') }}
+    {{ T('ui', 'stale_note', 'Neither source is answering for this area, so we have no number to show you. This page used to fill that gap with a typical figure for the place; it does not any more, because a figure nobody measured is worse than no figure at all. It will refresh when a source returns.') }}
     {#- The last measurement we actually hold, dated by when the AIR was
         measured. A number and a date and nothing else: no band word, no
         colour, no advice. A reading from three weeks ago is a fact about three
@@ -363,8 +363,8 @@
                     · {{ T('ui', 'prov_source_cpcb_before', 'read from CPCB itself, published on') }} <span lang="en">{{ cpcb_host }}</span> {{ T('ui', 'prov_source_cpcb_after', 'rather than through a feed') }}
                     {% endif %}
                     · {{ T('ui', 'prov_live', 'live reading') if fresh == 'live'
-                          else (T('ui', 'prov_held', 'held reading (the source did not answer, so we kept the last one)') if fresh == 'held'
-                                else T('ui', 'prov_none', 'no reading (the feed did not answer)')) }}
+                          else (T('ui', 'prov_held', 'held reading (we could not get a new one, so we kept the last)') if fresh == 'held'
+                                else T('ui', 'prov_none', 'no reading (neither source answered)')) }}
                   </div>
                 </div>
                 {% if t.sources %}
