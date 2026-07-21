@@ -32,10 +32,14 @@
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
-    <div class="row" style="align-items:baseline;gap:8px">
-      <span style="font-weight:600;font-size:15px">{{ place(selected) }}</span>
-      <span class="mono" style="font-size:11px;color:var(--text-3)">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
-      <span class="mono" style="margin-left:auto;font-size:13px;font-weight:600">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
+    {#- Sizes belong in the stylesheet, not here. An inline declaration outranks
+        every selector, so the 11px this header used to carry was out of reach of
+        the Devanagari size floor: on /city?lang=hi it set 'पिछले 24 घंटे' below
+        where matras resolve and no `:lang(hi)` rule could raise it. -#}
+    <div class="row trend-head">
+      <span class="trend-place">{{ place(selected) }}</span>
+      <span class="mono trend-lbl">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
+      <span class="mono trend-val">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
     </div>
     {% if spark %}
       <div class="spark">{{ spark }}</div>

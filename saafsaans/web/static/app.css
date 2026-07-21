@@ -292,6 +292,15 @@ select, input[type="text"] {
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
+/* The 24-hour trend card's header row. These three were written inline in
+   city.html, which put their sizes at a specificity no `:lang(hi)` rule can
+   reach; the Hindi floor below can only apply to them from here. `.trend-head`
+   follows `.row` in source order and carries the same weight, so its baseline
+   alignment wins without any escalation. */
+.trend-head { align-items: baseline; gap: 8px; }
+.trend-place { font-weight: 600; font-size: 15px; }
+.trend-lbl { font-size: 11px; color: var(--text-3); }
+.trend-val { margin-left: auto; font-size: 13px; font-weight: 600; }
 .spark { margin-top: 10px; color: var(--accent); }
 .spark svg { display: block; width: 100%; height: auto; }
 .spark-x { display: flex; justify-content: space-between; font-family: var(--mono);
@@ -558,6 +567,7 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .when,
 :lang(hi) .spark-x,
 :lang(hi) .col .d,
+:lang(hi) .trend-lbl,
 :lang(hi) .driver,
 :lang(hi) .caption,
 :lang(hi) .prov-btn,

@@ -888,3 +888,39 @@ def test_the_resolver_can_see_a_size_the_flat_selector_map_cannot(sheet, hindi_p
     assert any(" " in why for _, why, _, _ in measured), (
         "no element resolved through a descendant selector -- the resolver is matching "
         "single classes only and proves less than it appears to")
+
+
+# Inline `style` attributes outrank every selector, so no `:lang(hi)` rule can
+# raise them. These two are the remaining ones, both in today.html, which is not
+# this change's file to edit; they are recorded rather than waived so the set can
+# only shrink -- an exact match means adding one anywhere fails this suite.
+INLINE_FONT_SIZE_DEBT = {
+    ("today.html", "font-size:11px;color:var(--text-3)"),
+    ("today.html", "font-size:12.5px;color:var(--text-3)"),
+}
+
+def test_no_template_carries_an_inline_font_size(sheet, hindi_pages):
+    """An inline declaration outranks every selector, `!important` included
+    (app.css has none outside the reduced-motion block). A size written there is
+    therefore permanently out of reach of the Devanagari floor, whatever the
+    stylesheet later says -- which is why the 24-hour trend header could not be
+    fixed in CSS at all and had to move out of the template.
+
+    Recorded as an exact set, not a threshold: the debt can only shrink.
+    """
+    import pathlib
+    found = set()
+    for path in sorted(pathlib.Path("saafsaans/web/templates").glob("*.html")):
+        for match in re.finditer(r'style="([^"]*)"', path.read_text()):
+            if re.search(r"\bfont-size\s*:", match.group(1)):
+                found.add((path.name, match.group(1)))
+    assert found == INLINE_FONT_SIZE_DEBT, (
+        "inline font-size in a template, where no :lang(hi) rule can reach it.\n"
+        f"  added:   {sorted(found - INLINE_FONT_SIZE_DEBT)}\n"
+        f"  removed: {sorted(INLINE_FONT_SIZE_DEBT - found)} (delete it from the debt set)")
+    # And the debt is not academic: each entry really does put Devanagari under
+    # the floor on a shipped page, which is the reason it is being tracked.
+    under = [(size, text) for size, why, _, text in _devanagari_sizes(sheet, hindi_pages, "top")
+             if why == "inline style" and size + 0.001 < DEVANAGARI_FLOOR]
+    assert under, ("no inline font-size puts Devanagari under the floor any more -- clear "
+                   "INLINE_FONT_SIZE_DEBT rather than leaving a dead exemption")
