@@ -395,66 +395,121 @@ def _fetch_cpcb(locality: str):
     return reading if reading["aqi"] is not None else None
 
 
-def _fetch_uncached(locality: str, es_client):
-    """The cache miss path. Caller must hold this locality's fetch lock."""
-    reading = _fetch_cpcb(locality)
-    if reading is not None:
-        # A retained reading is an observation we already indexed when it was
-        # fresh. Indexing it again on every 600s cache miss is precisely the
-        # "index grows with traffic rather than observations" defect recorded
-        # at the top of this file as fixed.
-        if not reading["retained"]:
-            try:
-                es.index_reading(es_client, {**reading, "station": locality})
-            except Exception:
-                pass  # indexing must never affect the returned reading
-        _cache_put(locality, reading, "ok")
-        return reading, "ok"
+# Whether a CPCB reading built from ONE particulate should make us look at
+# WAQI before serving it.
+#
+# Shipped False, which is today's behaviour: a CPCB reading that produced an
+# index wins outright and WAQI is consulted only when CPCB produced none.
+#
+# It is False and not True because docs/decisions/0005-averaging-window.md
+# concludes, by measurement, that the two sources do not publish the same
+# quantity: CPCB's avg_value is a rolling 24-hour mean and WAQI's iaqi is a
+# sub-index of the latest hourly concentration. Preferring WAQI's pair over
+# CPCB's single particulate would therefore swap the quantity the CPCB scale
+# is defined on for one it is not, to gain a second pollutant. That trade has
+# not been argued, so it is not made.
+#
+# The consequence is stated plainly rather than buried: a station like
+# Wazirpur, whose CPCB PM2.5 instrument is down, still publishes an index from
+# PM10 alone and still understates the air. This flag does not fix that. What
+# fixes the DISHONESTY is the caption saying which particulates were actually
+# measured; what would fix the UNDERSTATEMENT is a decision this run does not
+# have the evidence to make.
+PREFER_TWO_PARTICULATES = False
 
-    token = config.waqi_token()
-    if not token:
-        return _fallback(locality), "fallback"
 
-    feed = FEED_MAP.get(locality, CITY_FEED)
-    if not feed:
-        return _fallback(locality), "fallback"
+def _choose(cpcb_reading, waqi_reading):
+    """Pick ONE reading. Never merge them.
 
-    reading = None
-    try:
-        reading = _fetch_feed(feed, token)
-    except Exception:
-        reading = None
+    The two candidates are never combined field by field -- no taking CPCB's
+    PM10 beside WAQI's PM2.5, no borrowing one number to fill a gap in the
+    other. ``docs/decisions/0005-averaging-window.md`` establishes by
+    measurement that they publish different quantities (a rolling 24-hour mean
+    against the latest hourly value), so a merged reading would be an average
+    of two things that are not the same thing, wearing one timestamp and one
+    station name. Every field of what is returned came from one source.
+    """
+    if cpcb_reading is None:
+        return waqi_reading
+    if not _wants_second_opinion(cpcb_reading):
+        return cpcb_reading
+    # One particulate at CPCB, both at WAQI: take WAQI's reading WHOLE.
+    if (waqi_reading is not None
+            and waqi_reading["pm25"] is not None
+            and waqi_reading["pm10"] is not None):
+        return waqi_reading
+    # WAQI had no token, no station, did not answer, answered for somewhere
+    # else, or is no better off. Keep what CPCB measured -- losing a real
+    # partial reading would be a worse defect than the one being fixed.
+    return cpcb_reading
 
-    if reading is None:
-        # Cached too, on a shorter TTL: a station that is down stays down for
-        # a while, and hammering it once per render is how a slow upstream
-        # becomes a slow site.
-        result = (_fallback(locality), "fallback")
-        _cache_put(locality, *result)
-        return result
 
-    # A feed that answers for somewhere else is not this locality's air. The
-    # previous version had no such check and presented the Anand Vihar, Delhi
-    # station as Noida's reading. There is also no city-feed retry any more:
-    # borrowing another station whenever one 404s is the same mislabelling by
-    # a slower route, and this check would reject its result anyway.
-    if not _corroborates(locality, reading["city"]):
-        result = (_fallback(locality), "fallback")
-        _cache_put(locality, *result)
-        return result
+def _wants_second_opinion(cpcb_reading) -> bool:
+    """True when CPCB produced an index from a single particulate AND policy
+    says to look at the fallback before serving it."""
+    return (PREFER_TWO_PARTICULATES
+            and (cpcb_reading["pm25"] is None or cpcb_reading["pm10"] is None))
 
-    try:
-        # Index under the canonical UI locality label (not WAQI's verbose
-        # city.name) so live readings share one key space with seed data and
-        # the aqi_trend/station_grid filters match. Display keeps the real name.
-        es.index_reading(es_client, {**reading, "station": locality})
-    except Exception:
-        pass  # indexing must never affect the returned reading
+
+def _serve(locality: str, reading, es_client):
+    """Index (when there is something new to index) and cache the winner."""
+    # A retained reading is an observation we already indexed when it was
+    # fresh. Indexing it again on every 600s cache miss is precisely the
+    # "index grows with traffic rather than observations" defect recorded at
+    # the top of this file as fixed.
+    if not reading.get("retained"):
+        try:
+            # Index under the canonical UI locality label (not WAQI's verbose
+            # city.name) so live readings share one key space with seed data
+            # and the aqi_trend/station_grid filters match. Display keeps the
+            # real name.
+            es.index_reading(es_client, {**reading, "station": locality})
+        except Exception:
+            pass  # indexing must never affect the returned reading
     # Stored AFTER indexing, so the one render that actually fetched is also
     # the one render that writes. Every reader served from the cache adds
     # nothing to aqi-readings.
     _cache_put(locality, reading, "ok")
     return reading, "ok"
+
+
+def _fetch_uncached(locality: str, es_client):
+    """The cache miss path. Caller must hold this locality's fetch lock."""
+    cpcb_reading = _fetch_cpcb(locality)
+    if cpcb_reading is not None and not _wants_second_opinion(cpcb_reading):
+        return _serve(locality, cpcb_reading, es_client)
+
+    token = config.waqi_token()
+    feed = FEED_MAP.get(locality, CITY_FEED)
+    attempted = bool(token and feed)
+
+    waqi_reading = None
+    if attempted:
+        try:
+            waqi_reading = _fetch_feed(feed, token)
+        except Exception:
+            waqi_reading = None
+        # A feed that answers for somewhere else is not this locality's air.
+        # The previous version had no such check and presented the Anand
+        # Vihar, Delhi station as Noida's reading. There is also no city-feed
+        # retry any more: borrowing another station whenever one 404s is the
+        # same mislabelling by a slower route, and this check would reject its
+        # result anyway.
+        if waqi_reading is not None and not _corroborates(locality,
+                                                          waqi_reading["city"]):
+            waqi_reading = None
+
+    winner = _choose(cpcb_reading, waqi_reading)
+    if winner is None:
+        result = (_fallback(locality), "fallback")
+        if attempted:
+            # Cached on the shorter TTL: a station that is down stays down for
+            # a while, and hammering it once per render is how a slow upstream
+            # becomes a slow site. Not cached when nothing was even asked --
+            # there is no upstream state to remember.
+            _cache_put(locality, *result)
+        return result
+    return _serve(locality, winner, es_client)
 
 
 if __name__ == "__main__":

@@ -671,3 +671,137 @@ def test_a_reading_with_no_source_claims_neither(monkeypatch):
     assert reading["source"] is None
     from saafsaans.services import es
     assert "source" not in es.READING_FIELDS
+
+
+# ------------------------------------------------------- choosing one source
+#
+# The rule and the prohibition. The two sources do not publish the same
+# quantity (docs/decisions/0005-averaging-window.md: CPCB's avg_value is a
+# rolling 24-hour mean, WAQI's iaqi a sub-index of the latest hour), so a
+# reading must come from ONE of them, whole. Every property below that does not
+# depend on the policy is asserted under BOTH settings of the flag.
+FLAGS = [False, True]
+
+
+def _waqi_pair(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
+    class Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            iaqi = {}
+            if pm25 is not None:
+                iaqi["pm25"] = {"v": pm25}
+            if pm10 is not None:
+                iaqi["pm10"] = {"v": pm10}
+            return {"status": "ok", "data": {
+                "aqi": 199, "city": {"name": station}, "iaqi": iaqi,
+                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
+
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
+
+
+@pytest.mark.parametrize("flag", FLAGS)
+def test_no_reading_ever_mixes_the_two_sources(feed, monkeypatch, flag):
+    """The prohibition, under both policies.
+
+    The measured Wazirpur shape: CPCB has PM10 only, WAQI has both. Whatever
+    is served, every field of it came from ONE candidate -- no borrowing a
+    PM2.5 from the other source to fill the gap.
+    """
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", flag)
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    _waqi_pair(monkeypatch)
+    reading, status = waqi.get_aqi("Wazirpur")
+    assert status == "ok"
+
+    from_cpcb = (129.0, None)
+    got = (reading["pm10"], reading["pm25"])
+    if reading["source"] == "cpcb":
+        assert got == from_cpcb
+        assert reading["feed_aqi"] is None
+    else:
+        assert reading["source"] == "waqi"
+        assert reading["pm25"] is not None and reading["pm10"] is not None
+        assert reading["obs_time"] == "2026-07-21T17:00:00+05:30"
+
+
+def test_the_flag_off_keeps_the_cpcb_single_particulate_reading(feed, monkeypatch):
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", False)
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    _waqi_pair(monkeypatch)
+    reading, _status = waqi.get_aqi("Wazirpur")
+    assert reading["source"] == "cpcb"
+    assert reading["pm10"] == 129.0 and reading["pm25"] is None
+
+
+def test_the_flag_on_takes_waqi_whole_when_it_has_both(feed, monkeypatch):
+    """The mirror. Implemented and tested even though it ships off, so the
+    branch cannot rot into something that has never run."""
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", True)
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    _waqi_pair(monkeypatch)
+    reading, _status = waqi.get_aqi("Wazirpur")
+    assert reading["source"] == "waqi"
+    assert reading["pm25"] is not None and reading["pm10"] is not None
+
+
+@pytest.mark.parametrize("flag", FLAGS)
+def test_a_partial_cpcb_reading_survives_when_there_is_no_waqi_token(feed, monkeypatch, flag):
+    """Losing a real partial reading would be worse than the defect being
+    fixed. Ashok Vihar and Nehru Nagar have no WAQI station at all."""
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", flag)
+    monkeypatch.setattr(config, "waqi_token", lambda: "")
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    reading, status = waqi.get_aqi("Wazirpur")
+    assert status == "ok" and reading["source"] == "cpcb"
+    assert reading["pm10"] == 129.0
+
+
+@pytest.mark.parametrize("flag", FLAGS)
+def test_a_partial_cpcb_reading_survives_a_feed_404(feed, monkeypatch, flag):
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", flag)
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+
+    class Missing:
+        status_code = 404
+
+        @staticmethod
+        def json():
+            return {}
+
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Missing())
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    reading, status = waqi.get_aqi("Wazirpur")
+    assert status == "ok" and reading["source"] == "cpcb"
+
+
+@pytest.mark.parametrize("flag", FLAGS)
+def test_a_partial_cpcb_reading_survives_a_feed_that_answers_for_elsewhere(
+        feed, monkeypatch, flag):
+    """_corroborates rejects it, and the partial reading must not go with it."""
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", flag)
+    feed(rows("Wazirpur, Delhi - DPCC", pm10=129))
+    _waqi_pair(monkeypatch, station="Anand Vihar, Delhi")
+    reading, status = waqi.get_aqi("Wazirpur")
+    assert status == "ok" and reading["source"] == "cpcb"
+
+
+@pytest.mark.parametrize("flag", FLAGS)
+def test_a_two_particulate_cpcb_reading_never_triggers_a_waqi_call(feed, monkeypatch, flag):
+    monkeypatch.setattr(waqi, "PREFER_TWO_PARTICULATES", flag)
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(waqi.requests, "get",
+                        lambda *a, **k: pytest.fail("WAQI was called"))
+    feed(rows("ITO, Delhi - CPCB", pm25=53, pm10=90))
+    reading, _status = waqi.get_aqi("ITO")
+    assert reading["source"] == "cpcb"
+
+
+def test_the_flag_ships_off():
+    """Deliberate, and argued in docs/decisions/0005-averaging-window.md: the
+    two sources publish different quantities, so preferring WAQI's pair over
+    CPCB's single particulate swaps the quantity the CPCB scale is defined on
+    for one it is not. Flipping this is a decision, not a tidy-up."""
+    assert waqi.PREFER_TWO_PARTICULATES is False
