@@ -734,8 +734,14 @@ HI: dict = {
     # stand-in figures, and read "21 स्टेशन · बीच का (मध्यक) AQI 358" while
     # holding nothing at all.
     "city": {
-        "summary": "{total} में से {n} स्टेशन की रीडिंग हमारे पास है · पेज लोड होने का समय "
-                   "{now} · बीच का (मध्यक) AQI {median} · सबसे ख़राब पहले",
+        # {n} in `summary` is the number reporting NOW, and the median is
+        # taken across those alone -- the sentence says so, because a median
+        # over one stale figure was being read as the city's.
+        "summary": "{total} में से {n} स्टेशन अभी रीडिंग भेज रहे हैं · पेज लोड होने का समय "
+                   "{now} · उन {n} का बीच का (मध्यक) AQI {median} · सबसे ख़राब पहले",
+        "summary_stale": "अभी कोई स्टेशन रीडिंग नहीं भेज रहा · {total} में से {n} स्टेशन की "
+                         "पहले की रीडिंग हमारे पास है · पेज लोड होने का समय {now} "
+                         "· सबसे ख़राब पहले",
         "summary_none": "{total} में से किसी भी स्टेशन की रीडिंग अभी हमारे पास नहीं है "
                         "· पेज लोड होने का समय {now}",
     },

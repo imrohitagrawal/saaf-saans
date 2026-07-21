@@ -691,17 +691,24 @@ def city(request: Request):
         # is worth exactly as much as no row at all: the branch keys off the
         # VALUE, not off the row's existence.
         stored = row.get("aqi") if row else None
-        fresh = stored is not None and _is_fresh(row.get("ts"), hours=3)
         # Live first, because it is the measurement. Then what we stored last,
         # WITH ITS AGE, because a real reading from six hours ago is worth
         # something and the reader can price it once they know when it was.
         # A station we hold nothing for gets no number and no band; there is
         # nothing to stand in for it with.
         aqi = live_aqi if live_aqi is not None else stored
+        # A stored row is NEVER "live". It used to become live when it was
+        # under three hours old, which meant a tile could carry the band word,
+        # the severity colour, no tag and no age off a row measured 2h50m ago --
+        # while /?locality=<same station> said NO READING for it in the same
+        # minute, because the home page has no such three-hour grace. Two pages
+        # of one app disagreeing about whether a measurement exists is the
+        # defect this whole surface was rewritten to remove. Live means the feed
+        # answered just now; everything else is dated.
         if live_aqi is not None:
             source = "live"
         elif stored is not None:
-            source = "live" if fresh else "cached"
+            source = "cached"
         else:
             source = "none"
         label, _c, _h, slug = normalize.band_for(aqi)
@@ -728,16 +735,27 @@ def city(request: Request):
         # Worst first: the station in trouble is the one you scan for.
         return sorted(rows, key=lambda s: (s["aqi"] is None, -(s["aqi"] or 0)))
 
+    # Two different counts, because they answer two different questions. `held`
+    # is how many stations we can show a number for at all -- a stored figure
+    # from this morning is still a number we hold. `live_n` is how many are
+    # reporting NOW, and the median is computed over those alone: a median is a
+    # claim about the city's air at this moment, and one stale figure is not a
+    # central tendency. The page used to print "median AQI 401" off a single
+    # stored row, one line above twenty tiles saying NO READING.
+    live_rows = [s for s in stations if s["source"] == "live"]
+    held = sum(1 for s in stations if s["aqi"] is not None)
+    live_n = len(live_rows)
+    live_median = pr.median_aqi(live_rows)
+
     trend = metrics.aqi_trend(client, locality=selected, hours=24)
     ctx = base_context(request, persona, theme, lang, "city")
     ctx.update({
         "delhi": group("Delhi"), "ncr": group("NCR"),
-        "count": sum(1 for s in stations if s["aqi"] is not None),
+        "count": held,
         "total": len(stations),
-        "median": pr.median_aqi(stations),
-        "summary": pr.city_summary(
-            sum(1 for s in stations if s["aqi"] is not None), len(stations),
-            pr.median_aqi(stations), _fmt_stamp(lang), lang=lang),
+        "median": live_median,
+        "summary": pr.city_summary(held, live_n, len(stations), live_median,
+                                   _fmt_stamp(lang), lang=lang),
         "now": _fmt_stamp(lang),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
@@ -1061,19 +1079,6 @@ def _fmt_date(iso, lang: str = "en") -> str:
     dt = dt.astimezone(IST)
     # _month_abbr, not strftime("%b"), which hands a Hindi page "Jun".
     return f"{dt.day} {_month_abbr(lang, dt.month)}"
-
-
-def _is_fresh(ts, hours: int = 3) -> bool:
-    """True when a stored reading is recent enough to call live."""
-    if not ts:
-        return False
-    try:
-        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return False
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - dt) <= timedelta(hours=hours)
 
 
 def _displayable_sessions(request: Request) -> set:

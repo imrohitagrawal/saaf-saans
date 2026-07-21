@@ -199,3 +199,60 @@ def test_a_live_tile_does_keep_its_band(monkeypatch, lang):
         band = normalize.band_for(aqi)
         assert i18n.t(lang, "band_label", band[0], band[0]) in tile, (lang, loc)
         assert "band-%s" % band[3] in tile, (lang, loc, tile)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_recent_stored_row_is_not_promoted_to_live(monkeypatch, lang):
+    """The two pages must not disagree about whether a measurement exists.
+
+    /city used to call a stored row "live" when it was under three hours old,
+    and the home page had no such grace. So a row measured 2h50m ago rendered on
+    /city as an untagged, undated tile with the band word and the severity
+    colour ramp, while /?locality=<the same station> in the same minute said
+    NO READING and printed nothing. The three-hour window is gone: live means
+    the feed answered now.
+
+    Deliberately a row TWO HOURS AND FIFTY MINUTES old -- inside the old
+    freshness window. The existing coverage all used nine-hour rows, which is
+    why this shipped.
+    """
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import normalize
+    from saafsaans.web import main as web_main
+    _live(monkeypatch, only=set())            # the feed answers for nobody
+    recent = (datetime.now(timezone.utc) - timedelta(hours=2, minutes=50)).isoformat()
+    monkeypatch.setattr(web_main.metrics, "station_grid",
+                        lambda client, locs: [{"station": "ITO", "aqi": 401,
+                                               "ts": recent}])
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        body = c.get("/city", params={**PERSONA, "lang": lang}).text
+    tile = _rows(body)["ITO"]
+
+    assert _tile_aqi(tile) == "401", tile                 # the fact survives
+    assert i18n.t(lang, "ui", "tag_cached", "CACHED") in tile, tile
+    for band in ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"):
+        assert i18n.t(lang, "band_label", band, band) not in tile, (lang, band, tile)
+    assert "band-%s" % normalize.band_for(401)[3] not in tile, tile
+
+    # ...and no median, because nothing is reporting now. One stored figure is
+    # not the city's central tendency.
+    sub = re.search(r'class="page-sub">([^<]*)<', body).group(1)
+    assert "401" not in sub, sub
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_median_is_printed_when_stations_are_reporting(monkeypatch, lang):
+    """The mirror. Suppressing the median unconditionally would pass the test
+    above, and a page that never states the city's air is not the goal. When
+    stations ARE reporting, the median is written and the sentence names how
+    many stations it was taken across."""
+    import statistics
+    _live(monkeypatch)                        # every locality answers live
+    with TestClient(app) as c:
+        body = c.get("/city", params={**PERSONA, "lang": lang}).text
+    sub = re.search(r'class="page-sub">([^<]*)<', body).group(1)
+    aqis = sorted(int(_tile_aqi(t)) for t in _rows(body).values())
+    expected = int(statistics.median(aqis))
+    assert str(expected) in sub, (lang, expected, sub)
+    assert str(len(waqi.LOCALITIES)) in sub, (lang, sub)

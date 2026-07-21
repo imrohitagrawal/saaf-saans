@@ -356,23 +356,37 @@ def scale_position(aqi) -> float:
 
 
 # --- City ------------------------------------------------------------------
-def city_summary(count: int, total: int, median, now: str, lang: str = "en") -> str:
+def city_summary(held: int, live_n: int, total: int, median, now: str,
+                 lang: str = "en") -> str:
     """The City Pulse subtitle, as one sentence per language.
 
-    Two forms rather than one with an optional clause. The page used to print
+    Three forms rather than one with optional clauses. The page used to print
     "21 stations - median AQI 358" while holding zero readings, because both
-    numbers were computed over stand-in figures. The count now names the
-    stations that actually answered against the total, and when none did there
-    is no median clause to write.
+    numbers were computed over stand-in figures. It then printed "median AQI
+    401" off a single stored row, one line above twenty tiles saying NO
+    READING -- a stale figure from one station presented as the city's central
+    tendency.
+
+    So the median is only ever written when stations are reporting NOW, it is
+    computed over those stations alone, and the sentence names how many it was
+    taken across. ``held`` (a number we can show at all, live or stored) and
+    ``live_n`` (reporting now) are separate arguments because they answer
+    different questions and were previously conflated into one.
     """
-    if median is None:
+    if held == 0:
         return _fmt(lang, "city", "summary_none",
                     "We hold a reading for none of the {total} stations "
                     "· page loaded {now}", total=total, now=now)
+    if live_n == 0 or median is None:
+        return _fmt(lang, "city", "summary_stale",
+                    "No station is reporting right now · we hold an earlier "
+                    "reading for {n} of the {total} stations · page loaded "
+                    "{now} · worst first",
+                    n=held, total=total, now=now)
     return _fmt(lang, "city", "summary",
-                "We hold a reading for {n} of {total} stations · page loaded {now} "
-                "· median AQI {median} · worst first",
-                n=count, total=total, median=median, now=now)
+                "{n} of the {total} stations are reporting now · page loaded "
+                "{now} · median AQI {median} across those {n} · worst first",
+                n=live_n, total=total, median=median, now=now)
 
 
 def median_aqi(stations):

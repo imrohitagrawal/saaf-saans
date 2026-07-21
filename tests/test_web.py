@@ -255,12 +255,21 @@ def test_a_page_of_stations_with_no_readings_claims_no_median(monkeypatch):
         assert str(len(waqi.LOCALITIES)) in sub, (lang, sub)  # the total is still stated
     # And with SOME readings, the count is the number that have one, not the
     # number of stations on the page.
+    #
+    # This half used to assert "median AQI 160" over two STORED rows. It no
+    # longer holds and the change is deliberate: a median is a claim about the
+    # city's air now, and these rows are records of an earlier measurement, so
+    # no median is written at all. The count of what we hold survives, because
+    # that claim is still true. The median's own mirror -- that it IS printed
+    # when stations are actually reporting -- lives in test_city_live.py, so
+    # this narrowing cannot become a silent deletion.
     stored = [{"station": "Rohini", "aqi": 120, "ts": _now_iso()},
               {"station": "ITO", "aqi": 200, "ts": _now_iso()}]
     body = _city_body(monkeypatch, stored)
     sub = re.search(r'class="page-sub">([^<]*)<', body).group(1)
-    assert "2 of %d" % len(waqi.LOCALITIES) in sub, sub
-    assert "median AQI 160" in sub, sub
+    assert "2 of the %d" % len(waqi.LOCALITIES) in sub, sub
+    assert "median" not in sub, sub
+    assert "160" not in sub, sub
 
 
 def test_a_stored_row_with_no_aqi_gets_no_number_either(monkeypatch):
@@ -292,11 +301,21 @@ def test_the_guide_labels_every_age_in_the_rate_table():
             assert row["band"], (lang, row)
 
 
-def test_fresh_stored_reading_carries_no_tag(monkeypatch):
+def test_a_recent_stored_reading_is_still_tagged_cached(monkeypatch):
+    """INVERTED. This was `test_fresh_stored_reading_carries_no_tag`, and it
+    asserted that a stored row under three hours old renders with NO tag.
+
+    That three-hour grace was /city's alone. The home page has none, so the
+    same stored row rendered as an untagged, undated, colour-ramped "Severe"
+    tile on /city while /?locality=<station> said NO READING for it in the same
+    minute. A stored row is a record of an earlier measurement whatever its age;
+    only the feed answering now is live. The test followed the fix.
+    """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 120, "ts": now}])
-    assert "tag" not in rows["Rohini"]
+    assert "CACHED" in rows["Rohini"], rows["Rohini"]
+    assert "120" in rows["Rohini"], rows["Rohini"]
 
 
 def test_system_segments_render_their_own_content():
@@ -447,16 +466,13 @@ def test_security_empty_state_says_how_to_produce_data():
 
 
 # --- Honesty of derived numbers ---------------------------------------------
-def test_a_stored_reading_is_only_live_while_it_is_recent():
-    """A week-old document must not be presented as the air outside now."""
-    from datetime import datetime, timedelta, timezone
-    from saafsaans.web.main import _is_fresh
-    now = datetime.now(timezone.utc)
-    assert _is_fresh(now.isoformat())
-    assert _is_fresh((now - timedelta(hours=2)).isoformat())
-    assert not _is_fresh((now - timedelta(hours=9)).isoformat())
-    assert not _is_fresh((now - timedelta(days=7)).isoformat())
-    assert not _is_fresh(None) and not _is_fresh("not-a-date")
+# `test_a_stored_reading_is_only_live_while_it_is_recent` was deleted with
+# `main._is_fresh`, its only subject. The three-hour grace it described is the
+# behaviour that let /city call a stored row "live" while / said NO READING for
+# the same station, so the function has no callers left. A unit test of a
+# function no code path reaches costs maintenance and guards nothing; the
+# behaviour that replaced it is covered end to end by
+# test_city_live.test_a_recent_stored_row_is_not_promoted_to_live.
 
 
 def test_questions_answered_excludes_blocked_and_errored_turns():
