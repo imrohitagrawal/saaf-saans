@@ -539,6 +539,25 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
 :lang(hi) .answer h3,
 :lang(hi) .station .tag,
 :lang(hi) .q .mark { font-size: 12.5px; line-height: 1.6; }
+/* The controls. These were not on the floor's original list, which is a list of
+   class names and so could not notice its own omissions: `.seg a` is every
+   toggle in the header, on every page of the site, and it was the same 11px
+   chosen for Latin small-caps. `:lang(hi) .seg a` and `:lang(hi) .pill-btn`
+   already existed -- one setting a face, the other an optical padding -- and
+   neither had ever been given a size.
+
+   The geometry holds. Each of these is centred by `align-items: center` on a
+   line box, not by its own padding, so the box grows by 1.5px and the label
+   stays centred in it; the optical compensation below moves padding between the
+   two edges and is unaffected by the size. The touch floor is measured from the
+   font-size, so it rises with it rather than being eaten by it. */
+:lang(hi) .seg a,
+:lang(hi) .seg button,
+:lang(hi) .pill-btn,
+:lang(hi) .kpi .l,
+:lang(hi) .when,
+:lang(hi) .spark-x,
+:lang(hi) .col .d,
 :lang(hi) .driver,
 :lang(hi) .caption,
 :lang(hi) .prov-btn,

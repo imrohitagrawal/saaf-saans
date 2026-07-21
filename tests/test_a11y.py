@@ -85,10 +85,19 @@ def _rules(text):
 
 @pytest.fixture(scope="module")
 def sheet():
+    """The stylesheet, split into the contexts a browser can be in.
+
+    `media` holds EVERY `@media` block by its query, not the two the older
+    assertions happened to name. Reading only "top", "(pointer: fine)" and
+    "(max-width: 560px)" meant a rule written in any other block was invisible
+    to every test here -- which is exactly how `(pointer: coarse)` came to hold
+    the only Devanagari padding on the site with nothing measuring it.
+    """
     top, media = _split_media(_strip_comments(_css()))
     return {"top": _rules(top),
             "fine": _rules(media.get("(pointer: fine)", "")),
             "narrow": _rules(media.get("(max-width: 560px)", "")),
+            "media": {query: _rules(body) for query, body in media.items()},
             "raw": _css()}
 
 
@@ -143,17 +152,23 @@ class _Tree(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.root = {"tag": "#root", "attrs": {}, "kids": [], "parent": None}
+        self.root = {"tag": "#root", "attrs": {}, "kids": [], "parent": None, "text": ""}
         self.stack = [self.root]
 
     def handle_starttag(self, tag, attrs):
-        node = {"tag": tag, "attrs": dict(attrs), "kids": [], "parent": self.stack[-1]}
+        node = {"tag": tag, "attrs": dict(attrs), "kids": [], "parent": self.stack[-1],
+                "text": ""}
         self.stack[-1]["kids"].append(node)
         if tag not in self.VOID:
             self.stack.append(node)
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs if tag in self.VOID else attrs)
+
+    def handle_data(self, data):
+        """Text is attributed to the element that directly contains it, so a
+        size can be resolved for the box the glyphs are actually painted in."""
+        self.stack[-1]["text"] += data
 
     def handle_endtag(self, tag):
         for depth in range(len(self.stack) - 1, 0, -1):
@@ -637,3 +652,239 @@ def test_hindi_never_renders_a_caveat_below_the_devanagari_floor(sheet):
     # The hero caveat is the one set below that floor in Latin, so it is the one
     # that needs its own Hindi rule; the old `.note` never had one.
     assert floors.get(":lang(hi) .hero-window .caveat", 0) > floors[".hero-window .caveat"]
+
+
+# --- 6. Devanagari never renders below the floor ----------------------------
+# The three defects this section exists for were all invisible to the helpers
+# above, and for the same reason: those helpers read the stylesheet as a flat
+# selector -> declarations map, so they can say what `.seg a` declares but never
+# what a given element on a given page ends up at. The size a reader actually
+# gets is the product of the cascade plus inheritance plus any inline style, and
+# nothing here measured that. What follows resolves it.
+
+DEVANAGARI = re.compile(r"[ऀ-ॿ]")
+
+# Devanagari carries its distinguishing detail above and below the line -- the
+# matras and the shirorekha -- so at a given font-size the glyph body is smaller
+# than Latin's. app.css:481 records where they stop resolving (about 12px); the
+# floor the Hindi block actually applies to its labels is 12.5px, and that is
+# the number asserted, because a floor the stylesheet does not keep is not one.
+DEVANAGARI_FLOOR = 12.5
+
+_SIMPLE = re.compile(r"""
+    (?P<tag>^[a-zA-Z][\w-]*)
+  | \.(?P<cls>[\w-]+)
+  | \#(?P<id>[\w-]+)
+  | \[(?P<attr>[\w-]+)(?:\s*=\s*"?(?P<val>[^"\]]*)"?)?\]
+  | :lang\((?P<lang>[\w-]+)\)
+  | :not\((?P<negated>[^)]*)\)
+  | ::?(?P<pseudo>[\w-]+)(?:\([^)]*\))?
+""", re.X)
+
+# Pseudo-classes describing a state no static render is in. A rule carrying one
+# is not part of the resting page and must not be resolved onto it.
+_STATEFUL = {"hover", "focus", "focus-visible", "active", "visited", "before", "after"}
+
+
+def _parse_compound(text):
+    """One compound selector -> its simple parts, or None if unparseable."""
+    parts, i = [], 0
+    while i < len(text):
+        found = _SIMPLE.match(text, i)
+        if not found or found.end() == i:
+            return None
+        parts.append(found)
+        i = found.end()
+    return parts
+
+
+def _computed_lang(node):
+    while node is not None:
+        if node["attrs"].get("lang"):
+            return node["attrs"]["lang"]
+        node = node["parent"]
+    return None
+
+
+def _matches_compound(node, parts):
+    for found in parts:
+        group = found.groupdict()
+        if group["tag"] and node["tag"] != group["tag"]:
+            return False
+        if group["cls"] and group["cls"] not in _classes(node):
+            return False
+        if group["id"] and node["attrs"].get("id") != group["id"]:
+            return False
+        if group["attr"]:
+            value = node["attrs"].get(group["attr"])
+            if value is None or (group["val"] is not None and value != group["val"]):
+                return False
+        if group["lang"] and (_computed_lang(node) or "").split("-")[0] != group["lang"]:
+            return False
+        if group["negated"] is not None:
+            inner = _parse_compound(group["negated"].strip())
+            if inner and _matches_compound(node, inner):
+                return False
+        if group["pseudo"]:
+            if group["pseudo"] in _STATEFUL:
+                return False
+            if group["pseudo"] == "first-child":
+                siblings = node["parent"]["kids"] if node["parent"] else []
+                if not siblings or siblings[0] is not node:
+                    return False
+    return True
+
+
+def _specificity(selector):
+    ids = len(re.findall(r"#[\w-]+", selector))
+    classes = (len(re.findall(r"\.[\w-]+", selector))
+               + len(re.findall(r"\[[^\]]*\]", selector))
+               + len(re.findall(r":(?!:)(?!not\()[\w-]+", selector)))
+    tags = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][\w-]*)", selector))
+    return (ids, classes, tags)
+
+
+def _matches(node, selector):
+    """Descendant and child combinators only -- this stylesheet uses no other,
+    and a child combinator is treated as a descendant, which can only ever make
+    the resolver claim a rule applies when it does not. That direction is safe
+    here: it would hide a too-small size, never invent one."""
+    sequence = [part for part in re.split(r"\s+", selector.strip())
+                if part not in (">", "+", "~")]
+    compounds = [_parse_compound(part) for part in sequence]
+    if any(compound is None for compound in compounds):
+        return False
+    if not _matches_compound(node, compounds[-1]):
+        return False
+    ancestor = node["parent"]
+    for compound in reversed(compounds[:-1]):
+        while ancestor is not None and not _matches_compound(ancestor, compound):
+            ancestor = ancestor["parent"]
+        if ancestor is None:
+            return False
+        ancestor = ancestor["parent"]
+    return True
+
+
+def _font_size_value(value):
+    """px, or the smallest term of a clamp() -- the size at the narrow end."""
+    value = (value or "").strip()
+    if value.startswith("clamp("):
+        value = value[len("clamp("):].split(",")[0]
+    return _px(value)
+
+
+def _font_size_rules(rules):
+    """Every font-size declaration as (specificity, source order, selector, px)."""
+    flat = []
+    for order, (selector, decls) in enumerate(rules):
+        size = _font_size_value(decls.get("font-size", ""))
+        if size is None:
+            continue
+        for part in [s.strip() for s in selector.split(",") if s.strip()]:
+            flat.append((_specificity(part), order, part, size))
+    return flat
+
+
+def _effective_font_size(node, flat, cache):
+    """(px, what set it) for one element, by cascade then inheritance."""
+    if id(node) in cache:
+        return cache[id(node)]
+    inline = re.search(r"font-size:\s*([\d.]+)px", node["attrs"].get("style", ""))
+    if inline:
+        result = (float(inline.group(1)), "inline style")
+    else:
+        winner = None
+        for spec, order, selector, size in flat:
+            if _matches(node, selector) and (winner is None or (spec, order) > winner[0]):
+                winner = ((spec, order), size, selector)
+        if winner:
+            result = (winner[1], winner[2])
+        elif node["parent"] is None:
+            result = (BODY_FONT_SIZE, "body")
+        else:
+            result = _effective_font_size(node["parent"], flat, cache)
+    cache[id(node)] = result
+    return result
+
+
+@pytest.fixture(scope="module")
+def hindi_pages():
+    """The same disclosure states as `pages`, served in Hindi."""
+    persona = {**PERSONA, "lang": "hi"}
+    rendered = {}
+    with TestClient(app) as client:
+        client.post("/ask", params=persona,
+                    data={"question": "क्या मैं "
+                                      "दौड़ सकता "
+                                      "हूँ?"},
+                    follow_redirects=True)
+        views = {
+            "today": ("/", persona),
+            "today-persona-open": ("/", {**persona, "edit": "1"}),
+            "today-term-open": ("/", {**persona, "term": "PM2.5"}),
+            "city": ("/city", persona),
+            "system": ("/system", persona),
+            "system-security": ("/system", {**persona, "view": "security"}),
+            "guide": ("/guide", persona),
+        }
+        for name, (path, params) in views.items():
+            rendered[name] = client.get(path, params=params).text
+        turn = re.search(r'id="turn-([^"]+)"', rendered["today"])
+        if turn:
+            rendered["today-prov-open"] = client.get(
+                "/", params={**persona, "prov": turn.group(1)}).text
+
+    trees = {}
+    for name, html in rendered.items():
+        parser = _Tree()
+        parser.feed(html)
+        trees[name] = parser.root
+    return trees
+
+
+def _devanagari_sizes(sheet, hindi_pages, context):
+    """Every element on a Hindi page whose own text carries Devanagari, with the
+    font-size it resolves to in the given media context."""
+    flat = _font_size_rules(sheet["top"] + sheet["media"].get(context, []))
+    measured = []
+    for name, root in hindi_pages.items():
+        cache = {}
+        for node in _walk(root):
+            if not DEVANAGARI.search(node["text"]):
+                continue
+            size, why = _effective_font_size(node, flat, cache)
+            measured.append((size, why, name, " ".join(node["text"].split())[:40]))
+    return measured
+
+
+def test_no_devanagari_on_any_page_renders_below_the_floor(sheet, hindi_pages):
+    """The one test that would have caught the toggles and the trend header.
+
+    The Hindi block declares a size floor and then lists the classes it thought
+    of; five that carry translated Devanagari on shipped pages were not on the
+    list, and one more was set inline where no `:lang(hi)` rule can reach it. A
+    list of class names cannot notice its own omissions, so this walks the
+    rendered page instead and resolves what each element actually gets.
+    """
+    small = []
+    for context in ["top"] + sorted(sheet["media"]):
+        for size, why, page, text in _devanagari_sizes(sheet, hindi_pages, context):
+            if why == "inline style":
+                continue            # owned by the assertion below, not this one
+            if size + 0.001 < DEVANAGARI_FLOOR:
+                small.append(f"{context} {page}: {size}px via {why!r} -- {text!r}")
+    assert not small, (
+        "Devanagari below the %spx floor:\n  " % DEVANAGARI_FLOOR + "\n  ".join(sorted(set(small))))
+
+
+def test_the_resolver_can_see_a_size_the_flat_selector_map_cannot(sheet, hindi_pages):
+    """A guard on the guard. If the resolver silently stopped matching, the test
+    above would pass by measuring nothing -- so prove it resolves real elements,
+    and that at least one of them gets its size from a descendant selector that
+    `_decls` (which matches whole selectors only) could never have found."""
+    measured = _devanagari_sizes(sheet, hindi_pages, "top")
+    assert len(measured) > 100, f"only {len(measured)} Devanagari elements resolved"
+    assert any(" " in why for _, why, _, _ in measured), (
+        "no element resolved through a descendant selector -- the resolver is matching "
+        "single classes only and proves less than it appears to")
