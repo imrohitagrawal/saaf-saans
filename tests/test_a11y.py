@@ -993,3 +993,48 @@ def test_the_band_dot_stays_above_the_non_text_floor_in_both_themes(sheet):
         for band in BANDS:
             ratio = _ratio(_token(css, block, f"--{band}"), surface)
             assert ratio >= AA_NON_TEXT, f"{theme} .band-{band} dot: {ratio:.2f}:1"
+
+
+# --- 8. Every media block is measured ---------------------------------------
+# Each block carries the obligation named here, and the set is exact: a new
+# `@media` block fails this test until somebody writes down what holds inside it.
+MEDIA_OBLIGATIONS = {
+    "(max-width: 560px)": "narrower padding only; sizes unchanged, so section 6 applies",
+    "(pointer: fine)": "shrinks a target back to the designed density (section 3)",
+    "(pointer: coarse)": "raises padding; never lowers it below the top-level value",
+    "(prefers-reduced-motion: reduce)": "kills motion and declares nothing else",
+}
+
+
+def test_every_media_block_states_what_holds_inside_it(sheet):
+    assert set(sheet["media"]) == set(MEDIA_OBLIGATIONS), (
+        "an @media block no assertion covers:\n"
+        f"  unmeasured: {sorted(set(sheet['media']) - set(MEDIA_OBLIGATIONS))}\n"
+        f"  gone:       {sorted(set(MEDIA_OBLIGATIONS) - set(sheet['media']))}")
+
+
+def test_the_reduced_motion_block_declares_nothing_but_motion(sheet):
+    """It is the one block allowed `!important`. Anything else smuggled in there
+    would outrank the whole stylesheet for a reader who asked for less motion."""
+    for selector, decls in sheet["media"]["(prefers-reduced-motion: reduce)"]:
+        assert set(decls) <= {"transition", "animation"}, (
+            f"{selector} declares {sorted(decls)} inside the reduced-motion block")
+
+
+def test_the_coarse_pointer_block_only_ever_raises_a_target(sheet):
+    """The mirror of `test_pointer_fine_only_ever_reduces_a_target`, for the
+    block that block's own comment points at. It had no assertion at all."""
+    for selector, decls in sheet["media"]["(pointer: coarse)"]:
+        if not any(key.startswith("padding") for key in decls):
+            continue
+        for part in [s.strip() for s in selector.split(",")]:
+            top = _decls(sheet["top"], part)
+            base = (_edges(top.get("padding"), "y")
+                    + (_px(top.get("padding-top", "")) or 0.0)
+                    + (_px(top.get("padding-bottom", "")) or 0.0))
+            coarse = (_edges(decls.get("padding"), "y")
+                      + (_px(decls.get("padding-top", "")) or 0.0)
+                      + (_px(decls.get("padding-bottom", "")) or 0.0))
+            assert coarse >= base, (
+                f"@media (pointer: coarse) gives {part} {coarse}px of vertical padding "
+                f"against {base}px at top level -- coarse is the floor, not the ceiling")
