@@ -1019,10 +1019,20 @@ def test_persona_options_submit_english_whatever_the_label_says(client, hindi):
     assert client.get("/", params={**PERSONA, "lang": "hi"}).status_code == 200
 
 
-def test_the_provenance_ground_line_is_not_raw_english(client, hindi):
+def test_the_provenance_ground_line_is_not_raw_english(client, hindi, live_feed):
     """The "Measured at the time" block was assembled from English literals in
     the template, so a Hindi reader opening the provenance panel met a line of
-    English under a Hindi heading."""
+    English under a Hindi heading.
+
+    Moved onto ``live_feed``. It used to run under the credential-blanked
+    client, i.e. over a FALLBACK reading that carries no feed figure at all,
+    and asserted the "WAQI's own figure" label was printed anyway. That
+    assertion pinned the false claim: the panel printed WAQI's label and a dash
+    on a turn WAQI never answered. The claim is now branched on
+    ``reading["source"]``, so the premise has to be a WAQI-sourced reading --
+    which is what this fixture supplies. Every assertion below is unchanged;
+    only the premise moved. The sibling test asserts the fallback page.
+    """
     hindi("ui", "prov_feed_figure", "MARKER-FEED")
     hindi("ui", "prov_our_scale", "MARKER-SCALE")
     client.post("/ask", params={**PERSONA, "lang": "hi"},
@@ -1032,6 +1042,24 @@ def test_the_provenance_ground_line_is_not_raw_english(client, hindi):
     assert "WAQI&#39;s own figure" not in html
     # The figures themselves are not translatable text and must survive.
     assert "AQI " in html and "µg/m³" in html
+
+
+def test_a_turn_with_no_reading_claims_no_source_at_all(client, hindi):
+    """The sibling, and the state the public deployment actually runs in.
+
+    With no credentials there is no reading, so the panel must name neither
+    source. A two-way `waqi`-or-else-CPCB branch would label this page -- the
+    default one -- as read from CPCB.
+    """
+    hindi("ui", "prov_feed_figure", "MARKER-FEED")
+    hindi("ui", "prov_source_cpcb_before", "MARKER-CPCB")
+    client.post("/ask", params={**PERSONA, "lang": "hi"},
+                data={"question": "Can I go out?"})
+    html = client.get("/", params={**PERSONA, "lang": "hi", "prov": "0"}).text
+    assert "MARKER-FEED" not in html
+    assert "MARKER-CPCB" not in html
+    from saafsaans.services import cpcb
+    assert cpcb.SOURCE_HOST not in html
 
 
 def test_the_page_load_stamp_does_not_hand_a_hindi_page_an_english_month(client, hindi):

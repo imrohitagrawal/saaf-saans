@@ -466,6 +466,10 @@ HI: dict = {
         "prov_dominant": "मुख्य प्रदूषक",
         "prov_feed_figure": "WAQI का अपना आँकड़ा",
         "prov_feed_scale": "(US EPA पैमाना)",
+        # Printed around <span lang="en">data.gov.in</span>. The domain stays
+        # out of the string: it is an address, not copy.
+        "prov_source_cpcb_before": "सीधे CPCB से लिया गया, प्रकाशित",
+        "prov_source_cpcb_after": "पर — किसी फ़ीड के ज़रिए नहीं",
         "prov_live": "लाइव रीडिंग",
         "prov_none": "कोई रीडिंग नहीं (फ़ीड ने जवाब नहीं दिया)",
         "prov_held": "सहेजी हुई रीडिंग (स्रोत ने जवाब नहीं दिया, इसलिए हमने पिछली रीडिंग रखी है)",

@@ -12,6 +12,8 @@ The identical block getting it right lower down is what makes this an oversight
 rather than a decision, and it is why this test asserts the two halves agree
 rather than merely asserting the string.
 """
+import html
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -166,3 +168,77 @@ def test_the_same_reading_unheld_is_described_as_live(monkeypatch, lang):
     assert i18n.t(lang, "ui", "prov_count_before_held", "1 held reading +") not in collapsed
     assert i18n.t(lang, "ui", "prov_measured", "Measured at the time") in expanded
     assert i18n.t(lang, "ui", "prov_live", "live reading") in expanded
+
+
+# ------------------------------------------------ the panel names its source
+#
+# Nothing else in the reading identifies which upstream answered: feed_aqi is
+# None on a CPCB reading AND on a WAQI station whose own headline figure was
+# "-". So the panel reads reading["source"], and each of the three values gets
+# its own assertion -- a two-way branch would label the no-reading page, the
+# state the public deployment runs in, as CPCB-sourced.
+def _sourced_feed(monkeypatch, source):
+    from saafsaans.services import waqi
+
+    def get_aqi(locality, es_client=None):
+        return waqi._reading(90.0, 160.0, station=locality, city="Delhi",
+                             stale=False, forecast=None,
+                             obs_time="2026-07-21T10:00:00+05:30",
+                             feed_aqi=210 if source == "waqi" else None,
+                             source=source), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_cpcb_reading_names_cpcb_and_not_the_waqi_figure(monkeypatch, lang):
+    from saafsaans.services import cpcb
+    _sourced_feed(monkeypatch, "cpcb")
+    with TestClient(app) as client:
+        _collapsed, expanded = _open_panel(client, lang)
+    # Jinja escapes the apostrophe in "WAQI's": Don&#39;t vs Don't has cost
+    # this suite a green test before.
+    expanded = html.unescape(expanded)
+    assert cpcb.SOURCE_HOST in expanded
+    assert i18n.t(lang, "ui", "prov_source_cpcb_before",
+                  "read from CPCB itself, published on") in expanded
+    assert i18n.t(lang, "ui", "prov_feed_figure", "WAQI's own figure") not in expanded
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_waqi_reading_names_the_feed_and_not_cpcbs_publication(monkeypatch, lang):
+    from saafsaans.services import cpcb
+    _sourced_feed(monkeypatch, "waqi")
+    with TestClient(app) as client:
+        _collapsed, expanded = _open_panel(client, lang)
+    # Jinja escapes the apostrophe in "WAQI's": Don&#39;t vs Don't has cost
+    # this suite a green test before.
+    expanded = html.unescape(expanded)
+    assert i18n.t(lang, "ui", "prov_feed_figure", "WAQI's own figure") in expanded
+    assert cpcb.SOURCE_HOST not in expanded
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_turn_stored_before_the_source_field_existed_still_renders(monkeypatch, lang):
+    """A reading rebuilt from Elasticsearch has no ``source`` key at all --
+    it is deliberately not indexed. The panel must claim neither source rather
+    than defaulting into one of them."""
+    from saafsaans.services import cpcb, waqi
+
+    def get_aqi(locality, es_client=None):
+        reading = waqi._reading(90.0, 160.0, station=locality, city="Delhi",
+                                stale=False, forecast=None,
+                                obs_time="2026-07-21T10:00:00+05:30")
+        reading.pop("source")
+        return reading, "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    with TestClient(app) as client:
+        _collapsed, expanded = _open_panel(client, lang)
+    # Jinja escapes the apostrophe in "WAQI's": Don&#39;t vs Don't has cost
+    # this suite a green test before.
+    expanded = html.unescape(expanded)
+    assert cpcb.SOURCE_HOST not in expanded
+    assert i18n.t(lang, "ui", "prov_feed_figure", "WAQI's own figure") not in expanded
+    # And the panel still rendered its own figures.
+    assert "AQI " in expanded

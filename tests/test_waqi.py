@@ -63,7 +63,7 @@ def test_a_fallback_carries_no_number_for_any_locality(monkeypatch):
         assert status == "fallback", loc
         assert reading["stale"] is True, loc
         for field in ("aqi", "pm25", "pm10", "dominant_pollutant",
-                      "feed_aqi", "feed_dominant", "obs_time"):
+                      "feed_aqi", "feed_dominant", "obs_time", "source"):
             assert reading[field] is None, (loc, field, reading[field])
 
 

@@ -629,3 +629,45 @@ def test_a_retained_reading_is_not_indexed_again(feed, monkeypatch):
         reading, status = waqi.get_aqi("ITO", es_client=FakeClient())
         assert reading["retained"] is True and status == "ok"
     assert len(indexed) == 1, "a held observation was indexed again"
+
+
+# --------------------------------------------------- which source answered
+#
+# The panel has to name the source it used, and nothing else in the reading
+# identifies it: feed_aqi is None on a CPCB reading AND on a WAQI station whose
+# own headline figure was "-". So the reading carries the answer.
+def test_a_cpcb_reading_names_cpcb_as_its_source(feed):
+    feed(rows("ITO, Delhi - CPCB", pm25=53, pm10=90))
+    reading, status = waqi.get_aqi("ITO")
+    assert status == "ok"
+    assert reading["source"] == "cpcb"
+
+
+def test_a_waqi_reading_names_waqi_as_its_source(monkeypatch):
+    monkeypatch.setattr(config, "cpcb_key", lambda: "")
+    monkeypatch.setattr(config, "waqi_token", lambda: "token")
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"status": "ok", "data": {
+                "aqi": 210, "city": {"name": "ITO, Delhi"},
+                "iaqi": {"pm25": {"v": 160}, "pm10": {"v": 90}}}}
+
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
+    reading, status = waqi.get_aqi("ITO")
+    assert status == "ok"
+    assert reading["source"] == "waqi"
+
+
+def test_a_reading_with_no_source_claims_neither(monkeypatch):
+    """The fallback, and any reading rebuilt from Elasticsearch: ``source`` is
+    not indexed, so it comes back None and the panel names nothing."""
+    monkeypatch.setattr(config, "cpcb_key", lambda: "")
+    monkeypatch.setattr(config, "waqi_token", lambda: "")
+    reading, status = waqi.get_aqi("ITO")
+    assert status == "fallback"
+    assert reading["source"] is None
+    from saafsaans.services import es
+    assert "source" not in es.READING_FIELDS

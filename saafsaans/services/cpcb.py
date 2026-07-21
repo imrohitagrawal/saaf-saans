@@ -62,6 +62,14 @@ from saafsaans.services import config
 RESOURCE = "3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
 ENDPOINT = "https://api.data.gov.in/resource/"
 
+# What the reader is told this source is called, in one place, so the Guide,
+# the provenance panel and the tests cite the same fact instead of three
+# hand-written spellings. SOURCE_HOST is the site a reader can actually open,
+# not the API subdomain ENDPOINT points at; a test asserts it stays a suffix of
+# that hostname, so changing the endpoint moves the prose.
+SOURCE_NAME = "CPCB"
+SOURCE_HOST = "data.gov.in"
+
 # Measured: 1000 times out, 300 answers. Delhi returns 315 rows, so paging is
 # not optional -- a single limit=300 call silently drops ITO's PM2.5, which is
 # how this integration was nearly designed around a gap that did not exist.

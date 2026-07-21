@@ -345,7 +345,20 @@
                         that exists nowhere, two tokens after the correctly
                         written PM2.5 on this same line. -#}
                     · {{ T('ui', 'prov_dominant', 'dominant') }} {{ pollutant(t.reading.dominant_pollutant) }}
+                    {#- Three ways, never two. A `waqi`-or-else-CPCB branch
+                        would label every no-reading turn -- the state the
+                        public deployment is actually in, with no CPCB key --
+                        as CPCB-sourced. A turn stored before this field
+                        existed has no source either, and claims neither.
+                        The domain is template markup inside <span lang="en">,
+                        never inside a translated string: autoescape would
+                        print the tag literally, and the Hindi page scan strips
+                        real tags only. -#}
+                    {% if t.reading.source == 'waqi' %}
                     · {{ T('ui', 'prov_feed_figure', "WAQI's own figure") }} {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} {{ T('ui', 'prov_feed_scale', '(US EPA scale)') }}
+                    {% elif t.reading.source == 'cpcb' %}
+                    · {{ T('ui', 'prov_source_cpcb_before', 'read from CPCB itself, published on') }} <span lang="en">{{ cpcb_host }}</span> {{ T('ui', 'prov_source_cpcb_after', 'rather than through a feed') }}
+                    {% endif %}
                     · {{ T('ui', 'prov_live', 'live reading') if fresh == 'live'
                           else (T('ui', 'prov_held', 'held reading (the source did not answer, so we kept the last one)') if fresh == 'held'
                                 else T('ui', 'prov_none', 'no reading (the feed did not answer)')) }}

@@ -177,7 +177,7 @@ _API = "https://api.waqi.info/feed/{feed}/?token={token}"
 
 
 def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
-             feed_aqi=None, feed_dominant=None, retained=False):
+             feed_aqi=None, feed_dominant=None, retained=False, source=None):
     """Assemble the reading contract from two particulate concentrations.
 
     One constructor for both the live and the fallback path, so the two cannot
@@ -212,6 +212,14 @@ def _reading(pm25, pm10, *, station, city, stale, forecast, obs_time,
         # is a fresh fetch behind them. Folding the two would print "we have no
         # reading for this area" beside a number.
         "retained": retained,
+        # Which upstream this reading actually came from: "cpcb", "waqi", or
+        # None when there is no reading. The provenance panel has to name it,
+        # and it cannot be inferred from the other fields -- feed_aqi is None
+        # on a CPCB reading AND on a WAQI station whose own headline was "-".
+        # Deliberately NOT in es.READING_FIELDS: a reading rebuilt from the
+        # index therefore has source None and claims neither, which is correct
+        # and is its own test.
+        "source": source,
         "forecast": forecast,
         "obs_time": obs_time,
     }
@@ -328,7 +336,7 @@ def _fetch_feed(feed: str, token: str):
         aqi_scale.concentration(pollutant("pm10"), "pm10"),
         station=city, city=city, stale=False, forecast=forecast,
         obs_time=obs_time, feed_aqi=feed_aqi,
-        feed_dominant=data.get("dominentpol"))
+        feed_dominant=data.get("dominentpol"), source="waqi")
     # No usable particulate and no feed number either: nothing to show.
     if reading["aqi"] is None and feed_aqi is None:
         return None
@@ -381,7 +389,7 @@ def _fetch_cpcb(locality: str):
         values["pm25"], values["pm10"],
         station=values["station"], city=values["city"],
         stale=False, forecast=None, obs_time=values["obs_time"],
-        retained=values.get("retained", False))
+        retained=values.get("retained", False), source="cpcb")
     # No usable particulate means no CPCB AQI. Returning the shell would stop
     # the WAQI fallback being tried, which is the whole point of having one.
     return reading if reading["aqi"] is not None else None

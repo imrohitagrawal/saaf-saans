@@ -30,7 +30,7 @@ from fastapi.templating import Jinja2Templates
 
 from saafsaans.attack_demo import ATTACKS
 from saafsaans.services import (
-    aqi_scale, clock, config, es, forecast, guard, i18n, llm, metrics,
+    aqi_scale, clock, config, cpcb, es, forecast, guard, i18n, llm, metrics,
     normalize, ratelimit, risk, waqi,
 )
 from saafsaans.web import presenters as pr
@@ -477,6 +477,9 @@ def today(request: Request):
         # The templates call this per stored turn, so a turn indexed before the
         # field existed answers "live"/"none" exactly as it did before.
         "freshness": pr.freshness,
+        # The domain the provenance panel prints, from the module that owns it
+        # rather than written out in the template.
+        "cpcb_host": cpcb.SOURCE_HOST,
         "obs_time": obs_time,
         "glossary": normalize.GLOSSARY,
         "term": term, "persona_open": persona_open,

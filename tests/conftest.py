@@ -83,7 +83,8 @@ def _no_rate_limit_carryover_between_tests():
 LIVE_READING = {
     "aqi": 168, "aqi_beyond_scale": False, "pm25": 90.0, "pm10": 160.0,
     "dominant_pollutant": "pm25", "feed_aqi": 210, "feed_dominant": "pm25",
-    "city": "Delhi", "stale": False, "forecast": None,
+    "city": "Delhi", "stale": False, "retained": False, "source": "waqi",
+    "forecast": None,
     "obs_time": "2026-07-21T10:00:00+05:30",
 }
 
