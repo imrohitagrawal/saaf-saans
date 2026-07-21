@@ -132,7 +132,12 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
         ~6-10 AM is worst and early afternoon is better; other seasons, late
         morning is the calm window before the afternoon photochemical peak.
 
-    When AQI > 300 there is no safe outdoor window regardless of time.
+    When AQI > 300 there is no safe outdoor window regardless of time. When the
+    AQI is missing entirely, no window is named either: an unknown reading must
+    never produce a friendlier answer than a known bad one, and it used to
+    produce the friendliest answer available, because the unparseable value was
+    read as 0. The rationale then says the reading is unavailable rather than
+    borrowing the severe-air one, which would assert a band nobody measured.
     ``forecast`` is accepted for future refinement; the window works without it.
 
     ``lang`` translates both returned strings. The rationale is assembled from
@@ -143,7 +148,27 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
     try:
         aqi_val = int(aqi)
     except (TypeError, ValueError):
-        aqi_val = 0
+        # No reading. Not zero -- zero is the cleanest air there is, and it
+        # took the branch with no severity caveat at all, so the hero rendered
+        # "IF YOU MUST GO OUT: Late morning" underneath "AQI -- - UNKNOWN" and
+        # "Do not go outdoors". The heuristic is also injected into the prompt
+        # under a system instruction telling the model to trust it, so a
+        # friendly window here becomes a friendly answer as well.
+        #
+        # Both strings are existing keys, reused rather than reworded: the
+        # window is the same "no window" line severe air gets, because we
+        # cannot name a safe hour without a reading either; the reason is the
+        # answer card's own "reading is unavailable" sentence, which is true
+        # here and does not assert a band, unlike window/none_rationale.
+        return {
+            "window": i18n.t(lang, "window", "none", "No safe outdoor window today"),
+            "rationale": i18n.t(
+                lang, "answer", "why_unknown",
+                "AQI reading is unavailable; treat {activity} as unsafe until "
+                "confirmed.").replace(
+                    "{activity}",
+                    i18n.t(lang, "answer", "activity_generic", "outdoor activity")),
+        }
 
     winter = _is_winter(datetime.date.today().month)
     pollutant = _pollutant_key(dominant_pollutant)
