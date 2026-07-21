@@ -59,10 +59,21 @@ def test_the_collapsed_label_and_the_expanded_line_agree(lang):
         opened = client.get("/", params={**PERSONA, "lang": lang,
                                          "prov": turn_id}).text
     panel = opened[opened.find('class="prov-bar"'):]
+    # The two halves must be read separately. Scoping both to the whole panel
+    # made this test unfailable: the collapsed label CONTAINS the expanded
+    # line's phrase ("1 live reading +" contains "live reading"), so whenever
+    # the collapsed half wrongly claimed live it dragged the expanded flag true
+    # with it and the two agreed. That is the exact bug this test names, and it
+    # sat green through it. The panel splits at prov-body: the label is above,
+    # the detail lines below.
+    split = panel.find('class="prov-body"')
+    assert split > 0, "the expanded panel did not render; the split below is meaningless"
+    collapsed, expanded = panel[:split], panel[split:]
     collapsed_says_live = i18n.t(lang, "ui", "prov_count_before",
-                                 "1 live reading +") in panel
-    expanded_says_live = i18n.t(lang, "ui", "prov_live", "live reading") in panel
+                                 "1 live reading +") in collapsed
+    expanded_says_live = i18n.t(lang, "ui", "prov_live", "live reading") in expanded
     assert collapsed_says_live == expanded_says_live, (
-        "the collapsed label and the expanded line disagree about whether this "
-        "reading is live"
+        f"the collapsed label and the expanded line disagree about whether this "
+        f"reading is live: collapsed says live={collapsed_says_live}, "
+        f"expanded says live={expanded_says_live}"
     )
