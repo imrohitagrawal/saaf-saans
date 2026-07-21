@@ -66,11 +66,9 @@ HEURISTIC_NOTICE = (
 # --- Inhalation rates (grounded) ------------------------------------------
 # m3/min, mean short-term values from EPA EFH 2011 Table 6-2. Only the three
 # age bands the persona picker offers are carried; EPA's full table has 14.
-EPA_AGE_BANDS = {
-    "child": "6 to <11 years",
-    "adult": "21 to <31 years",
-    "senior": "61 to <71 years",
-}
+# The bracket labels ("6 to <11 years") live in web/main._epa_rows, which is
+# the only place that renders them and translates them; a second copy here was
+# never read by anything but a test.
 INHALATION_RATES = {
     "child":  {"sedentary": 4.8e-3, "light": 1.1e-2, "moderate": 2.2e-2, "high": 4.2e-2},
     "adult":  {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},

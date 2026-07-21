@@ -162,7 +162,11 @@ def test_inhalation_rates_match_the_published_table():
         "adult":  {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},
         "senior": {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.7e-2},
     }
-    assert set(risk.EPA_AGE_BANDS) == set(risk.INHALATION_RATES)
+    # The bracket labels for these three ages used to sit beside the rates as
+    # risk.EPA_AGE_BANDS, and this line checked the two dicts covered the same
+    # ages. Nothing rendered that dict -- the Guide carries its own translated
+    # copy -- so it was deleted and the check moved to where the surviving copy
+    # lives: test_web.test_the_guide_labels_every_age_in_the_rate_table.
 
 
 def test_the_intensity_order_covers_the_rate_table_least_first():

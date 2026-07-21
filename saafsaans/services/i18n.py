@@ -878,6 +878,17 @@ HI: dict = {
         "sample": "◌ नमूना — यह माप नहीं है",
         "live": "● लाइव · {when}",
     },
+    # presenters.sparkline_svg -- the accessible name of the 24-hour chart.
+    #
+    # This is the only accessible name on the site that carries data rather
+    # than naming a control, and it is the whole chart for a screen-reader
+    # user: the SVG's shape says nothing aloud. Left in English it was read to
+    # a Hindi reader with Devanagari phonetics. It is not caught by
+    # test_hindi_completeness's page scan, which strips attributes wholesale
+    # before looking for Latin, so it has its own test.
+    "a11y": {
+        "spark": "पिछले 24 घंटों का AQI, {lo} से {hi} तक",
+    },
     # presenters.outlook_rows -- the five-day strip's row labels.
     "day": {
         "today": "आज",

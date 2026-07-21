@@ -366,6 +366,30 @@ def test_the_forwarded_link_preview_is_in_hindi(path):
     assert not stray, f"the share card for {path} is still English: {sorted(stray)}"
 
 
+def test_the_sparkline_says_its_reading_in_hindi(monkeypatch):
+    """_visible_text strips attributes wholesale, so the scan above cannot see
+    an aria-label -- and the 24-hour chart's is the one accessible name on the
+    site that carries a reading rather than naming a control. For a screen
+    reader it IS the chart; the SVG says nothing aloud. Left in English it was
+    read to a Hindi reader with Devanagari phonetics.
+
+    AQI stays Latin here for the same reason it does everywhere else, so the
+    assertion is that the sentence around it is Devanagari.
+    """
+    from saafsaans.web import main as web_main
+    points = [{"aqi": 120}, {"aqi": 260}, {"aqi": 180}]
+    monkeypatch.setattr(web_main.metrics, "aqi_trend",
+                        lambda client, locality, hours: {"points": points})
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONAS[0], "lang": "hi"}).text
+    labels = re.findall(r'<svg[^>]*\baria-label="([^"]*)"', body)
+    assert labels, "no sparkline rendered"
+    for label in labels:
+        assert DEVANAGARI.search(label), label
+        assert not _stray_latin(label), f"English left in the chart's name: {label}"
+
+
 def test_the_hindi_page_is_actually_in_hindi():
     """Guards the guard: if the language switch silently stopped working, the
     scan above would pass on a page with no Hindi in it at all."""

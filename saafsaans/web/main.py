@@ -622,18 +622,27 @@ def city(request: Request):
         # A stored reading is only "live" if it is recent. Treating a week-old
         # document as current would present stale air as the air outside now --
         # the one thing this product promises never to do.
-        fresh = row is not None and _is_fresh(row.get("ts"), hours=3)
-        # No stored reading: fall back to the labelled per-locality sample rather
-        # than showing a dead row. It costs no HTTP -- 21 live fetches would make
-        # this page crawl -- but it is a stand-in figure, not a reading we hold,
-        # so it must not carry the same tag as a genuine stored-but-old reading.
-        aqi = row.get("aqi") if row else _sample_aqi(loc)
+        # A row we hold but which carries no aqi tells the reader nothing, so it
+        # is worth exactly as much as no row at all. The fallback therefore keys
+        # off the VALUE, not off the row's existence -- keying off the row left
+        # a locality showing "--"/Unknown while a labelled sample figure for it
+        # sat unused.
+        stored = row.get("aqi") if row else None
+        fresh = stored is not None and _is_fresh(row.get("ts"), hours=3)
+        # No usable stored reading: fall back to the labelled per-locality
+        # sample rather than showing a dead row. It costs no HTTP -- 21 live
+        # fetches would make this page crawl -- but it is a stand-in figure, not
+        # a reading we hold, so it must not carry the same tag as a genuine
+        # stored-but-old reading.
+        aqi = stored if stored is not None else _sample_aqi(loc)
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi,
                          "band": i18n.t(lang, "band_label", label, label),
                          "slug": slug,
-                         "source": "live" if fresh else ("cached" if row else "sample"),
-                         "age": None if fresh or row is None else _age_label(row.get("ts"), lang),
+                         "source": "live" if fresh else
+                                   ("cached" if stored is not None else "sample"),
+                         "age": None if stored is None or fresh
+                                else _age_label(row.get("ts"), lang),
                          "selected": loc == selected})
 
     def group(region):
@@ -650,7 +659,7 @@ def city(request: Request):
         "now": _fmt_stamp(lang),
         "selected": selected,
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
-        "spark": pr.sparkline_svg(trend.get("points")),
+        "spark": pr.sparkline_svg(trend.get("points"), lang=lang),
         "q_station": lambda name: _qs(persona, theme, lang, station=name),
     })
     return _render(request, "city.html", ctx, session_id(request), theme, lang)

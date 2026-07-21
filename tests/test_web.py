@@ -212,6 +212,45 @@ def test_city_counts_and_median_use_the_sample_figures(monkeypatch):
     assert "median AQI 0" not in body
 
 
+def test_a_stored_row_with_no_aqi_falls_back_to_the_sample(monkeypatch):
+    """A row we hold but which carries no aqi is worth no more than no row.
+
+    The fallback used to key off the row's EXISTENCE, so a station whose stored
+    document had aqi=None rendered "--" and Unknown while its labelled sample
+    figure sat unused -- and the legend says a typical figure is shown instead.
+    The timestamp here is fresh on purpose: the bug was worst for a row that
+    was recent and empty.
+    """
+    from datetime import datetime, timezone
+
+    from saafsaans.services import aqi_scale, waqi
+    now = datetime.now(timezone.utc).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": None, "ts": now}])
+    expected = aqi_scale.cpcb_aqi(waqi.SAMPLES["Rohini"].get("pm25"),
+                                  waqi.SAMPLES["Rohini"].get("pm10"))[0]
+    assert f">{expected}<" in rows["Rohini"], rows["Rohini"]
+    assert "Unknown" not in rows["Rohini"]
+    # And it is tagged for what it is. Calling a stand-in LIVE because the
+    # empty row happened to be recent would be the worse half of the same bug.
+    assert "SAMPLE" in rows["Rohini"]
+    assert "CACHED" not in rows["Rohini"]
+
+
+def test_the_guide_labels_every_age_in_the_rate_table(monkeypatch):
+    """The EPA age brackets are rendered from web.main._epa_rows alone; the
+    second copy that used to sit in risk.EPA_AGE_BANDS is gone. This is the
+    check that went with it: every age in INHALATION_RATES gets a bracket, in
+    both languages, and no age is invented."""
+    from saafsaans.services import risk
+    from saafsaans.web import main as web_main
+    for lang in ("en", "hi"):
+        rows = web_main._epa_rows(lang)
+        assert len(rows) == len(risk.INHALATION_RATES), lang
+        assert set(web_main._EPA_AGE_ORDER) == set(risk.INHALATION_RATES), lang
+        for row in rows:
+            assert row["band"], (lang, row)
+
+
 def test_fresh_stored_reading_carries_no_tag(monkeypatch):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()

@@ -10,7 +10,7 @@ reading and never dramatising a mild one. See design_handoff_saafsaans/README.md
 """
 import math
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from saafsaans.services import i18n
 
@@ -354,12 +354,17 @@ def median_aqi(stations) -> int:
     return round((values[mid - 1] + values[mid]) / 2)
 
 
-def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
+def sparkline_svg(points, width: int = 560, height: int = 90,
+                  lang: str = "en") -> Markup:
     """Inline SVG sparkline: area fill, line, and a dot on the newest reading.
 
     Rendered server-side so the chart is present before any JavaScript runs.
     Returns an empty string when there is nothing to draw, letting the caller
     show an empty state instead of an axis with no data.
+
+    The aria-label is translated, not marked lang="en": for a screen-reader
+    user it is not a citation but the entire content of the chart, and it is
+    the only accessible name on the site that carries a reading.
     """
     values = [p.get("aqi") for p in (points or []) if p.get("aqi") is not None]
     if len(values) < 2:
@@ -372,9 +377,11 @@ def sparkline_svg(points, width: int = 560, height: int = 90) -> Markup:
     line = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
     area = f"M0,{height} L" + " L".join(f"{x:.1f},{y:.1f}" for x, y in coords) + f" L{width},{height} Z"
     nx, ny = coords[-1]
+    label = i18n.t(lang, "a11y", "spark",
+                   "AQI over the last 24 hours, from {lo} to {hi}").format(lo=lo, hi=hi)
     return Markup(
         f'<svg viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="AQI over the last 24 hours, from {lo} to {hi}">'
+        f'aria-label="{escape(label)}">'
         f'<path d="{area}" fill="currentColor" opacity="0.12"/>'
         f'<polyline points="{line}" fill="none" stroke="currentColor" '
         f'stroke-width="2" stroke-linejoin="round"/>'
