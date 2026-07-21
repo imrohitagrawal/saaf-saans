@@ -250,7 +250,14 @@
                  aria-expanded="{{ 'true' if open_prov == t.id else 'false' }}">
                 <span aria-hidden="true">{{ '▾' if open_prov == t.id else '▸' }}</span>
                 {{ T('ui', 'prov_label', 'What this answer is based on') }}
-                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
+                {#- The collapsed label must branch on the feed status exactly as
+                    the expanded line at the bottom of this panel already does.
+                    It used to say "1 live reading" unconditionally, so a page
+                    that said SAMPLE in three other places still promised a live
+                    reading in the one line most readers see without clicking --
+                    and the Guide promises specifically that a stand-in is never
+                    dressed as live. -#}
+                <span class="prov-count">{{ T('ui', 'prov_count_before', '1 live reading +') if t.waqi_status == 'ok' else T('ui', 'prov_count_before_sample', '1 sample reading +') }} {{ t.sources | length }} {{ T('ui', 'prov_count_after', 'guidance sources') }}</span>
               </a>
               {% if open_prov == t.id %}
               <div class="prov-body">

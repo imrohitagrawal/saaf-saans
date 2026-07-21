@@ -408,6 +408,7 @@ HI: dict = {
         "prov_label": "यह जवाब किस पर आधारित है",
         # The source count is printed between the two.
         "prov_count_before": "1 लाइव रीडिंग +",
+        "prov_count_before_sample": "1 नमूना रीडिंग +",
         "prov_count_after": "गाइडेंस स्रोत",
         "prov_measured": "उस समय मापा गया",
         "prov_published": "इस्तेमाल की गई प्रकाशित गाइडेंस",
