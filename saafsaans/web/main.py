@@ -511,7 +511,10 @@ def ask(request: Request, question: str = Form(...)):
             {"age_group": persona["age"], "condition": persona["condition"],
              "activity": persona["activity"]},
             advisories, question, locality=persona["locality"],
-            timestamp=es.now_iso(), best_window=data["window"], lang=lang)
+            timestamp=es.now_iso(), best_window=data["window"], lang=lang,
+            # The hero's own band, so the card cannot be more permissive than
+            # the verdict printed above it on the same page.
+            risk_band=data["risk"]["band"])
         parsed = llm.parse_advice(text)
         add_turn(sid, {
             "kind": "answer", "question": question,

@@ -1,4 +1,4 @@
-"""No reading is not clean air.
+"""No reading is not clean air, and one page may hold only one verdict.
 
 Every path that turns a missing AQI into guidance is pinned here, because the
 belief that ``None`` means zero has now been written into this codebase twice --
@@ -129,3 +129,40 @@ def test_the_unknown_window_says_why_rather_than_naming_a_band():
     out = forecast.best_window(None)
     assert "unavailable" in out["rationale"]
     assert "Very Poor/Severe range" not in out["rationale"]
+
+
+# --- One page, one verdict -------------------------------------------------
+def _fixed_aqi(value):
+    def reading(locality, es_client=None):
+        return ({"aqi": value, "aqi_beyond_scale": False, "pm25": 100.0,
+                 "pm10": 180.0, "dominant_pollutant": "pm25", "feed_aqi": value,
+                 "feed_dominant": "pm25", "station": locality, "city": "Delhi",
+                 "stale": False, "forecast": None,
+                 "obs_time": "2026-07-21T10:00:00+05:30"}, "ok")
+    return reading
+
+
+@pytest.mark.parametrize("persona, aqi", [
+    ({"age": "Adult", "condition": "Asthma", "activity": "Outdoor exercise"}, 150),
+    ({"age": "Senior", "condition": "COPD", "activity": "Outdoor exercise"}, 250),
+])
+def test_the_answer_card_verdict_agrees_with_the_hero(monkeypatch, persona, aqi):
+    """The hero is persona-aware and the answer card was not, so at AQI 150 an
+    asthma reader was told the air was "acceptable" underneath a hero telling
+    them to skip outdoor exercise. Two verdicts, one page, opposite advice."""
+    from saafsaans.services import risk, waqi
+    monkeypatch.setattr(waqi, "get_aqi", _fixed_aqi(aqi))
+
+    params = {**PERSONA, **persona}
+    with TestClient(app) as c:
+        c.post("/ask", params=params, data={"question": "Should I go for a walk?"})
+        body = c.get("/", params=params).text
+
+    band = risk.compute_risk(aqi, {"Asthma": "asthma", "COPD": "copd"}[persona["condition"]],
+                             "outdoor_exercise",
+                             persona["age"].lower())["band"]
+    assert band in ("High", "Very High", "Extreme")
+    # The hero's own "what to do" line, now quoted by the card as well.
+    assert body.count(risk.BAND_ADVICE[band]) >= 2
+    assert "is acceptable" not in body
+    assert "is reasonable" not in body

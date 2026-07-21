@@ -9,7 +9,7 @@ returns a rule-based answer built from the top advisory, status
 """
 import requests
 
-from . import config, es, i18n
+from . import config, es, i18n, risk
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT = 30
@@ -59,7 +59,22 @@ LANGUAGE_INSTRUCTION = {
 
 DISCLAIMER = "This is general guidance, not medical advice."
 
-VERDICTS = ("GO", "CAUTION", "NO-GO")
+# How strict each verdict token is, so two of them can be compared. The answer
+# card takes the stricter of what the AQI says and what the reader's own risk
+# band says; it may never be more permissive than the hero above it.
+_STRICTNESS = {"GO": 0, "CAUTION": 1, "NO-GO": 2}
+
+# risk.compute_risk's band -> the verdict that band amounts to. Read against
+# risk.BAND_ADVICE, which is the sentence the hero prints for the same band:
+# "Go ahead with your plans" is a GO, "keep intense activity short" is a
+# CAUTION, and from "Skip outdoor exercise" upwards the hero is saying no.
+_BAND_VERDICT = {
+    "Low": "GO",
+    "Moderate": "CAUTION",
+    "High": "NO-GO",
+    "Very High": "NO-GO",
+    "Extreme": "NO-GO",
+}
 
 
 def system_prompt(lang: str = "en") -> str:
@@ -284,14 +299,61 @@ def advisory_text(doc: dict, lang: str = "en") -> str:
     return i18n.t(lang, "advisory", key, doc.get("advice") or "")
 
 
+def _verdict(aqi_val, activity: str, risk_band: str, lang: str):
+    """``(token, sentence)`` for the card's verdict line.
+
+    Two ladders, and the stricter one wins. The AQI ladder describes the air
+    and can name the number; the persona ladder is ``risk.compute_risk``'s
+    band, which is what the hero on the same page is computed from.
+
+    The card used to run the AQI ladder alone, so between AQI 101 and 150 an
+    asthma reader was told the air was "acceptable" underneath a hero telling
+    them to skip outdoor exercise -- two verdicts on one page, disagreeing in
+    the dangerous direction. The hero is not weakened to match; the card is
+    raised to it.
+
+    When the persona ladder wins, the sentence becomes the hero's own
+    ``risk.BAND_ADVICE`` line, so the two cannot say different things. It is
+    used rather than the AQI sentences because those describe the number
+    ("AQI 30 is unhealthy" would be false for a COPD senior whose *risk* is
+    high), and rather than a new sentence of its own, which would be a third
+    verdict to keep in sync.
+    """
+    if aqi_val is None:
+        return "CAUTION", i18n.t(
+            lang, "answer", "why_unknown",
+            "AQI reading is unavailable; treat {activity} as unsafe until confirmed.")
+    if aqi_val > 300:
+        token, why = "NO-GO", i18n.t(
+            lang, "answer", "why_severe",
+            "AQI {aqi} is very poor to severe; avoid {activity}.")
+    elif aqi_val >= 151:
+        token, why = "CAUTION", i18n.t(
+            lang, "answer", "why_unhealthy",
+            "AQI {aqi} is unhealthy; limit and protect {activity}.")
+    else:
+        token, why = "GO", i18n.t(
+            lang, "answer", "why_ok", "AQI {aqi} is acceptable; {activity} is reasonable.")
+
+    by_band = _BAND_VERDICT.get(risk_band)
+    if by_band and _STRICTNESS[by_band] > _STRICTNESS[token]:
+        return by_band, i18n.t(lang, "band_advice", risk_band,
+                               risk.BAND_ADVICE[risk_band])
+    return token, why
+
+
 def _rule_based(reading: dict, advisories: list, best_window: dict = None,
-                question: str = "", lang: str = "en") -> str:
+                question: str = "", lang: str = "en", risk_band: str = None) -> str:
     """Deterministic sectioned-markdown advice when the LLM is unavailable.
 
     Emits the same skeleton the system prompt requests so ``parse_advice``
     works on it too. Never raises. When the ``question`` names a specific
     activity (swimming, cycling, …) the verdict and precautions are tailored to
     it, mirroring the live LLM's activity-aware behaviour.
+
+    ``risk_band`` is ``risk.compute_risk``'s band for this reader and reading --
+    the same value the hero above the card is drawn from. It can only make the
+    verdict stricter, never friendlier; see ``_verdict``.
 
     ``lang`` translates every generated sentence. The section headers and the
     verdict token stay English: they are the parsing contract, not copy, and
@@ -311,23 +373,7 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
     # Each verdict line is one translatable sentence with named fields, not a
     # concatenation: Hindi puts the activity and the number in a different order
     # from English, and splitting the sentence would fix the English order.
-    if aqi_val is None:
-        verdict = "CAUTION"
-        why = i18n.t(lang, "answer", "why_unknown",
-                     "AQI reading is unavailable; treat {activity} as unsafe until "
-                     "confirmed.")
-    elif aqi_val > 300:
-        verdict = "NO-GO"
-        why = i18n.t(lang, "answer", "why_severe",
-                     "AQI {aqi} is very poor to severe; avoid {activity}.")
-    elif aqi_val >= 151:
-        verdict = "CAUTION"
-        why = i18n.t(lang, "answer", "why_unhealthy",
-                     "AQI {aqi} is unhealthy; limit and protect {activity}.")
-    else:
-        verdict = "GO"
-        why = i18n.t(lang, "answer", "why_ok",
-                     "AQI {aqi} is acceptable; {activity} is reasonable.")
+    verdict, why = _verdict(aqi_val, activity, risk_band, lang)
     why = _fill(why, aqi=aqi_val, activity=activity)
 
     generic = i18n.t(lang, "answer", "generic_advisory",
@@ -340,7 +386,9 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
     precautions = [f"{top}{stale}"]
     if detected:
         precautions.append(detected[2])
-    if aqi_val is not None and aqi_val >= 151:
+    # Keyed off the verdict rather than the AQI, so the mask advice cannot be
+    # the light one under a verdict that just said no.
+    if verdict != "GO":
         precautions.append(i18n.t(
             lang, "answer", "precaution_mask_high",
             "Wear a well-fitted N95/FFP2 mask outdoors and run an air purifier indoors."))
@@ -394,7 +442,7 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
 
 def answer(reading: dict, persona: dict, advisories: list, question: str,
            locality: str = "Delhi", timestamp: str = "", best_window: dict = None,
-           lang: str = "en"):
+           lang: str = "en", risk_band: str = None):
     """Return ``(text, usage_tokens, status)``; status "ok" or "llm_fallback".
 
     ``lang`` selects the language of the reply. It reaches the model as a
@@ -405,7 +453,7 @@ def answer(reading: dict, persona: dict, advisories: list, question: str,
     """
     key = config.openrouter_key()
     if not key:
-        return _rule_based(reading, advisories, best_window, question, lang), 0, "llm_fallback"
+        return _rule_based(reading, advisories, best_window, question, lang, risk_band), 0, "llm_fallback"
 
     user_msg = build_user_message(reading, persona, advisories, question, locality,
                                   timestamp, best_window)
@@ -421,12 +469,12 @@ def answer(reading: dict, persona: dict, advisories: list, question: str,
     try:
         resp = requests.post(API_URL, json=payload, headers=headers, timeout=TIMEOUT)
         if resp.status_code != 200:
-            return _rule_based(reading, advisories, best_window, question, lang), 0, "llm_fallback"
+            return _rule_based(reading, advisories, best_window, question, lang, risk_band), 0, "llm_fallback"
         data = resp.json()
         content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
         if not content or not content.strip():
-            return _rule_based(reading, advisories, best_window, question, lang), 0, "llm_fallback"
+            return _rule_based(reading, advisories, best_window, question, lang, risk_band), 0, "llm_fallback"
         tokens = (data.get("usage") or {}).get("total_tokens", 0) or 0
         return content.strip(), int(tokens), "ok"
     except Exception:
-        return _rule_based(reading, advisories, best_window, question, lang), 0, "llm_fallback"
+        return _rule_based(reading, advisories, best_window, question, lang, risk_band), 0, "llm_fallback"
