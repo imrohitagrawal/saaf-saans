@@ -668,6 +668,10 @@ def system(request: Request):
     ctx = base_context(request, persona, theme, lang, "system")
     ctx.update({
         "view": view,
+        # The empty states must name the real cause. With no index configured,
+        # asking questions on Today can never populate this view, so telling a
+        # reader to go and ask one is a wrong remedy for a misdiagnosed fault.
+        "has_index": get_client() is not None,
         "q_obs": _qs(persona, theme, lang, view="observability"),
         "q_sec": _qs(persona, theme, lang, view="security"),
         "simulated": request.query_params.get("sim") == "1",

@@ -807,10 +807,22 @@ def test_the_system_view_keeps_index_values_untranslated(client):
 
     Event names, guard pattern names and status values are the literal stored
     strings; translating one would make the view a description of the data
-    instead of a view of it. The shell command in the empty state is not prose
-    either. Both must survive the Hindi render unchanged.
+    instead of a view of it. The shell command in the backfill hint is not
+    prose either. Both must survive the Hindi render unchanged.
+
+    The hint renders only when an index IS configured -- without one the
+    command could not backfill anything, and telling a reader to run it would
+    be a wrong remedy for a misdiagnosed fault. So the client is pinned here
+    rather than the assertion being dropped: the command still must not be
+    translated, on the page where it still appears.
     """
-    body = client.get("/system?lang=hi").text
+    from saafsaans.web import main as web_main
+    real = web_main.get_client
+    web_main.get_client = lambda: object()
+    try:
+        body = client.get("/system?lang=hi").text
+    finally:
+        web_main.get_client = real
     assert "python -m saafsaans.seed_demo_history" in body
     from saafsaans.web.main import _day_label
     assert _day_label("2026-07-20") == "Mon"      # what the Hindi lookup is keyed on

@@ -45,8 +45,15 @@
         </div>
         <p class="caption">{{ T('ui', 'sys_events_caption', 'Fallbacks are logged, never hidden — a cached reading or a rule-based answer is shown as such at the moment it is served.') }}</p>
       {% else %}
+        {% if has_index %}
         <p class="empty">{{ T('ui', 'sys_empty_telemetry', 'No telemetry yet. Ask a question on Today, or run this to backfill:') }}
           <code lang="en">python -m saafsaans.seed_demo_history</code></p>
+        {% else %}
+        {#- Without an index nothing is recorded at all, so the advice above
+            would be a wrong remedy for a misdiagnosed fault: a reader could
+            ask questions all day and this view would stay at zero. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'This view reads from a database index, and none is configured, so nothing is being recorded. The app runs without it; these panels are the part that does not.') }}</p>
+        {% endif %}
       {% endif %}
     </section>
 
