@@ -183,6 +183,35 @@ def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
         assert "SAMPLE" in row, name
 
 
+def test_sample_stations_show_the_sample_figure(monkeypatch):
+    """The legend promises "a typical figure for that place is shown instead",
+    so a sample row must carry a number and a band, not "--" and Unknown.
+
+    The fallback used to read a key `waqi.SAMPLES` has never had, so it
+    evaluated to None on all 21 rows and the promise was never kept.
+    """
+    from saafsaans.services import aqi_scale, waqi
+    rows = _city_rows(monkeypatch, [])
+    for name, row in rows.items():
+        expected = aqi_scale.cpcb_aqi(waqi.SAMPLES[name].get("pm25"),
+                                      waqi.SAMPLES[name].get("pm10"))[0]
+        assert f'>{expected}<' in row, (name, row)
+        assert "Unknown" not in row, name
+
+
+def test_city_counts_and_median_use_the_sample_figures(monkeypatch):
+    """With no stored reading the header used to read "0 stations - median 0"
+    on a page listing 21 of them."""
+    from saafsaans.services import waqi
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: [])
+    monkeypatch.setattr(web_main, "get_client", lambda: object())
+    with TestClient(app) as c:
+        body = c.get("/city", params=PERSONA).text
+    assert f"{len(waqi.LOCALITIES)} stations" in body
+    assert "median AQI 0" not in body
+
+
 def test_fresh_stored_reading_carries_no_tag(monkeypatch):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()

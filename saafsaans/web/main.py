@@ -29,7 +29,8 @@ from fastapi.templating import Jinja2Templates
 
 from saafsaans.attack_demo import ATTACKS
 from saafsaans.services import (
-    config, es, forecast, guard, i18n, llm, metrics, normalize, risk, waqi,
+    aqi_scale, config, es, forecast, guard, i18n, llm, metrics, normalize,
+    risk, waqi,
 )
 from saafsaans.web import presenters as pr
 
@@ -554,6 +555,26 @@ def ask(request: Request, question: str = Form(...)):
 
 
 # --- City Pulse ------------------------------------------------------------
+def _sample_aqi(loc: str):
+    """The labelled sample AQI for a locality, or None if it has no sample.
+
+    `waqi.SAMPLES` stores PM2.5 and PM10 *concentrations* and no AQI, on
+    purpose: the index is derived through the CPCB scale rather than stored, so
+    a sample can never drift away from the scale it sits on. The City Pulse
+    fallback used to read `SAMPLES[loc]["aqi"]` -- a key no row has ever
+    carried -- so it returned None for all 21 stations and the page rendered
+    "--", band Unknown, "0 stations" and "median AQI 0" while its own legend
+    promised "a typical figure for that place is shown instead". Deriving it is
+    the fix rather than deleting the fallback, because the legend, the SAMPLE
+    tag and the row are all already built for a figure being there.
+    """
+    sample = waqi.SAMPLES.get(loc)
+    if not sample:
+        return None
+    derived = aqi_scale.cpcb_aqi(sample.get("pm25"), sample.get("pm10"))
+    return derived[0] if derived else None
+
+
 @app.get("/city")
 def city(request: Request):
     persona = read_persona(request)
@@ -576,7 +597,7 @@ def city(request: Request):
         # than showing a dead row. It costs no HTTP -- 21 live fetches would make
         # this page crawl -- but it is a stand-in figure, not a reading we hold,
         # so it must not carry the same tag as a genuine stored-but-old reading.
-        aqi = row.get("aqi") if row else (waqi.SAMPLES.get(loc) or {}).get("aqi")
+        aqi = row.get("aqi") if row else _sample_aqi(loc)
         label, _c, _h, slug = normalize.band_for(aqi)
         stations.append({"name": loc, "aqi": aqi,
                          "band": i18n.t(lang, "band_label", label, label),
