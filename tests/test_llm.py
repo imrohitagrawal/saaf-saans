@@ -338,3 +338,21 @@ def test_an_api_failure_does_not_return_the_reader_to_english(monkeypatch):
     text, _, status = llm.answer(READING, PERSONA, ADVISORIES, "Should I jog?", lang="hi")
     assert status == "llm_fallback"
     assert not _stray_latin(text)
+
+
+def test_the_prompt_states_the_persona_risk_band_as_a_floor():
+    """The model composes its own verdict, and until now it saw only the AQI --
+    the same blindness the rule-based verdict had. The band the hero is drawn
+    from is stated so the model's answer cannot be friendlier than the verdict
+    printed directly above it."""
+    from saafsaans.services import risk
+    msg = llm.build_user_message(READING, PERSONA, ADVISORIES, "Should I jog?",
+                                 "ITO", "t", risk_band="Very High")
+    assert risk.BAND_ADVICE["Very High"] in msg
+    assert "do not be more permissive" in msg
+
+
+def test_the_prompt_says_nothing_about_a_band_it_was_not_given():
+    msg = llm.build_user_message(READING, PERSONA, ADVISORIES, "Should I jog?",
+                                 "ITO", "t")
+    assert "persona risk band" not in msg
