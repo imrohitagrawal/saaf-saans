@@ -24,12 +24,13 @@ three ways that a reviewer proved by mutation:
   * no disclosure state was ever opened, so the provenance panel -- which has
     real untranslated Latin in it -- had never been looked at.
 
-All three are closed. Two application defects the widened scan found are held
-open as strict xfails naming the exact strings and the file that must change:
-`action plan` in the Hindi asthma and COPD advisories, and the malformed
-pollutant code `PM25` in the provenance panel. They are not allowlisted. The
-allowlist is for Latin that is CORRECT; a strict xfail is for Latin that is a
-bug someone else has to fix.
+All three are closed, and so are the two application defects the widened scan
+then found: `action plan` left in bare English inside the Hindi asthma and COPD
+advisories, and the malformed pollutant code `PM25` in the provenance panel.
+Both were held as strict xfails naming the exact strings and the file to change,
+so that fixing them forced the marks off rather than letting them rot. Neither
+was allowlisted, and that is the rule: the allowlist is for Latin that is
+CORRECT, never for Latin that is a bug.
 """
 import re
 
@@ -213,29 +214,8 @@ def test_no_untranslated_english_on_a_hindi_page(path, persona):
     )
 
 
-# The one untranslated string the widened answer scan found, recorded here so
-# the companion test below can still catch anything NEW while the strict xfail
-# above keeps this one visible. Nothing may be added to this set to make a test
-# pass: it is a defect list, and it is meant to shrink to empty.
-RECORDED_UNTRANSLATED = {"action", "plan"}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "APPLICATION DEFECT, not a test defect, and deliberately left failing. "
-    "The Hindi AQI>300 asthma advisory leaves the phrase 'action plan' in bare "
-    "English inside Hindi prose -- saafsaans/services/i18n.py:1062, "
-    "'डॉक्टर की लिखी हुई action plan मानें', and again at i18n.py:1068 in the "
-    "AQI>400 COPD row, 'आपातकालीन दवा और अपनी action plan पास रखें'. Unlike "
-    "'controller' one clause earlier, or 'obstetrician' in the pregnancy rows, "
-    "it carries no Hindi term beside it: the reader gets no word at all, on the "
-    "line that tells them what to follow in severe air. This is the exact "
-    "failure the module docstring describes. Fixing it needs i18n.py, which "
-    "this change may not touch -- either translate the phrase or gloss it the "
-    "way 'controller' is glossed. Delete this mark then; do NOT add 'action' "
-    "or 'plan' to ALLOWED, which would exempt two ordinary English words "
-    "everywhere. The card scanned here is the >300 row because the suite runs "
-    "with no WAQI token (tests/conftest.py) and Anand Vihar's sample reading "
-    "is AQI 401."))
 @pytest.mark.parametrize("question", [
     "क्या मैं आज बाहर दौड़ने जा सकता हूँ?",
     "Can my daughter walk to school this morning?",
@@ -278,17 +258,15 @@ def test_the_answer_itself_is_in_hindi(question):
 
 @pytest.mark.parametrize("persona", PERSONAS, ids=lambda p: p["condition"])
 def test_the_answer_has_no_english_beyond_the_recorded_gap(persona):
-    """Regression cover for the answer card while the test above is xfailing.
+    """The same full card, across all three personas rather than one.
 
-    That test is the honest one: it fails, strictly, because 'action plan' is
-    English on a Hindi card, and it will keep failing until i18n.py is fixed.
-    But a strict xfail catches nothing new -- an eleventh untranslated string
-    would land in an already-failing test and change nothing. So this scans the
-    same full card across all three personas and subtracts exactly the two
-    words already recorded above, and nothing else.
-
-    Widen RECORDED_UNTRANSLATED and this test stops meaning anything. That is
-    the move this file has been burned by twice; the set shrinks, never grows.
+    This existed to keep regression cover while the test above was held as a
+    strict xfail for the untranslated `action plan`, subtracting exactly the
+    words already recorded and nothing else. That phrase is now translated and
+    the mark is gone, so the subtraction is gone with it: there is no recorded
+    gap left to except. It stays because scanning three personas is broader
+    than scanning one, and because the next untranslated string is most likely
+    to be in a row only one of these personas reaches.
     """
     params = dict(persona, lang="hi")
     with TestClient(app) as client:
@@ -296,7 +274,7 @@ def test_the_answer_has_no_english_beyond_the_recorded_gap(persona):
                     data={"question": "क्या मैं आज बाहर दौड़ने जा सकता हूँ?"})
         body = client.get("/", params=params).text
     answer = _element(body, 'class="answer-body"')
-    stray = _stray_latin(_visible_text(answer)) - RECORDED_UNTRANSLATED
+    stray = _stray_latin(_visible_text(answer))
     assert not stray, (
         f"new untranslated English on the Hindi answer card: {sorted(stray)}. "
         "This is not the recorded 'action plan' gap -- it is something else."
@@ -329,24 +307,7 @@ DISCLOSURES = {
 @pytest.mark.parametrize("disclosure", [
     "edit",
     "term",
-    pytest.param("prov", marks=pytest.mark.xfail(strict=True, reason=(
-        "APPLICATION DEFECT, not a test defect, and deliberately left failing. "
-        "The provenance panel renders the dominant pollutant as the literal "
-        "'PM25' -- saafsaans/web/templates/today.html:273, "
-        "`{{ t.reading.dominant_pollutant | upper }}`, which upper-cases the "
-        "feed's 'pm25' into a code that exists nowhere, two tokens after the "
-        "correctly formatted 'PM2.5' on the SAME line. The Hindi line reads "
-        "'AQI 92 (CPCB पैमाना, PM2.5 और PM10 से) · PM2.5 55 µg/m³ · मुख्य "
-        "प्रदूषक PM25'. English has it too, so it is a display bug rather than "
-        "a translation gap. Fixing it needs today.html, which this change may "
-        "not touch. When the template maps the code through the same formatter "
-        "the rest of the page uses, delete this mark; nothing else here needs "
-        "to change. Do NOT add 'PM25' to ALLOWED -- it is not a term anyone "
-        "says, it is a bug the scan finally caught. The Asthma persona also "
-        "reports 'action', 'plan' here: that is the SECOND, separate defect "
-        "recorded on test_the_answer_itself_is_in_hindi (i18n.py:1062, 1068), "
-        "surfacing again because the panel quotes the advisory text. Both must "
-        "be fixed before this mark comes off."))),
+        "prov",
 ])
 def test_no_untranslated_english_in_a_disclosure_panel(disclosure):
     """PAGES is five plain GETs, so the scan only ever saw the closed page.
@@ -355,11 +316,13 @@ def test_no_untranslated_english_in_a_disclosure_panel(disclosure):
     the provenance panel -- and each renders copy no other state renders. The
     persona editor and the term panel turned out clean. The provenance panel
     did not: it prints raw citation slugs (now allowlisted, with the reason
-    beside them) and one malformed pollutant code (see the xfail).
+    beside them) and rendered the dominant pollutant as the literal `PM25`,
+    which was held as a strict xfail until the template was fixed to write it
+    through the same formatter as the rest of the page.
 
-    All three personas in one test on purpose: the provenance panel's defect
-    only surfaces for those whose dominant pollutant is pm25, and a per-persona
-    parametrisation would make the strict xfail flip on the others.
+    All three personas in one test on purpose: that defect only surfaced for
+    those whose dominant pollutant is pm25, so a per-persona parametrisation
+    would have left two of the three passing and looking like coverage.
     """
     opener, marker, tag = DISCLOSURES[disclosure]
     stray = {}

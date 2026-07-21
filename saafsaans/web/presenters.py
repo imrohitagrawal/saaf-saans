@@ -407,6 +407,29 @@ def provenance_chip(waqi_status: str, when: str, lang: str = "en") -> str:
 
 
 
+# The feed's own pollutant codes, and how each is written for a reader. The
+# codes are lowercase and unpunctuated ("pm25"), so upper-casing them produced
+# "PM25" -- a code that exists nowhere, printed two tokens after a correctly
+# written "PM2.5" on the same line. The names here are the ones the glossary,
+# the reading card and the Guide already use, so a reader can match them.
+POLLUTANT_LABELS = {
+    "pm25": "PM2.5", "pm10": "PM10", "o3": "O3",
+    "no2": "NO2", "so2": "SO2", "co": "CO",
+}
+
+
+def pollutant_label(code) -> str:
+    """How a pollutant code is written for a reader, or ``--`` when absent.
+
+    An unknown code is upper-cased rather than dropped: the feed may add a
+    pollutant this table has not met, and showing the raw code is honest,
+    where hiding it would silently under-report what the reading is based on.
+    """
+    if not code:
+        return "--"
+    return POLLUTANT_LABELS.get(str(code).strip().lower(), str(code).upper())
+
+
 def pct(value, total) -> str:
     """Width for a bar, as a CSS percentage string. Guards divide-by-zero."""
     try:

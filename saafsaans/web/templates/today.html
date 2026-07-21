@@ -273,7 +273,10 @@
                   <div class="prov-ground">
                     AQI {{ t.reading.aqi if t.reading.aqi is not none else '--' }} {{ T('ui', 'prov_our_scale', '(CPCB scale, from PM2.5 and PM10)') }}
                     · PM2.5 {{ t.reading.pm25 | round | int if t.reading.pm25 is not none else '--' }} µg/m³
-                    · {{ T('ui', 'prov_dominant', 'dominant') }} {{ t.reading.dominant_pollutant | upper if t.reading.dominant_pollutant else '--' }}
+                    {#- `| upper` turned the feed's "pm25" into "PM25", a code
+                        that exists nowhere, two tokens after the correctly
+                        written PM2.5 on this same line. -#}
+                    · {{ T('ui', 'prov_dominant', 'dominant') }} {{ pollutant(t.reading.dominant_pollutant) }}
                     · {{ T('ui', 'prov_feed_figure', "WAQI's own figure") }} {{ t.reading.feed_aqi if t.reading.feed_aqi is not none else '--' }} {{ T('ui', 'prov_feed_scale', '(US EPA scale)') }}
                     · {{ T('ui', 'prov_live', 'live reading') if t.waqi_status == 'ok' else T('ui', 'prov_cached', 'cached sample (feed missed)') }}
                   </div>

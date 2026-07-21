@@ -343,6 +343,7 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         "T": _translator(lang),
         "advisory_text": _advisory_translator(lang),
         "pct": pr.pct,
+        "pollutant": pr.pollutant_label,
     }
 
 
