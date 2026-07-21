@@ -23,24 +23,38 @@ The hackathon placement is self-reported and not independently verifiable.
 
 ## 2. The artifact, measured
 
-Reproduce any of these from a clone. Two columns because the `v1-closure` branch changed
-most of them; the `v1.0.0` figures are kept so the earlier version of this document stays
-checkable rather than quietly overwritten.
+Reproduce any of these from a clone. Three columns because two branches changed most of them;
+the earlier figures are kept so previous versions of this document stay checkable rather than
+quietly overwritten.
 
-| Metric | at `v1.0.0` | at `v1-closure` | How to check |
-|---|---|---|---|
-| Tests | 186 passing | **363 passing** | `pytest -q` |
-| Test files | 13 | 16 | `ls tests/test_*.py` |
-| Application Python | 2,750 lines | 4,305 lines | `find saafsaans -name '*.py' \| xargs wc -l` |
-| CSS + templates | 925 lines | 1,089 lines | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
-| Test code | 1,712 lines | 3,668 lines | `find tests -name '*.py' \| xargs wc -l` |
-| Commits | 19 | 46 at `a021623` | `git log --oneline a021623 \| wc -l` |
-| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
-| v1.0.0 → v1-closure | — | 44 files, +4,523 / −383 | `git diff --shortstat master..v1-closure` |
+**Pinned to `fbd0183`**, the tip of `hindi-2` before the merges. Every figure below was
+re-derived by running the command beside it at that commit, not carried forward — the previous
+version of this table had three rows that no longer matched their own commands, which is
+exactly the failure this document exists to record.
 
-Test code is **85%** the size of application code, up from 62%. The v1.0.0 rebuild **removed**
-715 more lines than it added; the closure branch adds, because most of it is either a
-correction with a test pinning it or the Hindi corpus.
+| Metric | at `v1.0.0` | at `v1-closure` | at `fbd0183` | How to check |
+|---|---|---|---|---|
+| Tests | 186 passing | 363 passing | **698 passing** | `pytest -q` |
+| Test files | 13 | 16 | **24** | `ls tests/test_*.py \| wc -l` |
+| Application Python | 2,750 lines | 4,305 lines | **5,691 lines** | `find saafsaans -name '*.py' \| xargs wc -l` |
+| CSS + templates | 925 lines | 1,089 lines | **1,421 lines** | `wc -l saafsaans/web/static/app.css saafsaans/web/templates/*.html` |
+| Test code | 1,712 lines | 3,668 lines | **7,009 lines** | `find tests -name '*.py' \| xargs wc -l` |
+| Seed advisories | 34 | 34 | **43** | `python -c "from saafsaans.data.advisories import ADVISORIES; print(len(ADVISORIES))"` |
+| Commits | 19 | 48 | **97** | `git rev-list <ref> --count` |
+| v0.9 → v1.0.0 | 34 files, +1,024 / −1,739 | — | — | `git diff --shortstat v0.9-streamlit..v1.0.0` |
+| v1.0.0 → v1-closure | — | 46 files, +4,815 / −387 | — | `git diff --shortstat master..v1-closure` |
+| v1-closure → hindi-2 | — | — | **44 files, +6,054 / −575** | `git diff --shortstat v1-closure..fbd0183` |
+
+Test code is now **123%** the size of application code, up from 85% and from 62% at v1.0.0 —
+there is more test than app. The v1.0.0 rebuild **removed** 715 more lines than it added; both
+later branches add, because most of what they contain is either a correction with a test
+pinning it or the Hindi corpus.
+
+Two of the `v1-closure` figures are corrected here. The row for `v1.0.0 → v1-closure` said
+"44 files, +4,523 / −383"; the command printed beside it returns 46 files, +4,815 / −387. The
+commit count said "46 at `a021623`" against a branch of 48. Nobody re-ran the commands after
+the last few commits landed, which is the ordinary way a measured claim goes stale — and the
+reason this version names the commit it was measured at.
 
 Three tests are unusual and worth naming, because they encode claims the documentation
 makes rather than behaviour the code exhibits:
@@ -267,7 +281,8 @@ able to name why.** Both faults are recorded in section 11.
 **The Hindi is drafted and gated.** The verdict, band advice, AQI meanings, glossary, Guide
 and all 43 advisories are translated and committed — never machine-translated at request
 time. Every Hindi page carries a banner stating no Hindi speaker has checked it. The persona
-sentence, comparison line and driver chips remain English and the module says so.
+sentence, comparison line and driver chips were English when this paragraph was first written
+and are not any more -- see section 12.
 
 **Roughly half the station feeds were broken.** Auditing all 21 found 11 returning 404 —
 and because the code retried the Delhi city feed on a 404, those 11 localities had been
@@ -411,10 +426,16 @@ usually written down more than once.**
 
 ### Findings recorded but not acted on in this run
 
-- The `noida` feed slug returns the Anand Vihar, Delhi station byte-for-byte. Any UI
-  labelling it Noida is mislabelling Delhi data.
-- The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`, which the
-  freshness check would have presented as live.
+Two entries here were wrong when written, and are corrected rather than deleted: the code
+already acted on both. `noida` is pinned by station uid precisely because the named slug
+resolved to Anand Vihar, and `MAX_OBS_AGE` exists precisely to refuse the four-week-stale
+`delhi/ito` reading. They are struck through below rather than removed, because a decision
+record that quietly drops its own mistakes is worth less than one that keeps them visible.
+
+- ~~The `noida` feed slug returns the Anand Vihar, Delhi station byte-for-byte.~~ Acted on:
+  the locality is pinned by station uid, and every fetch checks the feed's own station name.
+- ~~The `delhi/ito` slug returned a reading four weeks stale with `status: "ok"`.~~ Acted on:
+  readings older than twelve hours are refused.
 - Every render of `/` makes a live, uncached, synchronous WAQI fetch on the hot path. Still
   open: a per-locality TTL memo is the obvious fix and was not made, because it is a
   behaviour change to the freshness story rather than a correction, and this run was closing

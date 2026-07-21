@@ -5,7 +5,12 @@ is required: with no Elasticsearch it falls back to in-process advisory retrieva
 with no model key it answers from deterministic rules. Both fallbacks are visible in the
 UI rather than disguised, so a deployment without them is honest rather than broken.
 
-**No deployment has been executed.** Pushing to a host needs an account this repository
+**Superseded: the app is deployed at https://saafsaans.fly.dev** (one 256 MB Fly.io machine in
+Mumbai, scaled to zero, `WAQI_TOKEN` set and `OPENROUTER_API_KEY` deliberately unset). The
+sentence below was true when written and is kept so the comparison of hosts still reads in
+order.
+
+~~**No deployment has been executed.**~~ Pushing to a host needs an account this repository
 does not have. What *has* been verified is the container itself — see
 [Verified locally](#verified-locally) for what was actually run and what came back.
 Platform terms were read on 2026-07-20 and are quoted with their sources in
