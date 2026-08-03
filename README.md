@@ -7,6 +7,10 @@ air quality where you are, scores **your** risk rather than the city's, tells yo
 to go out, and answers plain-language questions with advice grounded in retrieved health
 guidance — every answer showing its sources.
 
+> **Informational, non-clinical guidance only—not medical advice or an emergency service.**
+
+[Run locally](#run-it) · [Ask or share an idea](https://github.com/imrohitagrawal/saaf-saans/discussions) · [Report a reproducible defect](https://github.com/imrohitagrawal/saaf-saans/issues) · [Contributing guide](https://github.com/imrohitagrawal/.github/blob/main/CONTRIBUTING.md)
+
 ![Today](docs/screenshots/today-light.jpg)
 
 The concept is **the sky is the interface**: the hero renders the air you are being told about,
