@@ -640,7 +640,13 @@ def ask(request: Request, question: str = Form(...)):
         # where the reader was already looking. Nothing is logged: a
         # rate-limit trip is not a security event, and writing one per blocked
         # request would hand the flooder the very index this protects.
-        add_turn(sid, {"kind": "throttled",
+        # Every stored turn is stamped with the language it was composed in.
+        # The transcript outlives the page state that made it: a reader who
+        # asked in English and then switched to Hindi replays English turns on
+        # a page whose <html lang="hi"> claims them as Hindi -- wrong for a
+        # screen reader's phonetics and for the :lang(hi) floors alike -- so
+        # the template marks a turn whose stamp differs from the page.
+        add_turn(sid, {"kind": "throttled", "lang": lang,
                        "question": normalize.excerpt(question),
                        "minutes": max(1, (retry_after + 59) // 60),
                        "persona_line": pr.persona_line(persona, lang=lang)})
@@ -666,7 +672,8 @@ def ask(request: Request, question: str = Form(...)):
         # large question in server memory -- through the one path that exists
         # precisely to refuse it. It is also raw user text, which the transcript
         # cap is meant to bound rather than accumulate.
-        add_turn(sid, {"kind": "refusal", "question": normalize.excerpt(question),
+        add_turn(sid, {"kind": "refusal", "lang": lang,
+                       "question": normalize.excerpt(question),
                        "pattern": pattern,
                        "persona_line": pr.persona_line(persona, lang=lang)})
         return _back(request, sid, theme, lang)
@@ -711,7 +718,7 @@ def ask(request: Request, question: str = Form(...)):
                        else None))
         parsed = llm.parse_advice(text)
         add_turn(sid, {
-            "kind": "answer", "question": question,
+            "kind": "answer", "lang": lang, "question": question,
             "persona_line": pr.persona_line(persona, lang=lang),
             "blocks": pr.answer_sections(parsed, lang=lang),
             "disclaimer": parsed.get("disclaimer"),
@@ -727,7 +734,7 @@ def ask(request: Request, question: str = Form(...)):
             "error": "; ".join(degraded)})
     except Exception as exc:  # pragma: no cover - top-level safety net
         add_turn(sid, {
-            "kind": "answer", "question": question,
+            "kind": "answer", "lang": lang, "question": question,
             "persona_line": pr.persona_line(persona, lang=lang),
             "blocks": [{"heading": i18n.t(lang, "ui", "heading_verdict", "Verdict"),
                         "lead": True,

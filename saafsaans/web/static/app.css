@@ -412,6 +412,12 @@ select, input[type="text"] {
 .prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
 .prov-body > div + div { margin-top: 4px; }
 
+/* Every Guide table sits in one of these. The EPA rate table is five columns
+   of mono figures and cannot shrink below them, so without its own scroll
+   container it forced the PAGE to scroll sideways at narrow widths
+   (WCAG 1.4.10). The wrapper scrolls; the page never does. */
+.table-scroll { overflow-x: auto; }
+
 .faq { margin: 12px 0 0; display: flex; flex-direction: column; gap: 14px; }
 .faq dt { font-weight: 600; font-size: 14px; }
 .faq dd { margin: 3px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }

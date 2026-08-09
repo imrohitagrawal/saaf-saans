@@ -385,6 +385,31 @@ def test_each_turn_records_the_persona_it_was_answered_for(client):
     assert "an adult in good health, planning outdoor exercise" in body
 
 
+def test_a_stored_turn_replayed_in_the_other_language_is_marked(client):
+    """Turns outlive the page state that made them: an English answer replayed
+    on the Hindi page sat under <html lang="hi">, claiming Hindi phonetics for
+    English prose and the Devanagari type floors for Latin text. The stored
+    parts of a turn now carry the language they were composed in. Reverting
+    either the "lang" stamp in main.ask or the attribute in today.html turns
+    this red."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert 'class="answer-body" lang="en"' in hindi
+    assert '<span lang="en">an adult with asthma' in hindi
+
+
+def test_a_turn_replayed_in_its_own_language_stays_unmarked(client):
+    """The partner: on the page whose language already claims the turn, no
+    attribute is added -- marking it would be redundant and would peel the
+    turn out of the :lang() rules that are correct for it."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert 'class="answer-body"' in english           # the card rendered
+    assert 'class="answer-body" lang=' not in english
+
+
 def test_provenance_opens_per_turn_independently(client):
     client.post("/ask", params=PERSONA, data={"question": "Question one?"})
     client.post("/ask", params=PERSONA, data={"question": "Question two?"})
@@ -483,6 +508,25 @@ def test_guide_band_table_shows_a_colour_swatch_per_band():
         assert f'class="band-{slug}"' in body
 
 
+def test_guide_tables_scroll_in_their_own_container_and_name_their_columns():
+    """The EPA rate table is five mono columns and cannot shrink below them,
+    so without a scroll container of its own it forced the whole page sideways
+    (WCAG 1.4.10); and a header row that is not a thead of scope="col" cells
+    leaves a screen reader announcing bare figures (WCAG 1.3.1). One template
+    serves both languages, so both are asserted. Removing a wrapper, a thead
+    or a scope in guide.html turns this red."""
+    for lang in ("en", "hi"):
+        with TestClient(app) as c:
+            body = c.get("/guide", params={**PERSONA, "lang": lang}).text
+        tables = body.count("<table")
+        assert tables >= 4                       # the things counted exist
+        assert body.count('class="table-scroll"') == tables
+        assert body.count("<thead>") == tables
+        assert body.count("<tbody>") == tables
+        assert "<th>" not in body                # no header cell without a scope
+        assert body.count('<th scope="col"') >= tables * 2
+
+
 def test_security_empty_state_says_how_to_produce_data():
     """With no Elasticsearch the view must explain itself, not render blank.
 
@@ -529,6 +573,36 @@ def test_simulation_note_reports_the_real_attack_count():
     with TestClient(app) as c:
         body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
     assert f"Simulation fired {len(ATTACKS)} known attack prompts" in body
+
+
+def test_simulation_note_does_not_claim_logging_without_an_index():
+    """The note said "all blocked ... logged below" directly above "Nothing
+    blocked yet." -- a false claim demonstrated on the page whose job is
+    showing what is in the index. The suite runs without an index (conftest),
+    which is exactly the deployment that reproduced it. Reverting the
+    has_index branch on the sim-note in system.html turns this red."""
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
+    assert "logged below" not in body
+    assert "none of them was recorded below" in body
+    # The empty state the old note contradicted is still there, and now agrees.
+    assert "Nothing blocked yet" in body
+
+
+def test_simulation_note_still_claims_logging_when_an_index_exists(monkeypatch):
+    """The partner proving the suppressed claim still exists: with an index
+    configured, the note must keep saying the blocks are logged below."""
+    import saafsaans.web.main as main
+    from saafsaans.services import metrics
+    monkeypatch.setattr(main, "_client", object())
+    monkeypatch.setattr(metrics, "security_stats",
+                        lambda c: {"block_rate": 1.0, "by_pattern": []})
+    monkeypatch.setattr(metrics, "security_daily", lambda c, days=7: [])
+    monkeypatch.setattr(metrics, "recent_security_events", lambda c, limit=40: [])
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
+    assert "logged below" in body
+    assert "none of them was recorded below" not in body
 
 
 # --- Risk-score provenance is on the page, not only in the repo ------------

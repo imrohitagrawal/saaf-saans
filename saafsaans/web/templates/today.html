@@ -323,7 +323,18 @@
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
         <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
-        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} {{ t.persona_line }}</p>
+        {#- Stored turns outlive the page state that made them: a turn answered
+            in English replays on a Hindi page, where <html lang="hi"> would
+            claim it -- Hindi phonetics from a screen reader over English
+            prose, and the :lang(hi) type floors applied to text that is not
+            Devanagari. Each turn carries the language it was composed in, and
+            the parts of it that are STORED copy (the persona line here, the
+            answer body below) declare it whenever it differs from the page.
+            The chrome around them -- "Answered for", the refusal copy -- is
+            rendered fresh through T in the page's own language and stays
+            unmarked. A turn stored before the stamp existed has no t.lang and
+            renders exactly as it always did. -#}
+        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} <span{% if t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>{{ t.persona_line }}</span></p>
 
         {% if t.kind == 'throttled' %}
           {#- Same flat treatment as a refusal: being asked to wait is not an
@@ -343,7 +354,9 @@
           </div>
         {% else %}
           <div class="answer">
-            <div class="answer-body">
+            {#- The stored blocks and disclaimer were composed at ask time in
+                t.lang; see the comment on the persona line above. -#}
+            <div class="answer-body"{% if t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>
               {% for b in t.blocks %}
               <div>
                 <h3>{{ b.heading }}</h3>

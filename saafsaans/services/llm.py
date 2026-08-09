@@ -442,7 +442,16 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
                        "right now)")
 
     precautions = [f"{top}{stale}"]
-    if detected:
+    # Only under a verdict that lets the activity happen. Every tailored
+    # precaution presumes the reader goes ("Keep to shaded, low-traffic streets
+    # and take it easy"), so under NO-GO it contradicted the verdict two lines
+    # above it -- observed live at AQI 341: "avoid walking", then a bullet
+    # describing how to walk. A bullet is the more permissive claim when the
+    # verdict is an avoid, and this card may never be more permissive than its
+    # own verdict; that is the same rule _verdict already applies to the band.
+    # Checked against the FINAL verdict, after the band ladder, so a band-raised
+    # NO-GO suppresses it too.
+    if detected and verdict != "NO-GO":
         precautions.append(detected[2])
     # Keyed off the verdict rather than the AQI, so the mask advice cannot be
     # the light one under a verdict that just said no.

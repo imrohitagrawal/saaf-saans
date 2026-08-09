@@ -581,6 +581,13 @@ HI: dict = {
         "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
         "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
                               "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # The no-index variant. It must not claim anything was logged: with no
+        # database index the guard still blocks, but nothing is recorded, and
+        # the empty state below says so.
+        "sys_sim_note_after_no_index": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक "
+                                       "पहुँचने से पहले रोक दी गईं। कोई डेटाबेस इंडेक्स "
+                                       "कॉन्फ़िगर नहीं है, इसलिए इनमें से कुछ भी नीचे दर्ज "
+                                       "नहीं हुआ।",
         # Follows the count of blocked prompts in one pattern group.
         "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
         # Sits under the list of blocked attempts and explains why the text

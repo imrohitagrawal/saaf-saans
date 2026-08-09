@@ -111,8 +111,19 @@
 
       {% if simulated %}
       {# One line: the attack count sits inside the sentence, and a newline
-         between the fragments would put a line break inside it. #}
+         between the fragments would put a line break inside it.
+
+         Branched on has_index, the same predicate the observability empty
+         state branches on. Without an index nothing the guard blocked was
+         recorded, so "logged below" sat directly above "Nothing blocked yet."
+         -- the note demonstrated a false claim on the one page whose job is
+         showing what is actually in the index. The blocks themselves are real
+         either way; only the logging claim is conditional. #}
+      {% if has_index %}
       <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after', 'known attack prompts at the guard — all blocked before the model, logged below.') }}</p>
+      {% else %}
+      <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after_no_index', 'known attack prompts at the guard — all blocked before the model. No database index is configured, so none of them was recorded below.') }}</p>
+      {% endif %}
       {% endif %}
 
       {% if attempts %}
