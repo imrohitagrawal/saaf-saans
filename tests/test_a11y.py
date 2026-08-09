@@ -1109,6 +1109,39 @@ def test_no_template_carries_an_inline_font_size():
         f"  removed: {sorted(INLINE_FONT_SIZE_DEBT - found)} (delete it from the debt set)")
 
 
+# --- 6b. Latin text never renders below the instrument floor ----------------
+# The Devanagari floor above is 12.5px because matras stop resolving; Latin has
+# no equivalent cliff, so its floor was never written down and the stylesheet
+# drifted to 9px (`.col .d`), 9.5px (`.scale-ends`, `.spark-x`) and fifteen more
+# declarations under 11px -- smallest on the System page, whose audience
+# includes the seniors the personas name. 11px is the smallest size this design
+# already trusted with information (`.station .bd`, the band word the contrast
+# tests measure at 4.5:1); nothing below it survives. Turns red if any
+# font-size declaration in app.css drops below 11px -- e.g. reverting
+# `.col .d` to 9px.
+LATIN_FLOOR = 11.0
+
+
+def test_no_font_size_in_the_stylesheet_sits_below_the_latin_floor(sheet):
+    """Walks every font-size declaration in every media context, so a size
+    written in a block no older assertion names is still measured. The Hindi
+    floor test resolves rendered pages; this one fences the sheet itself, so a
+    sub-floor size is caught even on an element no fixture happens to render."""
+    small, seen = [], []
+    contexts = [("top", sheet["top"])] + sorted(sheet["media"].items())
+    for context, rules in contexts:
+        for _spec, _order, selector, size in _font_size_rules(rules):
+            seen.append(size)
+            if size + 0.001 < LATIN_FLOOR:
+                small.append(f"{context}: {selector} at {size}px")
+    # The partner checks: the sweep parsed a real population, and something
+    # still sits exactly AT the floor -- if the register moves, move the floor.
+    assert len(seen) > 40, f"only {len(seen)} font-size declarations parsed -- the parser broke"
+    assert LATIN_FLOOR in seen, "nothing sits at the 11px floor any more; re-derive LATIN_FLOOR"
+    assert not small, ("text below the %spx floor:\n  " % LATIN_FLOOR
+                       + "\n  ".join(sorted(set(small))))
+
+
 # --- 7. The band ramp as text, not as a swatch ------------------------------
 # `.dot` paints --ink as a 9px swatch, where SC 1.4.11's 3:1 is the right floor.
 # `.station .bd` paints the SAME token as 11px text, where SC 1.4.3 asks 4.5:1,

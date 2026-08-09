@@ -47,7 +47,7 @@ typography:
     lineHeight: 1.55
   label:
     fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
-    fontSize: "10px"
+    fontSize: "11px"
     fontWeight: 400
     letterSpacing: "0.12em"
   data:
@@ -195,8 +195,11 @@ instrument-grade mono. Warm where it speaks, exact where it measures.
 - **Headline / page-h1** (700, 26px): page titles.
 - **Title / ask-h2** (600, 20px): section heads like the Q&A lead.
 - **Body** (400, 15px, 1.55): all prose; `tabular-nums` set globally.
-- **Label / kicker** (mono, 10px, 0.12em, uppercase): kickers, field labels,
+- **Label / kicker** (mono, 11px, 0.12em, uppercase): kickers, field labels,
   answer section heads. Rendered as h2.kicker when it carries the outline.
+  11px is also the Latin floor: no font-size in the stylesheet sits below it
+  (the audience includes seniors; the instrument register earns its density
+  from the mono face and tracking, not from sub-11px sizes).
 - **Data** (mono 600, 46px AQI numeral; 16–22px for pollutant values and KPIs):
   every measurement on the site is mono.
 

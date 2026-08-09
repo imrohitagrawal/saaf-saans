@@ -93,7 +93,18 @@ a:hover { color: var(--text); }
 
 .shell { max-width: 1120px; margin: 0 auto; padding: 18px 20px 48px; }
 .mono { font-family: var(--mono); }
-.kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+/* 11px is this file's floor. The instrument register -- kickers, tags, axis
+   labels, the System columns -- had drifted to 9-10.5px, smallest on the page
+   an audience that includes seniors reads least often and squints at hardest.
+   No Latin size cliff exists like the Devanagari 12.5px one, but 11px is the
+   smallest size this design already trusts with information: `.station .bd`
+   carries the band word at 11px and is held to 4.5:1 by tests. Every raised
+   size stays normal-size text under SC 1.4.3 (the 18.66px large-text boundary
+   is nowhere near), so no contrast measurement recorded in this file moves.
+   The register keeps its character from the mono face and the em-based
+   tracking, which scales with the size, not from the missing pixels.
+   tests/test_a11y.py fences every font-size declaration at 11px. */
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
           text-transform: uppercase; color: var(--text-3); }
 h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .page-h1 { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
@@ -227,7 +238,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .chip-base { padding: 5px 12px; border-radius: 999px; background: rgba(247,243,236,.12); }
 .hero-window { position: relative; background: rgba(12,13,15,.85); color: #F5F4F0;
                padding: 12px 22px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.hero-window .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; opacity: .7; }
+.hero-window .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; opacity: .7; }
 .hero-window .val { font-family: var(--disp); font-weight: 600; font-size: 17px; }
 .stale-note { margin: 0; font-size: 13px; color: var(--text-2); background: var(--surface);
               border: 1px dashed var(--border-s); border-radius: 10px; padding: 10px 14px; }
@@ -257,7 +268,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
             border-radius: 999px; cursor: pointer; text-decoration: none; }
 .fields { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
 .fields label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 130px; }
-.fields .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); }
+.fields .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--text-3); }
 select, input[type="text"] {
   padding: 8px 10px; border: 1px solid var(--border-s); border-radius: 8px;
   background: var(--surface); color: var(--text); font-family: var(--body); font-size: 13.5px;
@@ -277,15 +288,15 @@ select, input[type="text"] {
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
 .scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
 .scale-mark { position: absolute; top: 0; transform: translateX(-50%);
-              font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
+              font-family: var(--mono); font-size: 11px; font-weight: 600; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
 .scale-ends { display: flex; justify-content: space-between; font-family: var(--mono);
-              font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+              font-size: 11px; color: var(--text-3); margin-top: 4px; }
 .pollutants { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
 .pollutants div { display: flex; flex-direction: column; gap: 1px; }
-.pollutants .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); }
+.pollutants .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--text-3); }
 .pollutants .val { font-family: var(--mono); font-size: 16px; font-weight: 600; }
-.pollutants .unit { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.pollutants .unit { font-size: 11px; font-weight: 400; color: var(--text-3); }
 .def-slot { margin: 12px 0 0; padding: 8px 12px; background: var(--surface-2);
             border-radius: 8px; font-size: 13px; color: var(--text-2); }
 /* Promoted, and left with exactly one job: the advice on the reading card.
@@ -311,7 +322,7 @@ select, input[type="text"] {
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
 .answer { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .answer-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
-.answer h3 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
+.answer h3 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 400;
              letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .answer p:not(.caveat) { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .answer .lead { font-weight: 600; font-size: 14.5px; color: var(--text); }
@@ -325,7 +336,7 @@ select, input[type="text"] {
 .prov-body { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 9px; }
 .prov-ground { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .src-row { display: flex; gap: 9px; align-items: baseline; flex-wrap: wrap; }
-.src-tag { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px;
+.src-tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px;
            border: 1px solid var(--border-s); border-radius: 4px; color: var(--text-2); flex: none; }
 .src-row span + span { font-size: 12px; color: var(--text-3); flex: 1 1 220px; }
 .refusal { margin-top: 10px; border-radius: 12px; background: var(--surface-2); padding: 12px 16px; }
@@ -366,7 +377,7 @@ select, input[type="text"] {
        background: var(--ink); margin-right: 8px; vertical-align: baseline; }
 .station .dot { margin-right: 0; flex: none; }
 .station .nm { flex: 1; min-width: 0; }
-.station .tag { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.station .tag { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
@@ -394,7 +405,7 @@ select, input[type="text"] {
 .spark { margin-top: 10px; color: var(--accent); }
 .spark svg { display: block; width: 100%; height: auto; }
 .spark-x { display: flex; justify-content: space-between; font-family: var(--mono);
-           font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+           font-size: 11px; color: var(--text-3); margin-top: 4px; }
 
 /* ---------------------------------------------------------------- system -- */
 /* Deliberately mono-heavy and flat: this register must not sound like advice. */
@@ -411,17 +422,17 @@ select, input[type="text"] {
 .cols { margin-top: 12px; display: flex; align-items: flex-end; gap: 8px; height: 74px; }
 .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
        align-self: stretch; justify-content: flex-end; }
-.col .n { font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+.col .n { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
 .col .b { width: 100%; background: var(--g5); border-radius: 4px 4px 0 0; }
-.col .d { font-family: var(--mono); font-size: 9px; color: var(--text-3); }
+.col .d { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .attempt-group { padding: 11px 0; border-top: 1px solid var(--border); }
 .attempt-head { display: flex; align-items: baseline; gap: 10px; }
 .variant { display: flex; align-items: baseline; gap: 10px; margin-top: 6px;
            padding-left: 4px; flex-wrap: wrap; }
-.pat { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 4px;
+.pat { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px;
        background: var(--n5); color: var(--g5); flex: none; }
 .excerpt { font-size: 12.5px; color: var(--text-2); flex: 1 1 180px; min-width: 0; font-style: italic; }
-.when { font-family: var(--mono); font-size: 10px; color: var(--text-3);
+.when { font-family: var(--mono); font-size: 11px; color: var(--text-3);
         flex: none; margin-left: auto; }
 .sim-note { margin: 10px 0 0; font-size: 12px; color: var(--text-2);
             background: var(--accent-tint); border-radius: 8px; padding: 8px 12px; }
@@ -459,7 +470,7 @@ select, input[type="text"] {
 .thread { list-style: none; margin: 22px 0 0; padding: 0;
           display: flex; flex-direction: column; gap: 20px; }
 .thread .turn { border-top: 1px solid var(--border); padding-top: 18px; }
-.prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
+.prov-count { margin-left: auto; color: var(--text-3); font-size: 11px; }
 .prov-body > div + div { margin-top: 4px; }
 
 /* Every Guide table sits in one of these. The EPA rate table is five columns
@@ -599,7 +610,7 @@ select { padding: 12px 10px; }
 }
 
 /* h2 styled as a kicker: the level carries the outline, the class carries the look. */
-h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
+h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
             letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
 
 
