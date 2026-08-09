@@ -14,14 +14,41 @@ ways this integration can be wrong while looking right:
 import json
 import threading
 import time
+from datetime import timedelta
 
 import pytest
 
-from saafsaans.services import aqi_scale, config, cpcb, waqi
+from saafsaans.services import aqi_scale, clock, config, cpcb, waqi
 
 
-def rows(station, pm25=None, pm10=None, when="21-07-2026 19:00:00", city="Delhi"):
+def _recent_ist(hours_ago: int = 1) -> str:
+    """A ``last_update`` the freshness check accepts, in the feed's own layout.
+
+    Relative to now, deliberately. This was the literal
+    ``"21-07-2026 19:00:00"``, which sat inside ``waqi.MAX_OBS_AGE`` (12 hours)
+    only on the day it was written: from 2026-07-22 onward every reading built
+    here was refused as stale, the WAQI fallback fired, and 21 tests in this
+    file failed for a reason unrelated to what they assert. A fixture that
+    encodes today's date expires; one that encodes an offset does not.
+    """
+    return (clock.now_ist() - timedelta(hours=hours_ago)).strftime("%d-%m-%Y %H:%M:%S")
+
+
+def _recent_iso(hours_ago: int = 2) -> str:
+    """The same idea in WAQI's layout: ``data.time.iso``, an ISO-8601 instant."""
+    return (clock.now_ist() - timedelta(hours=hours_ago)).isoformat()
+
+
+# Fixed once at import rather than per call, because FRESH_WAQI_ISO is asserted
+# against as well as fed in, and the two must agree inside a single run.
+FRESH_CPCB_WHEN = _recent_ist()
+FRESH_WAQI_ISO = _recent_iso()
+
+
+def rows(station, pm25=None, pm10=None, when=None, city="Delhi"):
     """The upstream shape: one record per pollutant per station."""
+    if when is None:
+        when = FRESH_CPCB_WHEN
     out = []
     for pollutant, value in (("PM2.5", pm25), ("PM10", pm10)):
         if value is not None:
@@ -184,7 +211,7 @@ def test_waqi_is_tried_when_cpcb_has_nothing(feed, monkeypatch):
             return {"status": "ok", "data": {
                 "aqi": 199, "city": {"name": "Wazirpur, Delhi"},
                 "iaqi": {"pm25": {"v": 163}, "pm10": {"v": 147}},
-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
+                "time": {"iso": FRESH_WAQI_ISO}}}
 
     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
@@ -696,7 +723,7 @@ def _waqi_pair(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
                 iaqi["pm10"] = {"v": pm10}
             return {"status": "ok", "data": {
                 "aqi": 199, "city": {"name": station}, "iaqi": iaqi,
-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
+                "time": {"iso": FRESH_WAQI_ISO}}}
 
     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
@@ -724,7 +751,7 @@ def test_no_reading_ever_mixes_the_two_sources(feed, monkeypatch, flag):
     else:
         assert reading["source"] == "waqi"
         assert reading["pm25"] is not None and reading["pm10"] is not None
-        assert reading["obs_time"] == "2026-07-21T17:00:00+05:30"
+        assert reading["obs_time"] == FRESH_WAQI_ISO
 
 
 def test_the_flag_off_keeps_the_cpcb_single_particulate_reading(feed, monkeypatch):
@@ -851,7 +878,7 @@ def _waqi_live(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
             return {"status": "ok", "data": {
                 "aqi": 280, "city": {"name": station},
                 "iaqi": {"pm25": {"v": pm25}, "pm10": {"v": pm10}},
-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
+                "time": {"iso": FRESH_WAQI_ISO}}}
 
     def fake_get(url, *a, **k):
         calls.append(url)

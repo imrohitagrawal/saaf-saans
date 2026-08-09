@@ -18,11 +18,12 @@ live reading has earned, or "withhold the band" would be indistinguishable from
 """
 import html
 import re
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import aqi_scale, i18n, normalize, waqi
+from saafsaans.services import aqi_scale, clock, i18n, normalize, waqi
 from saafsaans.web import presenters as pr
 from saafsaans.web.main import app
 
@@ -33,7 +34,10 @@ PERSONA = {"age": "Adult", "condition": "Asthma",
 # is the reading that rendered band-g5 / VERY POOR / EXTREME on the shipped tip.
 PM25, PM10 = 210.0, 300.0
 AQI = aqi_scale.cpcb_aqi(PM25, PM10)[0]
-OBS = "2026-07-21T10:00:00+05:30"
+# Relative to now, for the same reason as test_cpcb._recent_ist: a literal
+# observation time ("2026-07-21T10:00:00+05:30") ages out of every freshness
+# window the day after it is written. Nothing here asserts on the rendered time.
+OBS = (clock.now_ist() - timedelta(hours=2)).isoformat()
 
 
 @pytest.fixture(autouse=True)
@@ -358,9 +362,14 @@ def test_a_missing_outlook_explains_itself(monkeypatch, lang):
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_a_reading_that_has_an_outlook_does_not_explain_its_absence(monkeypatch, lang):
     """The mirror. The explanation must not print above a rendered outlook."""
+    # Today and tomorrow in IST, not literals: presenters.outlook_rows drops any
+    # day before clock.today_ist(), so fixed past dates render no outlook at all
+    # and this test would assert the absence of the thing it exists to require.
+    today = clock.today_ist()
     forecast = {"daily": {"pm25": [
-        {"day": "2026-07-21", "avg": 80, "min": 60, "max": 100},
-        {"day": "2026-07-22", "avg": 90, "min": 70, "max": 110}]}}
+        {"day": today.isoformat(), "avg": 80, "min": 60, "max": 100},
+        {"day": (today + timedelta(days=1)).isoformat(),
+         "avg": 90, "min": 70, "max": 110}]}}
 
     def get_aqi(locality, es_client=None):
         return waqi._reading(PM25, PM10, station=locality, city="Delhi",

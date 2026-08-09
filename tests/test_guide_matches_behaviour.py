@@ -126,10 +126,28 @@ def test_the_guide_names_the_source_the_code_actually_reads_first(lang):
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_the_guide_still_names_the_fallback(lang):
     """The rewrite must not delete the fallback's existence: WAQI really is
-    consulted when CPCB has nothing, and Wazirpur is the case where it wins."""
+    consulted when CPCB has nothing, and Wazirpur is the case where it wins.
+
+    This was ``assert "WAQI" in body``, which proved almost nothing: WAQI is
+    named in several places on this page, so deleting the fallback CLAIM
+    outright left the test green. The property that actually holds is
+    relational -- the answer that names the primary source is the same answer
+    that says what happens when the primary has nothing -- so the fallback
+    cannot be dropped from the policy answer a reader checking the data policy
+    actually reads while surviving elsewhere on the page.
+    """
+    import re
+
+    from saafsaans.services import cpcb
+
     with TestClient(app) as c:
         body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
-    assert "WAQI" in body, lang
+    answers = [re.sub(r"<[^>]+>", " ", a)
+               for a in re.findall(r"<dd[^>]*>(.*?)</dd>", body, re.S)]
+    primary = [a for a in answers if cpcb.SOURCE_HOST in a]
+    assert primary, (lang, "no answer names the primary source")
+    assert any("WAQI" in a for a in primary), (
+        lang, "the answer naming the primary source no longer names the fallback")
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
