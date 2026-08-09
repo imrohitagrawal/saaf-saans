@@ -31,6 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from saafsaans.attack_demo import ATTACKS
+from saafsaans.data.advisories import ADVISORIES
 from saafsaans.services import (
     aqi_scale, clock, config, cpcb, es, forecast, guard, i18n, llm, metrics,
     normalize, ratelimit, risk, waqi,
@@ -85,6 +86,10 @@ AGES = ["Child", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
 ACTIVITIES = ["Outdoor exercise", "Commute", "School run", "Stay home"]
 TERMS = ["AQI", "PM2.5", "PM10"]
+# Derived from the seeded data rather than hand-typed, so a new advisory
+# source is glossable the moment it is added here -- not a second edit a
+# future author has to remember to make in this file too.
+SOURCE_TERMS = sorted({a["source"] for a in ADVISORIES})
 IST = clock.IST   # one definition, in services/clock.py
 
 # The transcript store holds raw user questions, so leaving it unbounded is a
@@ -560,7 +565,7 @@ def today(request: Request):
     # The disclosure links must not smuggle the default persona into the query
     # string before the visitor has chosen one; same rule as base_context.
     qp = persona if applied else {}
-    term = q.get("term") if q.get("term") in TERMS else None
+    term = q.get("term") if q.get("term") in TERMS + SOURCE_TERMS else None
     # Open by DEFAULT on a first visit: until the visitor has applied a
     # persona, the editor is the page's primary element -- the advice above it
     # is an example's, and the form is how it becomes theirs. ``edit=0`` is the
@@ -710,6 +715,14 @@ def today(request: Request):
         "q_term_aqi": _qs(qp, theme, lang, term=None if term == "AQI" else "AQI"),
         "q_term_pm25": _qs(qp, theme, lang, term=None if term == "PM2.5" else "PM2.5"),
         "q_term_pm10": _qs(qp, theme, lang, term=None if term == "PM10" else "PM10"),
+        # One parameterized helper for all eleven source codes, matching
+        # q_prov(tid) above, rather than eleven more fixed q_term_* keys.
+        # Takes tid too, and always sends prov=tid: the pill lives inside the
+        # provenance panel, and a link that dropped prov closed that panel out
+        # from under the def-slot it was meant to open.
+        "q_term_source": lambda src, tid: _qs(qp, theme, lang,
+                                              term=None if term == src else src,
+                                              prov=tid),
     })
     return _render(request, "today.html", ctx, sid, theme, lang)
 
@@ -1360,7 +1373,15 @@ def guide(request: Request):
     labels = [b[1] for b in normalize.AQI_BANDS] + ["Severe"]
     slugs = [b[4] for b in normalize.AQI_BANDS] + ["g6"]
     ctx.update({
-        "glossary": normalize.GLOSSARY,
+        # The eleven citation-source entries (GINA-guidance, CPCB-AQI-scale...)
+        # live in this same dict for the provenance panel's def-slot, but the
+        # Guide's list assumes every unmapped key is a term a Delhi reader says
+        # out loud (see the comment in guide.html) -- a hyphenated index slug
+        # is not that, so it is excluded here rather than given a made-up
+        # spoken name. Its definition still exists; it opens beside the pill
+        # that names it, on the page that shows the pill.
+        "glossary": {k: v for k, v in normalize.GLOSSARY.items()
+                     if k not in SOURCE_TERMS},
         "conditions_help": normalize.CONDITION_HELP,
         "bands": [{"label": i18n.t(lang, "band_label", l, l), "range": r, "slug": g,
                    "meaning": i18n.t(lang, "aqi_meaning", l, normalize.aqi_meaning(l))}

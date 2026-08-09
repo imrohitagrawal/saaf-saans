@@ -207,6 +207,100 @@ def test_provenance_panel_lists_its_sources(client, live_feed):
     assert "Measured at the time" in opened and "Published guidance used" in opened
 
 
+def test_source_tag_opens_its_own_glossary_definition(client, live_feed):
+    """The citation slug is a term like AQI or PM2.5, not inert text.
+
+    Red for two independent reasons today: the pill has no <a> at all, and
+    GINA-guidance is rejected by TERMS so the query param never resolves to a
+    term, so no def-slot renders regardless of the markup around the pill.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "GINA-guidance"}).text
+    assert '<a class="term" href="/?' in opened and '>GINA-guidance</a>' in opened
+    assert opened.count('class="def-slot"') == 1
+    assert "Global Initiative for Asthma" in opened
+
+
+def test_repeated_source_still_opens_only_one_definition(client, live_feed):
+    """CPCB-AQI-scale is the fallback source for most AQI bands, so this
+    persona's own turn cites it twice -- once per relevance group. Before this
+    test, opening its term rendered the def-slot once per matching row: two
+    identical paragraphs stacked in the panel for one tap on one pill.
+
+    Red for the reason above: the guard in today.html was `{% if term ==
+    s.source %}` inside the per-row loop, with no per-panel flag, so it fired
+    twice. Asserting the pill itself repeats first, so a future change to the
+    advisory data that stops citing CPCB-AQI-scale twice fails this test
+    loudly instead of leaving it passing for the wrong reason.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "CPCB-AQI-scale"}).text
+    assert opened.count(">CPCB-AQI-scale</a>") >= 2, (
+        "this persona/AQI combination no longer cites CPCB-AQI-scale twice, "
+        "so it can no longer prove the def-slot does not duplicate"
+    )
+    assert opened.count('class="def-slot"') == 1
+
+
+def test_repeated_source_marks_only_one_pill_as_expanded(client, live_feed):
+    """The sibling above proves the def-slot itself does not duplicate; this
+    proves the pill's own aria-expanded does not lie about which one opened it.
+
+    Red before the fix: `aria-expanded` on each pill was computed straight
+    from `term == s.source`, independent of the `src_ns.shown` flag that
+    gates the def-slot render, so both rows citing CPCB-AQI-scale reported
+    aria-expanded="true" even though only the first row's def-slot actually
+    rendered -- a screen reader is told two identical controls are both
+    expanded when only one of them has any content to show.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "CPCB-AQI-scale"}).text
+    pills = re.findall(
+        r'<a class="term" href="[^"]*" aria-expanded="(true|false)">CPCB-AQI-scale</a>', opened
+    )
+    assert len(pills) >= 2, "need at least two CPCB-AQI-scale pills to prove the state is not shared"
+    assert pills.count("true") == 1, f"expected exactly one expanded CPCB-AQI-scale pill, got {pills}"
+
+
+def test_source_tag_link_keeps_the_provenance_panel_open(client, live_feed):
+    """The pill lives inside the panel the def-slot renders in. A link that
+    dropped `prov` closed that panel on click, so the definition the reader
+    just asked for could never actually be seen through real navigation --
+    the def-slot's parent block is gated on `open_prov == t.id`.
+
+    Red before the fix: `q_term_source` built its href from `term` alone, so
+    `prov` was never in the query string the pill actually emits.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0"}).text
+    m = re.search(r'<a class="term" href="([^"]*)"[^>]*>GINA-guidance</a>', opened)
+    assert m, "no source-tag link rendered for GINA-guidance"
+    assert "prov=0" in m.group(1), (
+        f"the pill's own link drops prov, so clicking it closes the panel: {m.group(1)}"
+    )
+
+
+def test_source_tag_definition_is_in_hindi_when_the_page_is(client, live_feed):
+    """The English test above proves the mechanism opens the right definition;
+    it cannot catch a wrong or missing Hindi entry, since it never sets
+    lang=hi. Nothing else exercised this exact combination either -- the
+    disclosure sweep in test_hindi_completeness.py opens `term` and `prov`
+    as two separate single-parameter states, never both together, and this
+    def-slot only renders when both are set.
+
+    Red before the fix for the same two reasons as the English test (no <a>,
+    term rejected by TERMS), and would also go red on a mistyped or missing
+    HI['glossary'] key even after the fix, since `i18n.t` falls back to the
+    English sentence rather than raising.
+    """
+    params = {**PERSONA, "lang": "hi"}
+    client.post("/ask", params=params, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**params, "prov": "0", "term": "GINA-guidance"}).text
+    assert opened.count('class="def-slot"') == 1
+    assert "अस्थमा की वैश्विक पहल" in opened
+    assert "Global Initiative for Asthma" not in opened
+
+
 def test_ask_redirects_so_a_refresh_cannot_resubmit(client):
     r = client.post("/ask", params=PERSONA, data={"question": "Is it safe outside?"},
                     follow_redirects=False)
@@ -640,9 +734,15 @@ def test_provenance_label_states_what_it_contains(client, monkeypatch,
 # --- Guide ------------------------------------------------------------------
 def test_guide_explains_every_term_condition_and_band():
     from saafsaans.services import normalize
+    from saafsaans.web.main import SOURCE_TERMS
     with TestClient(app) as c:
         body = c.get("/guide", params=PERSONA).text
+    # The eleven citation-source entries are excluded on purpose: their
+    # definition opens beside the pill that names them in the provenance
+    # panel, not in this page's flat A-Z list (see main.py's guide() route).
     for term in normalize.GLOSSARY:
+        if term in SOURCE_TERMS:
+            continue
         assert term in body
     for condition in normalize.CONDITION_HELP:
         assert condition in body

@@ -141,6 +141,46 @@ GLOSSARY = {
                           "particles, pm10 = dust, o3 = ozone, no2 = traffic gas).",
     "Risk score": "A 0-100 estimate of today's risk FOR YOU, combining the air "
                   "quality with your age, health condition, and planned activity.",
+    # The eleven literal values of the ``source`` field in data/advisories.py,
+    # one gloss per body -- who they are and why their name is on this row,
+    # never a claim about how well the advice works (see the CPCB entry above
+    # for the pattern this follows).
+    "CPCB-AQI-scale": "Central Pollution Control Board -- the same Indian "
+                      "government body as above. This tag marks guidance drawn "
+                      "from its own published AQI bands rather than a named "
+                      "medical body.",
+    "GINA-guidance": "Global Initiative for Asthma -- an international body "
+                     "that publishes asthma care guidelines. Guidance under "
+                     "this tag is theirs.",
+    "GOLD-guidance": "Global Initiative for Chronic Obstructive Lung Disease "
+                     "-- an international body that publishes COPD care "
+                     "guidelines. Guidance under this tag is theirs.",
+    "ACSM-guidance": "American College of Sports Medicine -- a professional "
+                     "body for exercise science. Guidance under this tag is "
+                     "theirs, on exercising in polluted air.",
+    "AHA-airpollution": "American Heart Association -- a professional body "
+                        "for heart health. Guidance under this tag is theirs, "
+                        "on air pollution and the heart.",
+    "WHO-AQG-2021": "The World Health Organization's 2021 Air Quality "
+                    "Guidelines -- its most recent global recommendations on "
+                    "safe pollutant levels.",
+    "WHO-children-air": "World Health Organization guidance on air pollution "
+                        "and children -- children breathe faster for their "
+                        "size and are more exposed, so this guidance is "
+                        "written for them specifically.",
+    "ACOG-airquality": "American College of Obstetricians and Gynecologists "
+                       "-- a professional body for pregnancy care. Guidance "
+                       "under this tag is theirs, on air quality and "
+                       "pregnancy.",
+    "AIIMS-advisory": "All India Institute of Medical Sciences -- a "
+                      "government-run medical institute and hospital in "
+                      "Delhi. Guidance under this tag is theirs.",
+    "EPA-indoor-air": "United States Environmental Protection Agency "
+                      "guidance on indoor air -- used here for staying "
+                      "indoors on a bad-air day, not for the outdoor reading.",
+    "Lancet-Planetary-Health": "The Lancet Planetary Health -- a "
+                               "peer-reviewed medical journal. Guidance under "
+                               "this tag draws on research it has published.",
 }
 
 

@@ -285,8 +285,11 @@
       </div>
     </div>
 
-    {# One shared slot: opening a term closes any other. #}
-    {% if term and term in glossary %}
+    {# One shared slot: opening a term closes any other. Narrowed to the three
+       reading-card terms on purpose -- a source-tag term (see the provenance
+       panel below) renders its own def-slot next to the pill that opened it,
+       which may be well below this card once the panel is scrolled into view. #}
+    {% if term in ('AQI', 'PM2.5', 'PM10') %}
     <p class="def-slot">{{ T('glossary', term, glossary[term]) }}</p>
     {% endif %}
 
@@ -479,15 +482,40 @@
                 {% set general_sources = t.sources | rejectattr('relevance', 'equalto', 'persona') | list %}
                 <div>
                   <div class="kicker">{{ T('ui', 'prov_published', 'Published guidance used') }}</div>
+                  {#- CPCB-AQI-scale is the fallback source for most AQI bands, so a
+                      single turn routinely cites it twice -- once in each relevance
+                      group, sometimes twice in the same one. Without this flag the
+                      def-slot printed once per matching row: two identical paragraphs
+                      stacked in the panel for one tap. One flag shared across both
+                      groups keeps the "opening a term closes any other" rule (see the
+                      reading card above) true here too, where the source list is not
+                      the three fixed, unique terms that rule was written for. -#}
+                  {% set src_ns = namespace(shown=false) %}
                   {% for group, kicker in [(persona_sources, T('ui', 'prov_group_persona', 'Written for your persona')),
                                            (general_sources, T('ui', 'prov_group_general', 'General guidance for this air quality'))] %}
                     {% if group %}
                     <div class="kicker">{{ kicker }}</div>
                     {% for s in group %}
+                    {#- The def-slot itself only ever fires for the first row that
+                        matches, via src_ns.shown below -- but aria-expanded used to
+                        be computed straight from `term == s.source`, so every row
+                        sharing that source (CPCB-AQI-scale, routinely) reported
+                        itself expanded even on rows with no def-slot to point at.
+                        Deciding it once, here, and reusing it for both the pill
+                        and the render guard keeps the two in lockstep. -#}
+                    {% set is_open = term == s.source and not src_ns.shown %}
                     <div class="src-row">
-                      <span class="src-tag">{{ s.source }}</span>
+                      {#- prov carries the panel's own open state forward. Without it
+                          this link closed the very panel the def-slot renders inside,
+                          since the term toggle's query string otherwise says nothing
+                          about prov and _qs drops any key it is not given. -#}
+                      <span class="src-tag"><a class="term" href="/?{{ q_term_source(s.source, t.id) }}#turn-{{ t.id }}" aria-expanded="{{ 'true' if is_open else 'false' }}">{{ s.source }}</a></span>
                       <span>{{ advisory_text(s) }}</span>
                     </div>
+                    {% if is_open %}
+                    <p class="def-slot">{{ T('glossary', term, glossary[term]) }}</p>
+                    {% set src_ns.shown = true %}
+                    {% endif %}
                     {% endfor %}
                     {% endif %}
                   {% endfor %}
