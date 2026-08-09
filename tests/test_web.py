@@ -1525,6 +1525,19 @@ def test_the_english_page_keeps_its_english(client):
     assert "ANAND VIHAR" not in html      # upper-cased in CSS, not in the markup
 
 
+def test_band_words_are_upper_cased_in_css_not_in_the_markup(client, live_feed):
+    """A `| upper` filter turns the band word's own characters into capitals, so
+    the `:lang(hi)` reset that cancels CSS `text-transform` on this same element
+    has nothing to cancel: the word is shouting in the markup itself. The band
+    word belongs in the hero pill, the risk chip and the reading's band chip in
+    its own case, same as the locality above it."""
+    html = client.get("/", params=PERSONA).text
+    assert "Moderate" in html   # the live_feed band, in the case i18n stores it
+    assert "High" in html       # the live_feed risk band, same reason
+    assert "MODERATE" not in html
+    assert "HIGH" not in html
+
+
 def test_hindi_headings_are_a_step_heavier_and_english_is_untouched():
     """Devanagari at 600 reads lighter than Latin at 600, so the Hindi page
     looked de-emphasised rather than translated. The remedy must be scoped:

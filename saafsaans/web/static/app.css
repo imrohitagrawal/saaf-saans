@@ -227,7 +227,10 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    markup still carries the name as it is spelled in the picker and in the
    query string. */
 .hero-meta .place { text-transform: uppercase; }
-.hero-pill { padding: 3px 10px; border-radius: 999px;
+/* The band word is upper-cased here rather than by a template filter, so the
+   markup still carries the word in the case i18n stores it and the `:lang(hi)`
+   reset below has a live transform to cancel. */
+.hero-pill { padding: 3px 10px; border-radius: 999px; text-transform: uppercase;
              background: rgba(247,243,236,.16); border: 1px solid rgba(247,243,236,.35); }
 .hero-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; }
 .verdict { margin: -4px 0 0; font-weight: 800; font-size: clamp(28px, 5vw, 42px);
@@ -235,7 +238,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-advice { margin: 0; font-size: 15px; opacity: .92; text-wrap: pretty; }
 .hero-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
               font-family: var(--mono); font-size: 12px; }
-.chip-risk { font-weight: 600; padding: 5px 12px; border-radius: 999px;
+.chip-risk { font-weight: 600; padding: 5px 12px; border-radius: 999px; text-transform: uppercase;
              background: rgba(247,243,236,.18); border: 1px solid rgba(247,243,236,.4); }
 .chip-base { padding: 5px 12px; border-radius: 999px; background: rgba(247,243,236,.12); }
 .hero-window { position: relative; background: rgba(12,13,15,.85); color: #F5F4F0;
@@ -284,6 +287,7 @@ select, input[type="text"] {
 .aqi-num { font-family: var(--mono); font-weight: 600; font-size: 46px;
            line-height: 1; letter-spacing: -.02em; }
 .band-chip { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
+             text-transform: uppercase;
              padding: 3px 10px; border-radius: 999px; background: var(--tint);
              color: var(--text); border: 1px solid var(--ink); }
 .term { border: none; background: none; padding: 0; font: inherit; color: inherit;
@@ -681,7 +685,8 @@ h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
 /* Devanagari is unicameral: uppercasing does nothing but tell a screen reader
    this is an abbreviation. */
 :lang(hi) .kicker, :lang(hi) .hero-kicker, :lang(hi) .lbl,
-:lang(hi) .answer h3, :lang(hi) .band-chip, :lang(hi) .prov-btn {
+:lang(hi) .answer h3, :lang(hi) .band-chip, :lang(hi) .prov-btn,
+:lang(hi) .hero-pill, :lang(hi) .chip-risk {
   text-transform: none;
 }
 
