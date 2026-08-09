@@ -124,6 +124,11 @@ ALLOWED = {
     # new slug must fail this test once, and be added here on purpose.
     "CPCB-AQI-scale", "GINA-guidance", "GOLD-guidance", "WHO-children-air",
     "ACOG-airquality", "EPA-indoor-air",
+    # These five were the actual gap: the panel was only ever opened with
+    # term=PM2.5 before, so nothing had rendered a pill for any of them and
+    # the scan never caught that they were missing from this list.
+    "ACSM-guidance", "AHA-airpollution", "AIIMS-advisory",
+    "Lancet-Planetary-Health", "WHO-AQG-2021",
 }
 # Locality names USED to be exempted here, on the grounds that the picker's
 # values are load-bearing. That confused the value with the label: the value is
@@ -365,6 +370,37 @@ def test_no_untranslated_english_in_a_disclosure_panel(disclosure):
         f"the {disclosure} panel in Hindi still shows English: {stray}. "
         "Either translate it, or add it to ALLOWED with the reason it is correct."
     )
+
+
+def test_the_disclosure_scan_reaches_a_source_slug_the_fixed_personas_miss(monkeypatch):
+    """PERSONAS above is three fixed combinations, chosen for coverage of the
+    three age/condition groups rather than of every citation slug: none of
+    them ever cites AHA-airpollution, ACSM-guidance, AIIMS-advisory,
+    Lancet-Planetary-Health, or WHO-AQG-2021 for the seeded question, so the
+    sweep above never opened the panel on any of the five and never proved
+    they were on ALLOWED. They were not -- only six of the eleven source
+    slugs were listed, and this combination is the one that catches it:
+    Heart condition + Commute at AQI 168 cites AHA-airpollution, which none
+    of the three fixed personas reaches.
+    """
+    reading = {"aqi": 168, "aqi_beyond_scale": False, "pm25": 90.0, "pm10": 160.0,
+               "dominant_pollutant": "pm25", "feed_aqi": 210, "feed_dominant": "pm25",
+               "city": "Delhi", "stale": False, "retained": False, "source": "waqi",
+               "forecast": None, "obs_time": "2026-07-21T10:00:00+05:30"}
+    monkeypatch.setattr(waqi, "get_aqi",
+                        lambda locality, es_client=None: ({**reading, "station": locality}, "ok"))
+    persona = {"locality": "Anand Vihar", "age": "Adult", "condition": "Heart condition",
+               "activity": "Commute", "lang": "hi"}
+    with TestClient(app) as client:
+        client.post("/ask", params=persona,
+                    data={"question": "क्या मैं आज बाहर दौड़ने जा सकता हूँ?"})
+        opened = client.get("/", params={**persona, "prov": "0"}).text
+    assert "AHA-airpollution" in opened, (
+        "this combination no longer cites AHA-airpollution, so it can no "
+        "longer prove the fixed personas miss this slug"
+    )
+    stray = _stray_latin(_visible_text(_element(opened, 'class="prov-body"', "div")))
+    assert not stray, f"the prov panel in Hindi still shows English: {sorted(stray)}"
 
 
 @pytest.mark.parametrize("path", PAGES)

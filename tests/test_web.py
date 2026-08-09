@@ -151,6 +151,66 @@ def test_source_tag_opens_its_own_glossary_definition(client, live_feed):
     assert "Global Initiative for Asthma" in opened
 
 
+def test_repeated_source_still_opens_only_one_definition(client, live_feed):
+    """CPCB-AQI-scale is the fallback source for most AQI bands, so this
+    persona's own turn cites it twice -- once per relevance group. Before this
+    test, opening its term rendered the def-slot once per matching row: two
+    identical paragraphs stacked in the panel for one tap on one pill.
+
+    Red for the reason above: the guard in today.html was `{% if term ==
+    s.source %}` inside the per-row loop, with no per-panel flag, so it fired
+    twice. Asserting the pill itself repeats first, so a future change to the
+    advisory data that stops citing CPCB-AQI-scale twice fails this test
+    loudly instead of leaving it passing for the wrong reason.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "CPCB-AQI-scale"}).text
+    assert opened.count(">CPCB-AQI-scale</a>") >= 2, (
+        "this persona/AQI combination no longer cites CPCB-AQI-scale twice, "
+        "so it can no longer prove the def-slot does not duplicate"
+    )
+    assert opened.count('class="def-slot"') == 1
+
+
+def test_source_tag_link_keeps_the_provenance_panel_open(client, live_feed):
+    """The pill lives inside the panel the def-slot renders in. A link that
+    dropped `prov` closed that panel on click, so the definition the reader
+    just asked for could never actually be seen through real navigation --
+    the def-slot's parent block is gated on `open_prov == t.id`.
+
+    Red before the fix: `q_term_source` built its href from `term` alone, so
+    `prov` was never in the query string the pill actually emits.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0"}).text
+    m = re.search(r'<a class="term" href="([^"]*)"[^>]*>GINA-guidance</a>', opened)
+    assert m, "no source-tag link rendered for GINA-guidance"
+    assert "prov=0" in m.group(1), (
+        f"the pill's own link drops prov, so clicking it closes the panel: {m.group(1)}"
+    )
+
+
+def test_source_tag_definition_is_in_hindi_when_the_page_is(client, live_feed):
+    """The English test above proves the mechanism opens the right definition;
+    it cannot catch a wrong or missing Hindi entry, since it never sets
+    lang=hi. Nothing else exercised this exact combination either -- the
+    disclosure sweep in test_hindi_completeness.py opens `term` and `prov`
+    as two separate single-parameter states, never both together, and this
+    def-slot only renders when both are set.
+
+    Red before the fix for the same two reasons as the English test (no <a>,
+    term rejected by TERMS), and would also go red on a mistyped or missing
+    HI['glossary'] key even after the fix, since `i18n.t` falls back to the
+    English sentence rather than raising.
+    """
+    params = {**PERSONA, "lang": "hi"}
+    client.post("/ask", params=params, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**params, "prov": "0", "term": "GINA-guidance"}).text
+    assert opened.count('class="def-slot"') == 1
+    assert "अस्थमा की वैश्विक पहल" in opened
+    assert "Global Initiative for Asthma" not in opened
+
+
 def test_ask_redirects_so_a_refresh_cannot_resubmit(client):
     r = client.post("/ask", params=PERSONA, data={"question": "Is it safe outside?"},
                     follow_redirects=False)

@@ -619,8 +619,12 @@ def today(request: Request):
         "q_term_pm10": _qs(persona, theme, lang, term=None if term == "PM10" else "PM10"),
         # One parameterized helper for all eleven source codes, matching
         # q_prov(tid) above, rather than eleven more fixed q_term_* keys.
-        "q_term_source": lambda src: _qs(persona, theme, lang,
-                                         term=None if term == src else src),
+        # Takes tid too, and always sends prov=tid: the pill lives inside the
+        # provenance panel, and a link that dropped prov closed that panel out
+        # from under the def-slot it was meant to open.
+        "q_term_source": lambda src, tid: _qs(persona, theme, lang,
+                                              term=None if term == src else src,
+                                              prov=tid),
     })
     return _render(request, "today.html", ctx, sid, theme, lang)
 
