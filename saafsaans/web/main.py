@@ -90,6 +90,12 @@ TERMS = ["AQI", "PM2.5", "PM10"]
 # source is glossable the moment it is added here -- not a second edit a
 # future author has to remember to make in this file too.
 SOURCE_TERMS = sorted({a["source"] for a in ADVISORIES})
+# The four suggested-question chips above the ask input. A closed whitelist,
+# not free text: /ask is POST-only (a GET that asked a question would spend
+# rate-limit budget and call the model on a request meant to be safe and
+# bookmarkable), so a chip can only seed the input's value, never submit it,
+# and the value it seeds must never be built from anything a reader typed.
+ASK_CHIPS = ("outside_now", "mask_today", "best_time", "symptoms")
 IST = clock.IST   # one definition, in services/clock.py
 
 # The transcript store holds raw user questions, so leaving it unbounded is a
@@ -566,6 +572,24 @@ def today(request: Request):
     # string before the visitor has chosen one; same rule as base_context.
     qp = persona if applied else {}
     term = q.get("term") if q.get("term") in TERMS + SOURCE_TERMS else None
+    ask = q.get("ask") if q.get("ask") in ASK_CHIPS else None
+    # Four literal calls, not a key built from `ask`: the i18n coverage tests
+    # scan call sites by AST, so a dynamically-assembled key would be both
+    # unreadable to that scan and untranslatable to Hindi.
+    if ask == "outside_now":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_outside_now",
+                          "Is it safe to go outside right now?")
+    elif ask == "mask_today":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_mask_today",
+                          "Should I wear a mask today?")
+    elif ask == "best_time":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_best_time",
+                          "What is the best time to go out today?")
+    elif ask == "symptoms":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_symptoms",
+                          "What symptoms mean I should go back inside?")
+    else:
+        ask_seed = ""
     # Open by DEFAULT on a first visit: until the visitor has applied a
     # persona, the editor is the page's primary element -- the advice above it
     # is an example's, and the form is how it becomes theirs. ``edit=0`` is the
@@ -723,6 +747,11 @@ def today(request: Request):
         "q_term_source": lambda src, tid: _qs(qp, theme, lang,
                                               term=None if term == src else src,
                                               prov=tid),
+        "ask": ask, "ask_seed": ask_seed,
+        "q_ask_outside_now": _qs(qp, theme, lang, ask="outside_now"),
+        "q_ask_mask_today": _qs(qp, theme, lang, ask="mask_today"),
+        "q_ask_best_time": _qs(qp, theme, lang, ask="best_time"),
+        "q_ask_symptoms": _qs(qp, theme, lang, ask="symptoms"),
     })
     return _render(request, "today.html", ctx, sid, theme, lang)
 
