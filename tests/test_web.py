@@ -531,6 +531,20 @@ def test_a_stored_turn_replayed_in_the_other_language_is_marked(client):
     assert 'class="answer-body" lang="en"' in hindi
 
 
+def test_the_question_itself_carries_the_turn_language_too(client):
+    """The visitor's own typed words are stored copy exactly like the answer
+    body: an English question replayed on the Hindi page must not be
+    announced with Hindi phonetics either. Reverting the lang attribute on
+    the question <p> in today.html turns this red."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert '<p lang="en">Can I go for a run?</p>' in hindi
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert '<p lang="en">Can I go for a run?</p>' not in english
+    assert '<p>Can I go for a run?</p>' in english
+
+
 def test_the_answered_for_line_follows_the_page_language(client):
     """The persona sentence is chrome, not stored copy: a turn stores the
     persona FACTS and the sentence is recomposed in the page's language at

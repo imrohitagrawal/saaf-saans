@@ -362,7 +362,7 @@
     <ol class="thread">
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
-        <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p>{{ t.question }}</p></div>
+        <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p{% if t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>{{ t.question }}</p></div>
         {#- Stored turns outlive the page state that made them: a turn answered
             in English replays on a Hindi page, where <html lang="hi"> would
             claim it -- Hindi phonetics from a screen reader over English

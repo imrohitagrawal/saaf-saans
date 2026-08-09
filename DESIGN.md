@@ -314,7 +314,7 @@ its band variables come from `data-band` on the hero element.
 
 ### The Proof Register (System view)
 KPI tiles, labelled meter bars, hour columns, and attempt logs — all mono,
-flat, hairline-ruled, sized 9.5–11.5px. Deliberately reads as an instrument
+flat, hairline-ruled, sized 11–12px. Deliberately reads as an instrument
 panel so telemetry can never be mistaken for health advice.
 
 ## Do's and Don'ts
