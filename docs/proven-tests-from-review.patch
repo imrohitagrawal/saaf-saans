@@ -1,0 +1,581 @@
+diff --git a/tests/test_cpcb.py b/tests/test_cpcb.py
+index e2c6307..78121f1 100644
+--- a/tests/test_cpcb.py
++++ b/tests/test_cpcb.py
+@@ -14,14 +14,54 @@ ways this integration can be wrong while looking right:
+ import json
+ import threading
+ import time
++from datetime import timedelta
+ 
+ import pytest
+ 
+-from saafsaans.services import aqi_scale, config, cpcb, waqi
++from saafsaans.services import aqi_scale, clock, config, cpcb, waqi
+ 
+ 
+-def rows(station, pm25=None, pm10=None, when="21-07-2026 19:00:00", city="Delhi"):
++# Half the freshness window, DERIVED from it rather than chosen.
++#
++# These fixtures were literal offsets ("1 hour ago", "2 hours ago"), which is
++# how 21 tests in this file came to be silently coupled to waqi.MAX_OBS_AGE:
++# narrowing that constant to 30 minutes turned every one of them red for a
++# reason none of them is about, and drowned the ONE test that owns the constant
++# (tests/test_waqi.py::test_the_freshness_window_admits_the_worst_mirror_lag_
++# measured_and_still_refuses_a_month_old_reading) in noise. Half the window is
++# inside the window for every positive value of it, so a change to the constant
++# now reds exactly the tests that are about the constant.
++_INSIDE_THE_WINDOW = waqi.MAX_OBS_AGE / 2
++
++
++def _recent_ist() -> str:
++    """A ``last_update`` the freshness check accepts, in the feed's own layout.
++
++    Relative to now, deliberately. This was the literal
++    ``"21-07-2026 19:00:00"``, which sat inside the window only on the day it
++    was written: from 2026-07-22 onward every reading built here was refused as
++    stale, the WAQI fallback fired, and 21 tests in this file failed for a
++    reason unrelated to what they assert. A fixture that encodes today's date
++    expires; one that encodes an offset does not.
++    """
++    return (clock.now_ist() - _INSIDE_THE_WINDOW).strftime("%d-%m-%Y %H:%M:%S")
++
++
++def _recent_iso() -> str:
++    """The same idea in WAQI's layout: ``data.time.iso``, an ISO-8601 instant."""
++    return (clock.now_ist() - _INSIDE_THE_WINDOW).isoformat()
++
++
++# Fixed once at import rather than per call, because FRESH_WAQI_ISO is asserted
++# against as well as fed in, and the two must agree inside a single run.
++FRESH_CPCB_WHEN = _recent_ist()
++FRESH_WAQI_ISO = _recent_iso()
++
++
++def rows(station, pm25=None, pm10=None, when=None, city="Delhi"):
+     """The upstream shape: one record per pollutant per station."""
++    if when is None:
++        when = FRESH_CPCB_WHEN
+     out = []
+     for pollutant, value in (("PM2.5", pm25), ("PM10", pm10)):
+         if value is not None:
+@@ -146,6 +186,47 @@ def test_an_unparseable_date_is_none_rather_than_a_wrong_date(bad):
+     assert cpcb._obs_time(bad) is None
+ 
+ 
++def test_a_malformed_later_row_cannot_blank_a_station_timestamp(feed):
++    """``_group`` keeps the FIRST ``last_update`` that parses, and the reason is
++    the failure mode of keeping the last one.
++
++    The feed sends one row per pollutant per station, and every row for a
++    station carries the same last_update -- except when one of them does not. A
++    rule that overwrites on every row lets whichever row arrives last decide,
++    and when that row's date is unparseable the station loses its timestamp
++    altogether: ``obs_time`` becomes None, which ``waqi._obs_too_old`` reads as
++    "no evidence either way" and passes as fresh. So one malformed row does not
++    merely lose a timestamp -- it removes the freshness check from the station it
++    belongs to, which is the reading most in need of one.
++    """
++    records = [
++        {"station": "ITO, Delhi - CPCB", "city": "Delhi", "pollutant_id": "PM2.5",
++         "avg_value": "53", "last_update": FRESH_CPCB_WHEN},
++        {"station": "ITO, Delhi - CPCB", "city": "Delhi", "pollutant_id": "PM10",
++         "avg_value": "63", "last_update": "not a date"},
++    ]
++    feed(records)
++    values = cpcb.values_for("ITO")
++    assert values["obs_time"] == cpcb._obs_time(FRESH_CPCB_WHEN), \
++        "a malformed later row blanked the station's own timestamp"
++
++
++def test_when_two_rows_state_different_times_the_first_one_stands(feed):
++    """The same rule with no malformed row in it.
++
++    The test above catches "overwrite on every row" only because its last row
++    fails to parse, and a real payload need not contain one. This pins the rule
++    itself: two parseable, disagreeing timestamps, and it is the first that the
++    station keeps.
++    """
++    second_row = (clock.now_ist() - timedelta(hours=4)).strftime("%d-%m-%Y %H:%M:%S")
++    assert cpcb._obs_time(second_row) != cpcb._obs_time(FRESH_CPCB_WHEN)
++    feed(rows("ITO, Delhi - CPCB", pm25=53, when=FRESH_CPCB_WHEN)
++         + rows("ITO, Delhi - CPCB", pm10=63, when=second_row))
++    assert cpcb.values_for("ITO")["obs_time"] == cpcb._obs_time(FRESH_CPCB_WHEN), \
++        "a later row overwrote the timestamp the station had already stated"
++
++
+ def test_a_stale_cpcb_reading_is_refused(feed, monkeypatch):
+     """ITO sat a month stale in WAQI's mirror and was served as live. The same
+     must not become possible through this source."""
+@@ -184,7 +265,7 @@ def test_waqi_is_tried_when_cpcb_has_nothing(feed, monkeypatch):
+             return {"status": "ok", "data": {
+                 "aqi": 199, "city": {"name": "Wazirpur, Delhi"},
+                 "iaqi": {"pm25": {"v": 163}, "pm10": {"v": 147}},
+-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
++                "time": {"iso": FRESH_WAQI_ISO}}}
+ 
+     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
+@@ -229,12 +310,76 @@ def test_the_aliases_match_the_spellings_the_feed_actually_uses(feed, label, sta
+     assert values is not None, f"{label} did not match {station!r}"
+ 
+ 
+-def test_a_station_is_not_matched_on_a_partial_name(feed):
+-    """"Okhla" must not match "Okhla Phase-2" by accident, and vice versa --
+-    the alias makes it explicit. A substring rule would also make "Noida" match
+-    "Greater Noida", which is a different city's air under the wrong name."""
++def test_noida_does_not_pick_up_greater_noidas_rows(feed):
++    """Renamed, and its docstring corrected, because it never tested what it
++    said it did.
++
++    It read: "a substring rule would also make Noida match Greater Noida". It
++    cannot show that. ``Noida`` has a STATION_ALIAS entry, so the name compared
++    against the feed is ``Sector - 62`` -- normalised ``sector62``, which is
++    neither a substring nor a superstring of ``greaternoida``. Turning the
++    matching rule into a substring test leaves this assertion green, measured.
++    The rule itself is pinned by the test below; what THIS one guards is the
++    alias table, which is the thing that actually keeps the two cities apart.
++    """
+     feed(rows("Greater Noida, UP - UPPCB", pm25=40, city="Greater Noida"))
+     assert cpcb.values_for("Noida") is None
++    # The reason, asserted, so a future edit that drops the alias fails HERE
++    # rather than turning this back into a test that cannot fail.
++    assert cpcb.STATION_ALIAS["Noida"] == "Sector - 62"
++
++
++@pytest.mark.parametrize("station", [
++    "Wazirpur Extension, Delhi - DPCC",   # the station name contains the label
++    "Wazir, Delhi - DPCC",                # the label contains the station name
++])
++def test_a_station_is_matched_on_its_whole_pre_comma_name_never_on_a_fragment(
++        feed, station):
++    """The matching rule, on a locality with no alias in the way.
++
++    ``values_for`` compares the app's label against the segment before the
++    first comma by EQUALITY. Both directions of a substring rule are wrong and
++    both put another place's air on screen under this locality's name, so both
++    are pinned: a station whose name merely contains "Wazirpur", and one whose
++    name "Wazirpur" merely contains.
++
++    Wazirpur rather than Okhla or Noida deliberately -- those two are aliased,
++    so the string actually compared is the alias and no fragment relation with
++    the label survives to be tested. That is exactly why
++    test_noida_does_not_pick_up_greater_noidas_rows cannot reach this rule.
++
++    The station names are constructed, not observed, and say so. What is
++    observed is the shape of the risk: CPCB publishes several stations whose
++    pre-comma segment extends another's ("Okhla Phase-2" beside "Okhla"), and
++    ``waqi.FEED_MAP``'s ``noida`` slug returning the Anand Vihar station is the
++    same defect already measured on the other source.
++    """
++    assert "Wazirpur" not in cpcb.STATION_ALIAS, (
++        "Wazirpur is now aliased; this test no longer exercises the rule")
++    feed(rows(station, pm25=40, pm10=60))
++    assert cpcb.values_for("Wazirpur") is None, (
++        f"{station!r} was matched to Wazirpur on a fragment of its name")
++
++
++def test_the_station_name_the_reader_sees_drops_the_city_and_the_agency(feed):
++    """CPCB names a station "Sector - 62, Noida - IITM" -- the place, the city
++    and the operating agency in one string. What belongs on screen is the place.
++
++    Both halves are load-bearing and neither was asserted anywhere: replacing
++    ``name.split(",")[0].strip()`` with the raw ``name`` leaves the whole suite
++    green. Keeping the suffix repeats the city beside a reading already labelled
++    with its city and adds an agency acronym no reader asked for. Dropping more
++    than the suffix would be worse -- for the three NCR labels the station's own
++    name is the ONLY thing telling the reader that a city's figure came from one
++    sector rather than the whole city, which is the reason STATION_ALIAS gives
++    for displaying it at all.
++    """
++    feed(rows("Sector - 62, Noida - IITM", pm25=77, pm10=86, city="Noida"))
++    values = cpcb.values_for("Noida")
++    assert values["station"] == "Sector - 62", (
++        "the reader is shown CPCB's raw station string, not the place in it")
++    # The city is carried separately, so the name does not have to repeat it.
++    assert values["city"] == "Noida"
+ 
+ 
+ def test_the_delhi_aggregate_is_never_looked_up_as_a_station(feed):
+@@ -696,7 +841,7 @@ def _waqi_pair(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
+                 iaqi["pm10"] = {"v": pm10}
+             return {"status": "ok", "data": {
+                 "aqi": 199, "city": {"name": station}, "iaqi": iaqi,
+-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
++                "time": {"iso": FRESH_WAQI_ISO}}}
+ 
+     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp())
+@@ -724,7 +869,7 @@ def test_no_reading_ever_mixes_the_two_sources(feed, monkeypatch, flag):
+     else:
+         assert reading["source"] == "waqi"
+         assert reading["pm25"] is not None and reading["pm10"] is not None
+-        assert reading["obs_time"] == "2026-07-21T17:00:00+05:30"
++        assert reading["obs_time"] == FRESH_WAQI_ISO
+ 
+ 
+ def test_the_flag_off_keeps_the_cpcb_single_particulate_reading(feed, monkeypatch):
+@@ -851,7 +996,7 @@ def _waqi_live(monkeypatch, pm25=163, pm10=147, station="Wazirpur, Delhi"):
+             return {"status": "ok", "data": {
+                 "aqi": 280, "city": {"name": station},
+                 "iaqi": {"pm25": {"v": pm25}, "pm10": {"v": pm10}},
+-                "time": {"iso": "2026-07-21T17:00:00+05:30"}}}
++                "time": {"iso": FRESH_WAQI_ISO}}}
+ 
+     def fake_get(url, *a, **k):
+         calls.append(url)
+@@ -944,6 +1089,44 @@ def test_a_held_reading_is_cached_on_the_short_ttl(feed, monkeypatch):
+     assert reading["retained"] is False and reading["pm25"] == 120
+ 
+ 
++def test_a_held_cpcb_payload_measured_before_the_freshness_window_is_not_served(
++        feed, monkeypatch):
++    """The OUTER bound on retention, which cpcb.py states in prose and nothing
++    asserted.
++
++    ``cpcb._TTL_RETAIN`` bounds how long a held payload may be re-served, and it
++    runs from our last successful FETCH. It says nothing about how old the
++    MEASUREMENT inside that payload is, and the two come apart in the case this
++    fixture builds: the upstream answers promptly with a station whose
++    ``last_update`` stopped moving hours ago, so the payload is fresh by our
++    clock and ancient by the station's. ``waqi.MAX_OBS_AGE`` is the bound on the
++    measurement, and the ``_TTL_RETAIN`` comment cites it as the outer bound
++    precisely because a held payload keeps its own obs_time.
++
++    Exempting a retained payload from that check -- ``if not
++    values.get("retained") and _obs_too_old(...)`` -- leaves every other test in
++    the suite green, so that one sentence of prose was the only thing holding
++    this invariant up.
++    """
++    monkeypatch.setattr(config, "waqi_token", lambda: "")
++    # Expressed AS the window rather than as a number of hours, so the fixture
++    # cannot drift out of agreement with the constant it is about.
++    too_old = (clock.now_ist() - waqi.MAX_OBS_AGE - timedelta(hours=1)
++               ).strftime("%d-%m-%Y %H:%M:%S")
++    _hold_delhi(feed, monkeypatch, pm25=63, pm10=330, when=too_old)
++    # The premise, asserted rather than assumed: this payload IS being held, so
++    # a green result below cannot come from there being nothing to serve.
++    assert cpcb.values_for("Wazirpur")["retained"] is True
++
++    reading, status = waqi.get_aqi("Wazirpur")
++
++    assert status == "fallback", (
++        "a held CPCB payload whose measurement predates MAX_OBS_AGE was served "
++        "as a reading")
++    assert reading["aqi"] is None
++    assert reading["retained"] is False
++
++
+ # ------------------------------- a successful-but-empty answer is still a miss
+ def test_an_empty_but_successful_response_serves_the_last_good_payload(feed, monkeypatch):
+     """Retention used to branch on ``records is None``, which is set only when
+diff --git a/tests/test_guide_matches_behaviour.py b/tests/test_guide_matches_behaviour.py
+index e74f9ac..847ba7b 100644
+--- a/tests/test_guide_matches_behaviour.py
++++ b/tests/test_guide_matches_behaviour.py
+@@ -126,10 +126,116 @@ def test_the_guide_names_the_source_the_code_actually_reads_first(lang):
+ @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+ def test_the_guide_still_names_the_fallback(lang):
+     """The rewrite must not delete the fallback's existence: WAQI really is
+-    consulted when CPCB has nothing, and Wazirpur is the case where it wins."""
++    consulted when CPCB has nothing, and Wazirpur is the case where it wins.
++
++    This was ``assert "WAQI" in body``, which proved almost nothing: WAQI is
++    named in several places on this page, so deleting the fallback CLAIM
++    outright left the test green. The property that actually holds is
++    relational -- the answer that names the primary source is the same answer
++    that says what happens when the primary has nothing -- so the fallback
++    cannot be dropped from the policy answer a reader checking the data policy
++    actually reads while surviving elsewhere on the page.
++    """
++    import re
++
++    from saafsaans.services import cpcb
++
+     with TestClient(app) as c:
+         body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
+-    assert "WAQI" in body, lang
++    answers = [re.sub(r"<[^>]+>", " ", a)
++               for a in re.findall(r"<dd[^>]*>(.*?)</dd>", body, re.S)]
++    primary = [a for a in answers if cpcb.SOURCE_HOST in a]
++    assert primary, (lang, "no answer names the primary source")
++    assert any("WAQI" in a for a in primary), (
++        lang, "the answer naming the primary source no longer names the fallback")
++
++
++def _policy_answer(lang):
++    """The <dd> a reader checking the data policy actually reads.
++
++    Selected by the token that identifies the primary source PATH -- the host --
++    rather than by position, so re-ordering the Guide's questions cannot point
++    this at a different answer.
++    """
++    import re
++
++    from saafsaans.services import cpcb
++
++    with TestClient(app) as c:
++        body = htmllib.unescape(c.get("/guide", params={"lang": lang}).text)
++    answers = [re.sub(r"<[^>]+>", " ", a)
++               for a in re.findall(r"<dd[^>]*>(.*?)</dd>", body, re.S)]
++    primary = [a for a in answers if cpcb.SOURCE_HOST in a]
++    assert primary, (lang, "no answer names the primary source")
++    assert len(primary) == 1, (lang, "more than one answer states the source "
++                                     "policy; they can now disagree")
++    return primary[0]
++
++
++@pytest.mark.parametrize("lang", i18n.LANGUAGES)
++def test_the_guide_names_the_two_sources_in_the_order_the_code_asks_them(
++        monkeypatch, lang):
++    """Co-occurrence is not order, and this answer is a claim ABOUT order.
++
++    Every other assertion over this answer -- CPCB present, the host present,
++    WAQI present, no EPA claim -- is satisfied word for word by a rewrite that
++    states the policy backwards: "we read the WAQI feed first; only when it has
++    nothing for a place do we fall back to CPCB's own publication ...
++    data.gov.in". That rewrite leaves the whole suite green while telling the
++    reader the fallback is the primary source, on the one page whose entire job
++    is to explain the data policy. It is the same defect the footer had as
++    "Data: WAQI/CPCB", which was fixed by asserting ORDER
++    (test_the_footer_names_both_sources_when_both_are_configured).
++
++    Two details are load-bearing:
++
++    * The CPCB side is matched on ``SOURCE_HOST``, not ``SOURCE_NAME``. The
++      answer opens "Ground monitoring stations run under India's CPCB network",
++      so "CPCB" precedes "WAQI" however the policy sentence is worded and an
++      order test written on the name could not fail.
++    * The code's order is MEASURED, not assumed. If the sources are ever
++      swapped in ``waqi._fetch_uncached`` this test asks the prose to swap with
++      them, rather than passing while the Guide describes the old app -- which
++      is the failure mode this whole file exists for.
++    """
++    from saafsaans.services import config, cpcb, waqi
++
++    order = []
++
++    def cpcb_fetch(city):
++        order.append("cpcb")
++        return []                       # answers, with nothing for anybody
++
++    def waqi_get(*a, **k):
++        order.append("waqi")
++        raise OSError("reaching the feed is not this test's subject")
++
++    monkeypatch.setattr(config, "cpcb_key", lambda: "test-key")
++    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
++    monkeypatch.setattr(cpcb, "_fetch_city", cpcb_fetch)
++    monkeypatch.setattr(waqi.requests, "get", waqi_get)
++    try:
++        waqi.get_aqi("ITO")
++    finally:
++        waqi.cache_clear()
++    assert order == ["cpcb", "waqi"], (
++        "both sources must be asked, primary first, or there is no order to "
++        f"describe: {order}")
++    # Snapshotted before the render below, which runs with these stubs still
++    # installed: a route that fetches a reading would append to ``order`` and
++    # the comparison at the end would then be against a list with duplicates in
++    # it, which sorts to something that equals nothing. /guide does not fetch
++    # today; this test must not depend on that staying true.
++    code_order = list(order)
++
++    token = {"cpcb": cpcb.SOURCE_HOST, "waqi": "WAQI"}
++    answer = _policy_answer(lang)
++    for source in code_order:
++        assert token[source] in answer, (lang, source, answer)
++    named = sorted(code_order, key=lambda source: answer.index(token[source]))
++    assert named == code_order, (
++        lang, "the data-policy answer names the sources in the opposite order "
++        "to the one the code asks them in", answer[:400])
+ 
+ 
+ @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+diff --git a/tests/test_held_reading.py b/tests/test_held_reading.py
+index 66460eb..6f1199c 100644
+--- a/tests/test_held_reading.py
++++ b/tests/test_held_reading.py
+@@ -18,11 +18,12 @@ live reading has earned, or "withhold the band" would be indistinguishable from
+ """
+ import html
+ import re
++from datetime import timedelta
+ 
+ import pytest
+ from fastapi.testclient import TestClient
+ 
+-from saafsaans.services import aqi_scale, i18n, normalize, waqi
++from saafsaans.services import aqi_scale, clock, i18n, normalize, waqi
+ from saafsaans.web import presenters as pr
+ from saafsaans.web.main import app
+ 
+@@ -33,7 +34,10 @@ PERSONA = {"age": "Adult", "condition": "Asthma",
+ # is the reading that rendered band-g5 / VERY POOR / EXTREME on the shipped tip.
+ PM25, PM10 = 210.0, 300.0
+ AQI = aqi_scale.cpcb_aqi(PM25, PM10)[0]
+-OBS = "2026-07-21T10:00:00+05:30"
++# Relative to now, for the same reason as test_cpcb._recent_ist: a literal
++# observation time ("2026-07-21T10:00:00+05:30") ages out of every freshness
++# window the day after it is written. Nothing here asserts on the rendered time.
++OBS = (clock.now_ist() - timedelta(hours=2)).isoformat()
+ 
+ 
+ @pytest.fixture(autouse=True)
+@@ -358,9 +362,14 @@ def test_a_missing_outlook_explains_itself(monkeypatch, lang):
+ @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+ def test_a_reading_that_has_an_outlook_does_not_explain_its_absence(monkeypatch, lang):
+     """The mirror. The explanation must not print above a rendered outlook."""
++    # Today and tomorrow in IST, not literals: presenters.outlook_rows drops any
++    # day before clock.today_ist(), so fixed past dates render no outlook at all
++    # and this test would assert the absence of the thing it exists to require.
++    today = clock.today_ist()
+     forecast = {"daily": {"pm25": [
+-        {"day": "2026-07-21", "avg": 80, "min": 60, "max": 100},
+-        {"day": "2026-07-22", "avg": 90, "min": 70, "max": 110}]}}
++        {"day": today.isoformat(), "avg": 80, "min": 60, "max": 100},
++        {"day": (today + timedelta(days=1)).isoformat(),
++         "avg": 90, "min": 70, "max": 110}]}}
+ 
+     def get_aqi(locality, es_client=None):
+         return waqi._reading(PM25, PM10, station=locality, city="Delhi",
+diff --git a/tests/test_waqi.py b/tests/test_waqi.py
+index b801a26..23d61b9 100644
+--- a/tests/test_waqi.py
++++ b/tests/test_waqi.py
+@@ -12,6 +12,20 @@ def _iso(hours_ago):
+     return (datetime.now(ist) - timedelta(hours=hours_ago)).isoformat()
+ 
+ 
++def _fresh_iso():
++    """An observation time inside the freshness window, DERIVED from it.
++
++    Used by every test here whose subject is not freshness. Written as
++    ``_iso(1)``, those tests were silently coupled to ``waqi.MAX_OBS_AGE``:
++    narrowing it to 30 minutes turned five tests in this file and 21 in
++    tests/test_cpcb.py red, none of which is about how old a reading may be.
++    Half the window is inside the window for every positive value of it, so the
++    constant is now owned by exactly one test.
++    """
++    ist = timezone(timedelta(hours=5, minutes=30))
++    return (datetime.now(ist) - waqi.MAX_OBS_AGE / 2).isoformat()
++
++
+ class Resp:
+     def __init__(self, status_code=200, payload=None, raise_json=False):
+         self.status_code = status_code
+@@ -206,7 +220,7 @@ def test_wrong_station_is_never_shown_as_this_locality(monkeypatch):
+     # The live 'noida' slug returned the Anand Vihar, Delhi station verbatim,
+     # and the app labelled it Noida. Delhi's air must not be shown as Noida's.
+     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+-    payload = _payload("Anand Vihar, Delhi, Delhi, India", _iso(1))
++    payload = _payload("Anand Vihar, Delhi, Delhi, India", _fresh_iso())
+     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp(200, payload))
+     reading, status = waqi.get_aqi("Noida")
+     assert status == "fallback"
+@@ -267,9 +281,12 @@ def test_month_old_observation_is_not_reported_live(monkeypatch):
+ 
+ 
+ def test_observation_within_the_window_stays_live(monkeypatch):
+-    # Real feeds lag several hours behind the clock; that is still live.
++    # Real feeds lag behind the clock; that is still live. HOW FAR behind is
++    # the owning test's business (below), not this one's -- so the offset is
++    # derived rather than written, and this test stays green when the window
++    # is retuned.
+     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+-    payload = _payload("ITO, Delhi, Delhi, India", _iso(5))
++    payload = _payload("ITO, Delhi, Delhi, India", _fresh_iso())
+     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: Resp(200, payload))
+     reading, status = waqi.get_aqi("ITO")
+     assert status == "ok"
+@@ -277,10 +294,35 @@ def test_observation_within_the_window_stays_live(monkeypatch):
+     assert reading["obs_time"] is not None
+ 
+ 
+-def test_freshness_boundary_is_twelve_hours():
++def test_the_freshness_window_admits_the_worst_mirror_lag_measured_and_still_refuses_a_month():
++    """The ONE test that owns MAX_OBS_AGE, and the two measurements that fix it.
++
++    Both bounds are facts rather than preferences. On 2026-07-20 the laggiest
++    healthy Delhi station was five hours behind the clock in WAQI's mirror, so
++    a window narrower than that discards stations that are working -- which is
++    why the 3-hour window main.py uses for STORED readings cannot be reused
++    here. With no window at all the ``delhi/ito`` feed served a four-week-old
++    observation under status "ok". The shipped value sits between the two.
++
++    Every other fixture in this suite derives its observation times from this
++    constant (``_fresh_iso`` above, ``tests/test_cpcb._INSIDE_THE_WINDOW``), so
++    retuning it reds this test alone instead of twenty-six that are about
++    something else and would report the wrong cause.
++    """
++    OBSERVED_WORST_MIRROR_LAG = timedelta(hours=5)      # measured 2026-07-20
++    assert waqi.MAX_OBS_AGE >= OBSERVED_WORST_MIRROR_LAG, (
++        "the window now refuses the laggiest healthy station actually measured")
++    assert waqi.MAX_OBS_AGE < timedelta(days=1), (
++        "a window of a day or more presents a previous calendar day as live")
++    # Pinned as well as bounded: widening or narrowing inside those bounds is a
++    # decision about what counts as live, and it should have to be made here.
+     assert waqi.MAX_OBS_AGE == timedelta(hours=12)
++
++    # And the behaviour the number buys, on both sides of the boundary.
+     assert not waqi._obs_too_old(_iso(11))
+     assert waqi._obs_too_old(_iso(13))
++    assert not waqi._obs_too_old(_iso(5)), "the measured mirror lag was refused"
++    assert waqi._obs_too_old(_iso(24 * 28)), "the four-week-old ITO feed passed"
+ 
+ 
+ def test_missing_or_unparseable_obs_time_is_not_treated_as_stale(monkeypatch):
+@@ -309,7 +351,7 @@ def test_repeat_readers_of_a_locality_share_one_upstream_fetch(monkeypatch):
+ 
+     def _counted(*a, **k):
+         calls.append(1)
+-        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _iso(1)))
++        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _fresh_iso()))
+ 
+     monkeypatch.setattr(waqi.requests, "get", _counted)
+     first = waqi.get_aqi("Anand Vihar")
+@@ -328,7 +370,7 @@ def test_a_different_locality_is_not_served_another_ones_reading(monkeypatch):
+         seen.append(url)
+         name = "Anand Vihar, Delhi, Delhi, India" if "anand" in url.lower() \
+             else "Dwarka, Delhi, Delhi, India"
+-        return Resp(200, _payload(name, _iso(1)))
++        return Resp(200, _payload(name, _fresh_iso()))
+ 
+     monkeypatch.setattr(waqi.requests, "get", _by_feed)
+     waqi.get_aqi("Anand Vihar")
+@@ -343,7 +385,7 @@ def test_a_cache_hit_writes_nothing_to_elasticsearch(monkeypatch):
+     monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+     monkeypatch.setattr(waqi.requests, "get",
+                         lambda *a, **k: Resp(200, _payload(
+-                            "Anand Vihar, Delhi, Delhi, India", _iso(1))))
++                            "Anand Vihar, Delhi, Delhi, India", _fresh_iso())))
+     indexed = []
+     monkeypatch.setattr(waqi.es, "index_reading",
+                         lambda client, doc: indexed.append(doc))
+@@ -361,7 +403,7 @@ def test_a_stale_entry_is_refetched(monkeypatch):
+     calls = []
+     monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: (
+         calls.append(1), Resp(200, _payload(
+-            "Anand Vihar, Delhi, Delhi, India", _iso(1))))[1])
++            "Anand Vihar, Delhi, Delhi, India", _fresh_iso())))[1])
+ 
+     waqi.get_aqi("Anand Vihar")
+     assert len(calls) == 1
+@@ -412,7 +454,7 @@ def test_concurrent_cold_readers_produce_one_fetch_and_one_write(monkeypatch):
+     def _slow(*a, **k):
+         fetches.append(1)
+         started.wait(0.2)          # hold the fetch open so the others pile up
+-        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _iso(1)))
++        return Resp(200, _payload("Anand Vihar, Delhi, Delhi, India", _fresh_iso()))
+ 
+     monkeypatch.setattr(waqi.requests, "get", _slow)
+     monkeypatch.setattr(waqi.es, "index_reading",
+@@ -446,7 +488,7 @@ def test_one_slow_locality_does_not_block_another(monkeypatch):
+             name = "Anand Vihar, Delhi, Delhi, India"
+         else:
+             name = "Dwarka, Delhi, Delhi, India"
+-        return Resp(200, _payload(name, _iso(1)))
++        return Resp(200, _payload(name, _fresh_iso()))
+ 
+     monkeypatch.setattr(waqi.requests, "get", _by_feed)
+     slow = threading.Thread(target=lambda: waqi.get_aqi("Anand Vihar"))
