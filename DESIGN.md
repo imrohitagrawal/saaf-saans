@@ -212,11 +212,16 @@ do; everything that hedges them shares this one quiet voice.
 ## Layout
 
 A centered shell, max-width 1120px, with 18–20px gutters (14–16px under 560px).
-Content flows in an auto-fit card grid (`minmax(330px, 1fr)`, 16px gap) with
-full-width rows opting in via a `wide` class; the Today page leads with the
-full-width sky hero. The header is sticky (with `scroll-padding-top: 76px` so
-focus moves and the skip link clear it) and carries wordmark, nav, and the
-theme/language pill toggles. Density is calm: cards pad 16px, related items sit
+Content flows in an auto-fit card grid (`minmax(min(330px, 100%), 1fr)`, 16px
+gap) with full-width rows opting in via a `wide` class; the Today page leads
+with the full-width sky hero. Nothing in the layout forces a horizontal
+scrollbar at the 320px reflow width — track minimums yield to the container,
+and the a11y suite sums every fixed minimum against the space available at 320.
+The header carries wordmark, nav, and the theme/language pill toggles; it is
+sticky (with `scroll-padding-top: 76px` so focus moves and the skip link clear
+it) only from 900px up, where it provably holds one row — narrower, it wraps
+taller than any fixed clearance, so it scrolls away instead of covering what
+an anchor jump lands on. Density is calm: cards pad 16px, related items sit
 8–12px apart. Touch targets hold a 44px floor via measured padding, relaxed to
 the designed density only under `@media (pointer: fine)`; the a11y test suite
 recomputes every target from the stylesheet.

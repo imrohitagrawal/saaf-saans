@@ -3,7 +3,7 @@
 The stylesheet makes three promises that prose in a commit message cannot keep:
 that a focus ring survives every container which clips its overflow, that a
 finger-sized target is offered wherever a pointing device is coarse, and that
-nothing in the layout is wider than the narrowest phone the site targets.
+nothing in the layout is wider than SC 1.4.10's 320px reflow width.
 
 Each test below computes its answer from `app.css` and, where the answer
 depends on what is actually inside a container, from the rendered pages. None
@@ -28,11 +28,16 @@ CSS_PATH = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
 PERSONA = {"locality": "Anand Vihar", "age": "Adult",
            "condition": "Asthma", "activity": "Outdoor exercise", "theme": "light"}
 
-# The narrowest phone the site targets, and the line-height a box inherits from
-# `body` when nothing nearer declares one. Both are inputs to the measurements,
-# not conclusions of them -- and the second is a fallback, not an assumption:
+# The reflow width, and the line-height a box inherits from `body` when
+# nothing nearer declares one. Both are inputs to the measurements, not
+# conclusions of them -- and the second is a fallback, not an assumption:
 # `_line_height` reads the declared value wherever there is one.
-VIEWPORT = 375
+#
+# 320 is not a phone the site picked: it is SC 1.4.10's floor, the width at
+# which content must reflow without a second scrollbar. Measuring at 375
+# certified a layout that overflowed on every 320px viewport -- the .grid
+# track's 330px minimum fit inside 375 and not inside 320.
+VIEWPORT = 320
 BODY_LINE_HEIGHT = 1.55
 BODY_FONT_SIZE = 15.0
 
@@ -551,16 +556,16 @@ def test_every_raised_control_is_given_its_density_back_on_a_mouse(sheet):
                 "over a design -- but @media (pointer: fine) never puts it back")
 
 
-# --- 4. Nothing forces the layout past 375px --------------------------------
+# --- 4. Nothing forces the layout past 320px --------------------------------
 def _horizontal_padding(sheet, css_class):
-    """A class's horizontal padding at 375px: the narrow media query wins."""
+    """A class's horizontal padding at 320px: the narrow media query wins."""
     decls = _decls(sheet["top"], f".{css_class}")
     decls.update(_decls(sheet["narrow"], f".{css_class}"))
     return _edges(decls.get("padding"), "x")
 
 
 def _budget(sheet, pages, css_class):
-    """Width available to an element of this class at 375px: the viewport less
+    """Width available to an element of this class at 320px: the viewport less
     the horizontal padding of every ancestor it is actually rendered inside.
     The worst case across all pages is the one that has to fit."""
     widths = []
@@ -574,9 +579,16 @@ def _budget(sheet, pages, css_class):
     return min(widths) if widths else float(VIEWPORT)
 
 
-def test_no_track_or_fixed_width_forces_the_layout_past_375px(sheet, pages):
+def test_no_track_or_fixed_width_forces_the_layout_past_320px(sheet, pages):
     """Grid tracks, `minmax` minimums and fixed widths cannot shrink. Summed
-    against the space their container actually has at 375px, they must fit."""
+    against the space their container actually has at 320px, they must fit.
+
+    A minimum written `minmax(min(Npx, 100%), 1fr)` contributes nothing to the
+    sum, and that is the measurement, not a parsing gap: min(Npx, 100%) can
+    never exceed its container, so it cannot force the page wide. This is the
+    form that keeps `.grid`'s two-column threshold at 330px while fitting the
+    288px the shell offers at 320. Reverting that track's minimum to a bare
+    330px turns this test red."""
     problems = []
     for selector, decls in sheet["top"]:
         classes = [p.strip()[1:] for p in selector.split(",")
@@ -600,14 +612,15 @@ def test_no_track_or_fixed_width_forces_the_layout_past_375px(sheet, pages):
             value = _px(decls.get(prop, ""))
             if value and decls.get("position") != "absolute" and value > budget:
                 problems.append(f"{selector}: {prop} {value:.0f}px > {budget:.0f}px available")
-    assert not problems, "horizontal overflow at 375px:\n  " + "\n  ".join(problems)
+    assert not problems, "horizontal overflow at 320px:\n  " + "\n  ".join(problems)
 
 
 def test_flex_items_sized_past_their_container_are_allowed_to_shrink(sheet, pages):
     """`flex-shrink` is capped by `min-width: auto`, which for a replaced
     element like a <select> is its intrinsic width. An item given a basis wider
     than its container therefore needs an explicit `min-width: 0` before it can
-    honour the shrink factor at all."""
+    honour the shrink factor at all. Removing `.persona-line`'s min-width: 0
+    turns this test red: its 260px basis exceeds a card's 256px at 320."""
     problems = []
     for selector, decls in sheet["top"]:
         basis = re.fullmatch(r"(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)px", decls.get("flex", "").strip())
@@ -623,7 +636,7 @@ def test_flex_items_sized_past_their_container_are_allowed_to_shrink(sheet, page
         if wider and (not shrinks or _px(decls.get("min-width", "")) != 0.0):
             problems.append(f"{selector}: basis {basis.group(3)}px exceeds the "
                             f"{budget:.0f}px available and cannot shrink to fit")
-    assert not problems, "flex items that cannot shrink at 375px:\n  " + "\n  ".join(problems)
+    assert not problems, "flex items that cannot shrink at 320px:\n  " + "\n  ".join(problems)
 
 
 def test_no_inline_style_undercuts_the_touch_target_floor():
@@ -1138,22 +1151,60 @@ MEDIA_OBLIGATIONS = {
     "(pointer: fine)": "shrinks a target back to the designed density (section 3)",
     "(pointer: coarse)": "raises padding; never lowers it below the top-level value",
     "(prefers-reduced-motion: reduce)": "kills motion and declares nothing else",
+    "(min-width: 900px)": "grants the header sticky, with the scroll-padding "
+                          "that clears it, only where it cannot wrap (section 9)",
 }
 
 
 # --- 9. The sticky header does not swallow what is scrolled to --------------
+# The widest one-row header, measured in a rendering engine with the shipped
+# fonts loaded (Chrome, 2026-08-09): English labels with coarse-pointer segment
+# padding need 844px; fine-pointer English 804; Hindi 711 / 671. An input to
+# the assertions, like BODY_LINE_HEIGHT -- the stylesheet cannot know how wide
+# its own text runs -- so re-measure it if the header gains a control or a
+# label changes.
+HEADER_ONE_ROW = 844.0
+
+
+def _sticky_header_blocks(sheet):
+    return {query: rules for query, rules in sheet["media"].items()
+            if "sticky" in _decls(rules, ".hdr").get("position", "")}
+
+
+def test_the_header_is_sticky_only_where_it_cannot_wrap(sheet):
+    """`.hdr-in` is `flex-wrap: wrap`, and a wrapped header is taller than any
+    scroll-padding constant this stylesheet could name -- section 9 used to call
+    that unmeasurable and settle for a lower bound, which is how anchor jumps
+    came to land under the header at phone widths. The measurable form: sticky
+    is granted only inside a `(min-width: ...)` block whose threshold clears the
+    measured one-row width, so wherever the header IS sticky, its height is the
+    unwrapped height the next test computes exactly. Everywhere narrower, the
+    header scrolls away and covers nothing. Restoring `position: sticky` to the
+    top-level `.hdr`, or lowering the threshold under 844px, turns this red."""
+    assert "sticky" not in _decls(sheet["top"], ".hdr").get("position", ""), (
+        ".hdr is sticky at every width, including the ones where it wraps taller "
+        "than any scroll-padding value")
+    blocks = _sticky_header_blocks(sheet)
+    assert blocks, "no context makes .hdr sticky -- did the header move?"
+    for query in blocks:
+        found = re.fullmatch(r"\(min-width: (\d+(?:\.\d+)?)px\)", query)
+        assert found, f".hdr is sticky inside {query}, which does not exclude narrow viewports"
+        assert float(found.group(1)) >= HEADER_ONE_ROW, (
+            f".hdr is sticky from {found.group(1)}px, inside the {HEADER_ONE_ROW}px "
+            "the one-row header was measured to need")
+
+
 def test_scroll_padding_clears_the_sticky_header(sheet, pages):
-    """`.hdr` is `position: sticky`, so the top of the scrollport is covered.
-    Without `scroll-padding-top` the skip link's own `#main` target, and every
+    """Wherever `.hdr` is sticky the top of the scrollport is covered, and
+    without `scroll-padding-top` the skip link's own `#main` target, and every
     focus move the browser has to scroll for, land underneath it.
 
     The value is checked against the header computed from this stylesheet: its
     own vertical padding, the tallest control it holds, and its bottom border.
-    That is the unwrapped header; a header that has wrapped onto a second row is
-    taller and needs a rendering engine to measure, so this is a lower bound.
-    """
-    assert any("sticky" in decls.get("position", "") for selector, decls in sheet["top"]
-               if selector == ".hdr"), ".hdr is no longer sticky -- this test measures nothing"
+    Inside a sticky block the previous test holds the header to one row, so this
+    is the exact height, not a lower bound. Computed from the top-level rules,
+    which carry the raised touch padding -- the taller of the two pointer
+    densities a sticky viewport can be."""
     anchors = {node["attrs"]["href"] for root in pages.values() for node in _walk(root)
                if node["tag"] == "a" and node["attrs"].get("href", "").startswith("#")}
     assert anchors, "no in-page anchor rendered -- nothing would be scrolled under the header"
@@ -1165,12 +1216,15 @@ def test_scroll_padding_clears_the_sticky_header(sheet, pages):
     border = _px((_decls(sheet["top"], ".hdr").get("border-bottom", "").split() or [""])[0]) or 0.0
     needed = _edges(inner.get("padding"), "y") + tallest + border
 
-    declared = _px(_decls(sheet["top"], "html").get("scroll-padding-top", ""))
-    assert declared is not None, (
-        f"nothing sets scroll-padding-top, and the sticky header covers {needed:.1f}px "
-        f"of the scrollport that {sorted(anchors)} scroll into")
-    assert declared >= needed, (
-        f"scroll-padding-top is {declared}px against a {needed:.1f}px header")
+    blocks = _sticky_header_blocks(sheet)
+    assert blocks, "no context makes .hdr sticky -- did the header move?"
+    for query, rules in blocks.items():
+        declared = _px(_decls(rules, "html").get("scroll-padding-top", ""))
+        assert declared is not None, (
+            f"{query} makes .hdr sticky but sets no scroll-padding-top, and the header "
+            f"covers {needed:.1f}px of the scrollport that {sorted(anchors)} scroll into")
+        assert declared >= needed, (
+            f"{query}: scroll-padding-top is {declared}px against a {needed:.1f}px header")
 
 
 # --- 10. No rule paints something the site never renders --------------------
