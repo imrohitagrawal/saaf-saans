@@ -887,7 +887,8 @@ DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 DEVANAGARI_FLOOR = 12.5
 
 _SIMPLE = re.compile(r"""
-    (?P<tag>^[a-zA-Z][\w-]*)
+    (?P<universal>\*)
+  | (?P<tag>^[a-zA-Z][\w-]*)
   | \.(?P<cls>[\w-]+)
   | \#(?P<id>[\w-]+)
   | \[(?P<attr>[\w-]+)(?:\s*=\s*"?(?P<val>[^"\]]*)"?)?\]
@@ -1170,6 +1171,102 @@ def test_no_font_size_in_the_stylesheet_sits_below_the_latin_floor(sheet):
     assert LATIN_FLOOR in seen, "nothing sits at the 11px floor any more; re-derive LATIN_FLOOR"
     assert not small, ("text below the %spx floor:\n  " % LATIN_FLOOR
                        + "\n  ".join(sorted(set(small))))
+
+
+# --- 6c. Devanagari is never letter-spaced ----------------------------------
+# The same defect class as the size floor, in the other direction: the size
+# floor is a list of class names that grew until it named every element, while
+# the tracking reset is one selector that has to WIN against every tracking
+# rule in the sheet. `*:lang(hi)` is (0,1,0); `.fields .lbl`, `.hero-window
+# .lbl` and `.pollutants .lbl` are (0,2,0) and `h2.kicker` and `.answer h3`
+# are (0,1,1), so five rules kept their Latin tracking on Devanagari -- the
+# field labels, the hero's what-if-you-must label, and the kicker on City
+# Pulse, System and Guide. Tracking pulls matras and conjuncts off the
+# consonant they belong to, which is why the Devanagari Floor Rule forbids it.
+
+
+def _tracking_rules(rules):
+    """Every letter-spacing declaration as (specificity, source order, selector, value)."""
+    flat = []
+    for order, (selector, decls) in enumerate(rules):
+        value = decls.get("letter-spacing")
+        if value is None:
+            continue
+        for part in [s.strip() for s in selector.split(",") if s.strip()]:
+            flat.append((_specificity(part), order, part, value))
+    return flat
+
+
+def _spaced(value):
+    return value.strip() not in ("normal", "0", "0em", "0px")
+
+
+def _effective_tracking(node, flat, cache):
+    """(value, what set it) for one element, by cascade then inheritance."""
+    if id(node) in cache:
+        return cache[id(node)]
+    inline = re.search(r"letter-spacing:\s*([^;\"]+)", node["attrs"].get("style", ""))
+    if inline:
+        result = (inline.group(1).strip(), "inline style")
+    else:
+        winner = None
+        for spec, order, selector, value in flat:
+            if _matches(node, selector) and (winner is None or (spec, order) > winner[0]):
+                winner = ((spec, order), value, selector)
+        if winner:
+            result = (winner[1], winner[2])
+        elif node["parent"] is None:
+            result = ("normal", "body")
+        else:
+            result = _effective_tracking(node["parent"], flat, cache)
+    cache[id(node)] = result
+    return result
+
+
+def test_no_devanagari_on_any_page_renders_letter_spaced(sheet, hindi_pages):
+    """Resolved on the rendered Hindi pages, not read off the reset's own
+    selector: the reset can be present, correct and still lose the cascade,
+    which is the only form this defect has ever taken."""
+    spaced, resolved = [], 0
+    for context in ["top"] + sorted(sheet["media"]):
+        flat = _tracking_rules(sheet["top"] + sheet["media"].get(context, []))
+        for name, root in hindi_pages.items():
+            cache = {}
+            for node in _walk(root):
+                if not DEVANAGARI.search(node["text"]):
+                    continue
+                resolved += 1
+                value, why = _effective_tracking(node, flat, cache)
+                if _spaced(value):
+                    text = " ".join(node["text"].split())[:40]
+                    spaced.append(f"{context} {name}: {value} via {why!r} -- {text!r}")
+    # The partner check: an empty `spaced` means nothing only if the walk
+    # actually found Devanagari to measure.
+    assert resolved > 100, f"only {resolved} Devanagari elements resolved -- the resolver broke"
+    assert not spaced, ("Devanagari rendered with letter-spacing:\n  "
+                        + "\n  ".join(sorted(set(spaced))))
+
+
+def test_the_devanagari_tracking_reset_outranks_every_tracking_rule(sheet):
+    """Specificity, not source order. A reset that only wins because it sits
+    last is beaten by the next two-token rule anyone writes above it, and the
+    page carries no sign of the loss -- the tracking simply reappears."""
+    resets, spacings = [], []
+    for context in ["top"] + sorted(sheet["media"]):
+        for spec, _order, selector, value in _tracking_rules(
+                sheet["top"] + sheet["media"].get(context, [])):
+            if ":lang(hi)" in selector and not _spaced(value):
+                resets.append((spec, selector))
+            elif _spaced(value):
+                spacings.append((spec, selector))
+    assert resets, "no :lang(hi) rule resets letter-spacing at all"
+    assert len(spacings) > 5, f"only {len(spacings)} tracking rules parsed -- the parser broke"
+    best = max(spec for spec, _ in resets)
+    losing = [f"{selector} {spec}" for spec, selector in spacings if spec >= best]
+    assert not losing, (
+        f"the Devanagari tracking reset is {best}; these tracking rules are not "
+        "out-specified, so Devanagari keeps their tracking wherever they reach it:\n  "
+        + "\n  ".join(sorted(set(losing))))
 
 
 # --- 7. The band ramp as text, not as a swatch ------------------------------
