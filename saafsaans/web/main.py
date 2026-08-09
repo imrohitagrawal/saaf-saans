@@ -44,6 +44,12 @@ AGES = ["Child", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
 ACTIVITIES = ["Outdoor exercise", "Commute", "School run", "Stay home"]
 TERMS = ["AQI", "PM2.5", "PM10"]
+# The four suggested-question chips above the ask input. A closed whitelist,
+# not free text: /ask is POST-only (a GET that asked a question would spend
+# rate-limit budget and call the model on a request meant to be safe and
+# bookmarkable), so a chip can only seed the input's value, never submit it,
+# and the value it seeds must never be built from anything a reader typed.
+ASK_CHIPS = ("outside_now", "mask_today", "best_time", "symptoms")
 IST = clock.IST   # one definition, in services/clock.py
 
 # The transcript store holds raw user questions, so leaving it unbounded is a
@@ -479,6 +485,24 @@ def today(request: Request):
     ctx.update(data)
 
     term = q.get("term") if q.get("term") in TERMS else None
+    ask = q.get("ask") if q.get("ask") in ASK_CHIPS else None
+    # Four literal calls, not a key built from `ask`: the i18n coverage tests
+    # scan call sites by AST, so a dynamically-assembled key would be both
+    # unreadable to that scan and untranslatable to Hindi.
+    if ask == "outside_now":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_outside_now",
+                          "Is it safe to go outside right now?")
+    elif ask == "mask_today":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_mask_today",
+                          "Should I wear a mask today?")
+    elif ask == "best_time":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_best_time",
+                          "What is the best time to go out today?")
+    elif ask == "symptoms":
+        ask_seed = i18n.t(lang, "ui", "ask_chip_symptoms",
+                          "What symptoms mean I should go back inside?")
+    else:
+        ask_seed = ""
     persona_open = q.get("edit") == "1"
     obs_time = _fmt_time(data["reading"].get("obs_time"), lang)
     # What the provenance chip prints after the state word. A live reading is
@@ -612,6 +636,11 @@ def today(request: Request):
         "q_term_aqi": _qs(persona, theme, lang, term=None if term == "AQI" else "AQI"),
         "q_term_pm25": _qs(persona, theme, lang, term=None if term == "PM2.5" else "PM2.5"),
         "q_term_pm10": _qs(persona, theme, lang, term=None if term == "PM10" else "PM10"),
+        "ask": ask, "ask_seed": ask_seed,
+        "q_ask_outside_now": _qs(persona, theme, lang, ask="outside_now"),
+        "q_ask_mask_today": _qs(persona, theme, lang, ask="mask_today"),
+        "q_ask_best_time": _qs(persona, theme, lang, ask="best_time"),
+        "q_ask_symptoms": _qs(persona, theme, lang, ask="symptoms"),
     })
     return _render(request, "today.html", ctx, sid, theme, lang)
 

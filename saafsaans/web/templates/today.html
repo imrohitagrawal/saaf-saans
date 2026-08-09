@@ -310,8 +310,28 @@
       <span class="ask-sub">{{ T('ui', 'ask_sub', 'grounded in the reading above · guidance matched to your persona') }}</span>
     </div>
 
+    {#- /ask is POST-only -- a GET that asked a question would spend rate-limit
+        budget and call the model on a request meant to be bookmarkable and
+        safe -- so a plain <a> chip cannot submit the question itself. Each
+        chip instead GETs / with a closed 4-slug whitelist (see ASK_CHIPS in
+        main.py) that seeds the input's value; one Enter or one click on Ask
+        still finishes it. -#}
+    <div class="ask-chips" role="group" aria-label="{{ T('ui', 'ask_chips_label', 'Suggested questions') }}">
+      <a class="pill-btn" aria-current="{{ 'true' if ask == 'outside_now' else 'false' }}"
+         href="/?{{ q_ask_outside_now }}#ask">{{ T('ui', 'ask_chip_outside_now', 'Is it safe to go outside right now?') }}</a>
+      <a class="pill-btn" aria-current="{{ 'true' if ask == 'mask_today' else 'false' }}"
+         href="/?{{ q_ask_mask_today }}#ask">{{ T('ui', 'ask_chip_mask_today', 'Should I wear a mask today?') }}</a>
+      <a class="pill-btn" aria-current="{{ 'true' if ask == 'best_time' else 'false' }}"
+         href="/?{{ q_ask_best_time }}#ask">{{ T('ui', 'ask_chip_best_time', 'What is the best time to go out today?') }}</a>
+      <a class="pill-btn" aria-current="{{ 'true' if ask == 'symptoms' else 'false' }}"
+         href="/?{{ q_ask_symptoms }}#ask">{{ T('ui', 'ask_chip_symptoms', 'What symptoms mean I should go back inside?') }}</a>
+    </div>
     <form class="ask-form" method="post" action="/ask?{{ q }}">
+      {#- No value attribute at all when there is nothing to seed -- an unknown
+          or absent `ask` must not print value="" over the placeholder text
+          that already tells the reader what to type. -#}
       <input type="text" name="question" required autocomplete="off"
+             {% if ask_seed %}value="{{ ask_seed }}"{% endif %}
              placeholder="{{ T('ui', 'ask_placeholder', 'Ask about going out, masks, timing, symptoms…') }}"
              aria-label="{{ T('ui', 'ask_label', 'Your question') }}">
       <button class="btn" type="submit">{{ T('ui', 'btn_ask', 'Ask') }}</button>

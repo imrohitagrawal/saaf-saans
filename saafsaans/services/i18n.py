@@ -425,6 +425,15 @@ HI: dict = {
         "ask_placeholder": "बाहर जाने, मास्क, समय या लक्षणों के बारे में पूछिए…",
         "ask_label": "आपका सवाल",
         "btn_ask": "पूछें",
+        # The four suggested-question chips. Fixed sentences, not free text --
+        # each one is the exact question the input is seeded with, so the
+        # Hindi must match the English question mark-for-mark, not merely the
+        # topic.
+        "ask_chips_label": "सुझाए गए सवाल",
+        "ask_chip_outside_now": "क्या अभी बाहर जाना सुरक्षित है?",
+        "ask_chip_mask_today": "क्या मुझे आज मास्क पहनना चाहिए?",
+        "ask_chip_best_time": "आज बाहर जाने का सबसे अच्छा समय कौन सा है?",
+        "ask_chip_symptoms": "कौन से लक्षण होने पर मुझे वापस अंदर चले जाना चाहिए?",
         "ask_hint": "पूछने के लिए एंटर दबाइए। हर जवाब के पीछे की प्रकाशित गाइडेंस ऊपर दी गई "
                     "जानकारी के हिसाब से चुनी जाती है — किसी और के लिए गाइडेंस चाहिए तो "
                     "जानकारी बदल दीजिए।",

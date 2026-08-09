@@ -100,6 +100,22 @@ def test_unknown_term_opens_nothing(client):
     assert "def-slot" not in client.get("/", params={**PERSONA, "term": "nonsense"}).text
 
 
+def test_a_suggested_question_chip_prefills_the_ask_input(client):
+    """/ask is POST-only by design (a GET that asked a question would spend
+    rate-limit budget on a bookmarkable, prefetchable URL), so a chip cannot
+    one-click-submit -- it can only seed the input via a whitelisted slug read
+    on the GET / that already renders the page. Only the four known slugs may
+    fill the input; anything else must be silently ignored, same as an unknown
+    `term`."""
+    body = client.get("/", params={**PERSONA, "ask": "outside_now"}).text
+    assert 'ask=outside_now' in body                        # the chip's own link
+    assert 'value="Is it safe to go outside right now?"' in body
+
+    unrecognised = client.get("/", params={**PERSONA, "ask": "nonsense"}).text
+    assert 'name="question"' in unrecognised
+    assert re.search(r'name="question"[^>]*\svalue="', unrecognised) is None
+
+
 # --- Ask -------------------------------------------------------------------
 def test_answer_renders_the_three_designed_sections_without_leaking_raw(client):
     client.post("/ask", params=PERSONA, data={"question": "Can I go for a run this evening?"})
