@@ -611,6 +611,25 @@ def pollutant_label(code) -> str:
     return POLLUTANT_LABELS.get(str(code).strip().lower(), str(code).upper())
 
 
+def pos_class(percent) -> str:
+    """A percentage as the app.css step class that carries it, ``p0``-``p100``.
+
+    Geometry cannot ride a ``style`` attribute here: the response policy is
+    ``style-src 'self'`` with no ``'unsafe-inline'``, and CSP Level 3 makes
+    ``style-src`` the fallback for ``style-src-attr``, so the browser discards
+    the attribute unparsed -- measured in Chrome 151, ``style="left:65.0%"``
+    resolved to ``left: 0px``, parking a 325 caret over the "0 good" end.
+
+    Rounded to whole percent, which is about 3px of the widest bar the 1120px
+    shell allows. Takes either a number or `pct`'s "45.5%" string.
+    """
+    try:
+        value = float(str(percent).strip().rstrip("%"))
+    except (TypeError, ValueError):
+        return "p0"
+    return f"p{round(max(0.0, min(value, 100.0)))}"
+
+
 def pct(value, total) -> str:
     """Width for a bar, as a CSS percentage string. Guards divide-by-zero."""
     try:

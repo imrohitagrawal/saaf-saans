@@ -1355,8 +1355,15 @@ def test_no_class_in_the_stylesheet_is_unreachable(sheet, pages, hindi_pages):
         return any(re.search(re.escape(css_class[:cut + 1]) + r"\{\{", source)
                    for cut, char in enumerate(css_class) if char == "-")
 
-    dead = sorted(c for c in declared
-                  if c not in attribute_tokens and c not in rendered and not composed(c))
+    # `pos()` writes the WHOLE name -- `p65`, with no stem for `composed` to
+    # catch -- so the geometry steps are reachable exactly over the presenter's
+    # own range, and only while a template still calls it.
+    from saafsaans.web import presenters as pr
+    generated = ({pr.pos_class(step) for step in range(101)}
+                 if re.search(r"\{\{\s*pos\(", source) else set())
+
+    dead = sorted(c for c in declared if c not in attribute_tokens
+                  and c not in rendered and c not in generated and not composed(c))
     assert not dead, f"styled but never applied: {dead}"
 
 

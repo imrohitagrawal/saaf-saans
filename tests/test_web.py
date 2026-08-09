@@ -1739,7 +1739,7 @@ def test_the_scale_marker_is_hidden_from_assistive_technology(live_feed):
     with TestClient(app) as client:
         body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
                                        "condition": "None", "activity": "Walking"}).text
-    start = body.find('class="scale-mark"')
+    start = body.find('class="scale-mark ')
     assert start != -1, "no marker rendered to check"
     # Its OWN tag, not a window of surrounding markup: the very next element is
     # `<div class="scale" aria-hidden="true">`, so a fixed-width slice passes

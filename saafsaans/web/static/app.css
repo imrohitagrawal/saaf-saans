@@ -320,7 +320,7 @@ select, input[type="text"] {
 .term { border: none; background: none; padding: 0; font: inherit; color: inherit;
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
 .scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
-.scale-mark { position: absolute; top: 0; transform: translateX(-50%);
+.scale-mark { position: absolute; top: 0; left: var(--p, 0%); transform: translateX(-50%);
               font-family: var(--mono); font-size: 11px; font-weight: 600; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
 /* The legend reuses .band-g1..g6, which already expose --ink, rather than
@@ -353,8 +353,28 @@ select, input[type="text"] {
 .bar-row .is-today { font-weight: 600; }
 .track { position: relative; height: 8px; background: var(--surface-2);
          border-radius: 4px; overflow: hidden; }
-.fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--chart); }
+.fill { position: absolute; inset: 0 auto 0 0; width: var(--p, 0%);
+        border-radius: 4px; background: var(--chart); }
 .fill-accent { background: var(--accent); }
+
+/* Every bar length and the CPCB caret's offset arrive as one of these steps.
+   They cannot arrive as a style attribute: the response carries
+   `style-src 'self'` with no 'unsafe-inline' (main.py), and CSP Level 3 makes
+   style-src the fallback for style-src-attr, so the browser discards a style
+   attribute unparsed -- Chrome 151 resolved `style="left:65.0%"` to left: 0px,
+   putting a 325 caret over the "0 good" end of the bar. Whole percent: about
+   3px of the widest bar the 1120px shell allows. */
+.p0{--p:0%} .p1{--p:1%} .p2{--p:2%} .p3{--p:3%} .p4{--p:4%} .p5{--p:5%} .p6{--p:6%} .p7{--p:7%} .p8{--p:8%} .p9{--p:9%}
+.p10{--p:10%} .p11{--p:11%} .p12{--p:12%} .p13{--p:13%} .p14{--p:14%} .p15{--p:15%} .p16{--p:16%} .p17{--p:17%} .p18{--p:18%} .p19{--p:19%}
+.p20{--p:20%} .p21{--p:21%} .p22{--p:22%} .p23{--p:23%} .p24{--p:24%} .p25{--p:25%} .p26{--p:26%} .p27{--p:27%} .p28{--p:28%} .p29{--p:29%}
+.p30{--p:30%} .p31{--p:31%} .p32{--p:32%} .p33{--p:33%} .p34{--p:34%} .p35{--p:35%} .p36{--p:36%} .p37{--p:37%} .p38{--p:38%} .p39{--p:39%}
+.p40{--p:40%} .p41{--p:41%} .p42{--p:42%} .p43{--p:43%} .p44{--p:44%} .p45{--p:45%} .p46{--p:46%} .p47{--p:47%} .p48{--p:48%} .p49{--p:49%}
+.p50{--p:50%} .p51{--p:51%} .p52{--p:52%} .p53{--p:53%} .p54{--p:54%} .p55{--p:55%} .p56{--p:56%} .p57{--p:57%} .p58{--p:58%} .p59{--p:59%}
+.p60{--p:60%} .p61{--p:61%} .p62{--p:62%} .p63{--p:63%} .p64{--p:64%} .p65{--p:65%} .p66{--p:66%} .p67{--p:67%} .p68{--p:68%} .p69{--p:69%}
+.p70{--p:70%} .p71{--p:71%} .p72{--p:72%} .p73{--p:73%} .p74{--p:74%} .p75{--p:75%} .p76{--p:76%} .p77{--p:77%} .p78{--p:78%} .p79{--p:79%}
+.p80{--p:80%} .p81{--p:81%} .p82{--p:82%} .p83{--p:83%} .p84{--p:84%} .p85{--p:85%} .p86{--p:86%} .p87{--p:87%} .p88{--p:88%} .p89{--p:89%}
+.p90{--p:90%} .p91{--p:91%} .p92{--p:92%} .p93{--p:93%} .p94{--p:94%} .p95{--p:95%} .p96{--p:96%} .p97{--p:97%} .p98{--p:98%} .p99{--p:99%}
+.p100{--p:100%}
 .caption { margin: 10px 0 0; font-size: 11.5px; color: var(--text-3); text-wrap: pretty; }
 
 /* ------------------------------------------------------------------- ask -- */
@@ -476,10 +496,19 @@ select, input[type="text"] {
 .sysbar .l { color: var(--text-2); }
 .sysbar .v { text-align: right; font-weight: 600; }
 .cols { margin-top: 12px; display: flex; align-items: flex-end; gap: 8px; height: 74px; }
-.col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-       align-self: stretch; justify-content: flex-end; }
+/* Grid, not a flex column: the bar's height is a percentage, and in a flex
+   column it resolves against the whole 74px and is then shrunk to fit around
+   the count and the day label -- measured 31.91px for 75% and 31.91px again
+   for 100%, two different days drawn the same height. The 1fr row is the bar
+   area itself, so the percentage is linear across it. */
+.col { flex: 1; display: grid; grid-template-rows: auto 1fr auto; gap: 4px;
+       justify-items: center; align-self: stretch; }
 .col .n { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
-.col .b { width: 100%; background: var(--chart); border-radius: 4px 4px 0 0; }
+.col .b { width: 100%; height: var(--p, 0%); align-self: end;
+          background: var(--chart); border-radius: 4px 4px 0 0; }
+/* A day with nothing blocked still draws a baseline, so the column reads as
+   measured-and-zero rather than as a column that failed to render. */
+.col .b-nil { height: 2px; }
 .col .d { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 /* Pushes the red-team simulation button to the row's far edge, same idiom as
    .prov-count/.trend-val. */

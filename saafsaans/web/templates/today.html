@@ -260,7 +260,7 @@
           aria-hidden because it duplicates the .aqi-num heading above and its
           caret is decoration: the bar it indexes is itself aria-hidden. -#}
       {% if reading.aqi is not none %}
-      <div class="scale-mark" style="left:{{ scale_pos }}%" aria-hidden="true">{{ reading.aqi }} ▾</div>
+      <div class="scale-mark {{ pos(scale_pos) }}" aria-hidden="true">{{ reading.aqi }} ▾</div>
       {% endif %}
       <div class="scale" aria-hidden="true">
         <span class="band-g1"></span><span class="band-g2"></span>
@@ -333,7 +333,7 @@
       <div class="bar-row">
         <span class="{% if row.is_today %}is-today{% endif %}">{{ row.label }}</span>
         <span class="v">{{ row.avg }}</span>
-        <span class="track"><span class="fill" style="width:{{ pct(row.avg, 220) }}"></span></span>
+        <span class="track"><span class="fill {{ pos(pct(row.avg, 220)) }}"></span></span>
       </div>
       {% endfor %}
     </div>

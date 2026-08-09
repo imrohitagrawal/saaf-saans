@@ -455,6 +455,7 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         "T": _translator(lang),
         "advisory_text": _advisory_translator(lang),
         "pct": pr.pct,
+        "pos": pr.pos_class,
         "pollutant": pr.pollutant_label,
         # The footer names the primary source on every page, so the host comes
         # from the module that owns it rather than from a template literal.

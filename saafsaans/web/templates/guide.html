@@ -37,7 +37,7 @@
         The header row is a real thead with scope="col", so a screen reader
         announces the column a cell belongs to instead of a bare value
         (WCAG 1.3.1). The wrapper takes the table's old top margin. -#}
-    <div class="table-scroll" style="margin-top:12px">
+    <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_band', 'Band') }}</th><th scope="col">AQI</th><th scope="col">{{ T('guide', 'th_means', 'What it means for you') }}</th></tr></thead>
       <tbody>
@@ -123,7 +123,7 @@
 
     <p class="hint">{{ T('guide', 'risk_intro', "The score adds three things together and stops at 100: a starting figure for how bad the air is, how much air you will breathe in while doing what you have planned, and how much harder this air is on your body than on an average adult's.") }}</p>
 
-    <h3 class="kicker" style="margin-top:18px">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
+    <h3 class="kicker">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
     <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_score', 'Score') }}</th><th scope="col">{{ T('guide', 'th_called', 'What it is called') }}</th></tr></thead>
@@ -178,7 +178,7 @@
     </div>
     <p class="caption">{{ source_unvalidated }}</p>
 
-    <p class="hint" style="margin-top:16px">{{ T('guide', 'open_code', 'If you think the balance here is wrong, you can see every figure and change it — the whole calculation is a hundred lines of readable code, and nothing about it is hidden from you.') }}</p>
+    <p class="hint">{{ T('guide', 'open_code', 'If you think the balance here is wrong, you can see every figure and change it — the whole calculation is a hundred lines of readable code, and nothing about it is hidden from you.') }}</p>
   </section>
 
 </div>
