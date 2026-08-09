@@ -324,10 +324,17 @@ select, input[type="text"] {
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
 /* A station with no live reading prints no band word, which left an empty but
-   still 76px-wide grid cell on every such tile -- 21 of 21 in the shipped
-   no-token configuration, pushing every number away from the right edge for no
-   reason. The cell collapses when it has nothing to say. */
-.station .bd:empty { width: 0; }
+   still 76px-wide cell on every such tile -- 21 of 21 in the shipped no-token
+   configuration, pushing every number away from the right edge for no reason.
+   The column collapses when it has nothing to say.
+
+   Scoped to the LIST, not to the cell. `:empty` collapsed each tile
+   independently, and `.station .nm` is `flex: 1`, so the moment a real source
+   was configured and 19 of 21 stations reported, the two that did not had a
+   0-width cell and their numbers sat 76px right of the other nineteen. A ragged
+   list is a worse defect than the dead column this rule was written to remove.
+   city.html sets `.no-bands` only when NO row in the list earned a band word. */
+.station-list.no-bands .bd { width: 0; }
 /* The 24-hour trend card's header row. These three were written inline in
    city.html, which put their sizes at a specificity no `:lang(hi)` rule can
    reach; the Hindi floor below can only apply to them from here. `.trend-head`

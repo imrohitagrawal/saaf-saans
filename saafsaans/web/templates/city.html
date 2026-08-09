@@ -2,9 +2,17 @@
 {% block title %}SaafSaans — {{ T('ui', 'nav_city', 'City Pulse') }}{% endblock %}
 
 {% macro station_list(title, rows) %}
+{#- Whether ANY row in this list earned a band word. The band cell is a fixed
+    76px column so the numbers line up down the list, and collapsing it per-tile
+    breaks exactly that: with 19 of 21 stations reporting and 2 not, the two
+    without had a 0-width cell and their numbers sat 76px right of the other
+    nineteen. Collapsing the whole COLUMN when nothing in it has anything to say
+    keeps the original intent -- no dead 76px in the no-source configuration --
+    without making a ragged list the price. -#}
+{%- set any_band = rows | selectattr('band') | list -%}
 <div>
   <h2 class="kicker" style="margin:0 4px 6px">{{ title }}</h2>
-  <div class="station-list">
+  <div class="station-list{{ '' if any_band else ' no-bands' }}">
     {% for s in rows %}
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"
        aria-current="{{ 'true' if s.selected else 'false' }}">

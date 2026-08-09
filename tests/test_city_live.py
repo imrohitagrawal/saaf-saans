@@ -543,3 +543,50 @@ def test_the_city_fetch_pool_is_shared_by_the_whole_process(monkeypatch):
     # workers however many renders pile up; a per-request pool adds a fresh eight
     # each time, so the count climbs past any fixed bound.
     assert peak - before <= web_main._CITY_FETCH_WORKERS, (before, peak)
+
+
+def _grid_with(monkeypatch, *, silent):
+    """Render /city where the first ``silent`` localities report nothing."""
+    from saafsaans.services import waqi as w
+    from saafsaans.web import main as web_main
+
+    quiet = set(list(w.LOCALITIES)[:silent])
+
+    def feed(loc, es_client=None):
+        if loc in quiet:
+            return w._fallback(loc), "fallback"
+        return w._reading(60.0, 90.0, station=loc, city="Delhi", stale=False,
+                          forecast=None, obs_time=None, retained=False,
+                          source="cpcb"), "ok"
+
+    monkeypatch.setattr(w, "get_aqi", feed)
+    monkeypatch.setattr(web_main, "waqi", w)
+    with TestClient(web_main.app) as client:
+        return client.get("/city", params={"lang": "en"}).text
+
+
+def test_the_band_column_collapses_only_when_no_station_has_a_band(monkeypatch):
+    """The band cell is a fixed 76px column so the numbers line up down the list,
+    and `.station .nm` is `flex: 1`, so a per-tile collapse moves that tile's
+    number 76px right of its neighbours.
+
+    `.station .bd:empty { width: 0 }` did exactly that. It was written for the
+    no-source configuration where 21 of 21 tiles are empty and the column is dead
+    weight -- and it was correct there. The moment a real CPCB key was deployed
+    the mixed case appeared: 19 stations reporting, 2 not, and two numbers
+    visibly out of column on the live site. A ragged list is a worse defect than
+    a dead column, and no test saw it because every fixture until now made all
+    the tiles agree.
+
+    Asserted on the class the stylesheet keys off, in BOTH directions -- an
+    always-on or always-off rule fails one of them.
+    """
+    mixed = _grid_with(monkeypatch, silent=2)
+    assert 'class="bd"></span>' in mixed, (
+        "no empty band cell in the fixture, so this proves nothing")
+    assert "station-list no-bands" not in mixed, (
+        "the band column collapsed while 19 stations still had a band word")
+
+    nothing = _grid_with(monkeypatch, silent=len(waqi.LOCALITIES))
+    assert "station-list no-bands" in nothing, (
+        "the column stayed 76px wide with nothing in it")
