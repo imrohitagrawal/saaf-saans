@@ -1391,3 +1391,40 @@ def test_the_footer_is_a_landmark_and_not_buried_inside_main(path, lang):
     tag = body[footer_open:body.find(">", footer_open)]
     assert "shell" in tag, (path, lang, tag,
                             "the promoted footer lost the page's width and padding")
+
+
+def test_list_style_none_ol_and_ul_elements_carry_role_list(sheet, pages):
+    """WebKit drops the implicit `list`/`listitem` AX roles from an `<ol>` or
+    `<ul>` the moment `list-style: none` removes the bullet, so VoiceOver
+    reads the element as a run of paragraphs unless `role="list"` restores
+    the role on the ancestor explicitly. The `<li>` children need no
+    `role="listitem"` of their own -- the DOM already nests them directly, and
+    a `role="list"` ancestor is enough for the AX tree to rebuild the rest."""
+    selectors = set()
+    for query, rules in {"top": sheet["top"], **sheet["media"]}.items():
+        for selector, decls in rules:
+            if decls.get("list-style") != "none":
+                continue
+            for part in selector.split(","):
+                part = part.strip()
+                found = re.fullmatch(r"[a-z]*\.([A-Za-z0-9_-]+)", part)
+                assert found, (
+                    f"{query}: list-style: none on {part!r}, which this audit cannot "
+                    "resolve to a class -- extend the test rather than skipping it")
+                selectors.add(found.group(1))
+    assert selectors, "no list-style: none rule found in app.css -- the parser is broken"
+
+    checked = 0
+    for name, root in pages.items():
+        for node in _walk(root):
+            if node["tag"] not in ("ol", "ul"):
+                continue
+            if not (_classes(node) & selectors):
+                continue
+            checked += 1
+            assert node["attrs"].get("role") == "list", (
+                f'{name}: <{node["tag"]} class="{" ".join(sorted(_classes(node)))}"> has '
+                'list-style: none but no role="list", so Safari/VoiceOver drops its list '
+                "semantics")
+    assert checked, ("no list-style:none <ol>/<ul> was found on a rendered page -- "
+                     "this test proved nothing")

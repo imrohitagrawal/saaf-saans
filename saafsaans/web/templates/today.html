@@ -386,7 +386,10 @@
     <p class="caveat">{{ T('ui', 'ask_hint', 'Press Enter to ask. The published guidance behind each answer is chosen for the persona above — change it to get the guidance for someone else.') }}</p>
 
     {% if transcript %}
-    <ol class="thread">
+    {#- list-style: none (app.css .thread) strips the implicit list AX role in
+        Safari/VoiceOver unless it is restored explicitly; the <li> children
+        need no role of their own once the ancestor carries this. -#}
+    <ol class="thread" role="list">
       {% for t in transcript %}
       <li class="turn" id="turn-{{ t.id }}">
         <div class="q"><span class="mark">{{ T('ui', 'q_mark', 'Q ·') }}</span><p{% if t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>{{ t.question }}</p></div>
