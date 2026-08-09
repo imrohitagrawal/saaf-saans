@@ -93,7 +93,16 @@
   </aside>
   {% endif %}
   {% block content %}{% endblock %}
-  <footer class="foot">
+</main>
+{#- OUTSIDE <main>, so it is an implicit `contentinfo` landmark. Inside it, the
+    medical-device disclaimer and the only site-wide source list were
+    unreachable by landmark navigation -- on every page.
+
+    It keeps `shell` as well as `foot`: that class carries the page's max-width,
+    centring and horizontal padding, and a footer promoted out of <main> without
+    it would run edge to edge. Reused rather than restated so the two cannot
+    drift, and so the 560px padding override applies here too. -#}
+<footer class="foot shell">
     {{ T('ui', 'footer', 'Your age, condition and plans stay in this session — never logged. Telemetry keeps a hashed session id and the area you picked, so the System view can show requests by area.') }}
     {# Primary source first, and the host named as markup rather than inside
        the translated string: a domain is an address, not copy. This is the
@@ -122,7 +131,6 @@
         outside, so what it does NOT claim to be has to be as visible as what
         it does. #}
     {{ T('ui', 'footer_not_a_device', 'This is a demonstration project, not a medical device, and not a substitute for advice from your doctor.') }}
-  </footer>
-</main>
+</footer>
 </body>
 </html>

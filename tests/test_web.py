@@ -1318,7 +1318,11 @@ def test_the_footer_sentences_are_not_welded_together():
 
     with TestClient(app) as client:
         body = client.get("/", params=PERSONA).text
-    footer = body[body.find('class="foot"'):]
+    # Located by the ELEMENT, not by an exact class string. `class="foot"` stopped
+    # matching the moment the footer also took `shell` (it needs that class's
+    # max-width and padding now that it sits outside <main>), and a test that
+    # cannot find the footer fails claiming the footer says the wrong thing.
+    footer = body[body.find("<footer"):]
     footer = footer[:footer.find("</footer>")]
     text = re.sub(r"<[^>]+>", " ", footer)
     welded = re.findall(r"[A-Za-z]\.[A-Z][a-z]", text)
@@ -1452,3 +1456,38 @@ def test_health_reports_the_primary_source(client, monkeypatch):
     # Primary source before the fallback, as the footer and the Guide now are.
     keys = list(body)
     assert keys.index("cpcb") < keys.index("waqi")
+
+
+def test_the_reading_meta_separators_all_keep_their_space(client):
+    """A whitespace-stripping Jinja comment ate the newline on both sides and
+    welded the separator onto the link, so every live render read
+    "AQI· India's CPCB scale" while every other separator on the same line had
+    its space. base.html's footer documents the identical trap.
+
+    Asserted over the whole line rather than on the one known instance, so the
+    next comment written with `{#- -#}` in this span fails too.
+    """
+    body = client.get("/", params=PERSONA).text
+    meta = re.search(r'class="mono reading-meta">(.*?)</span>', body, re.S)
+    assert meta, "the reading meta did not render"
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", meta.group(1)))
+    assert text.count("·") >= 1, text
+    assert not re.search(r"\S·", text), (text, "a separator is welded to the token before it")
+
+
+def test_every_numbers_link_lands_on_the_numbers_section(client):
+    """The same link TEXT went to two different places: one instance anchored to
+    #numbers, its twin dropped the reader at the top of a long Guide. Every other
+    Guide link on this page is anchored (#who, #risk).
+
+    Scoped to links carrying this text, so the nav's plain "Guide" link -- which
+    correctly goes to the top -- is not swept in.
+    """
+    body = client.get("/", params=PERSONA).text
+    wanted = "What do these numbers mean?"
+    hrefs = [m.group(1) for m in
+             re.finditer(r'<a [^>]*href="(/guide\?[^"]*)"[^>]*>(.*?)</a>', body, re.S)
+             if wanted in re.sub(r"<[^>]+>", "", m.group(2))]
+    assert hrefs, "no numbers link rendered, so this proves nothing"
+    unanchored = [h for h in hrefs if "#numbers" not in h]
+    assert not unanchored, unanchored

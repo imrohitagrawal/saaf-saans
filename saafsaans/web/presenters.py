@@ -390,8 +390,11 @@ def who_line(pm25, lang: str = "en", *, has_index: bool = False) -> str:
     Every branch is a whole sentence under ``who.``, and the multiple keeps its
     own key per value (``who.multiple_6``) so the translation supplies a Hindi
     number word rather than a digit. The honesty constraint travels with them:
-    each translated sentence must still say the air *right now* and the
-    guideline *for a whole day*, and must not name a dose or a daily average.
+    each translated sentence must still say the guideline is *for a whole day*,
+    and must not name a dose or a daily average. It must NOT say the air "right
+    now": this docstring opens by removing exactly that claim, i18n records
+    `अभी` being deleted from all four Hindi branches, and
+    test_who_line_claims_no_averaging_window_in_either_language pins its absence.
     """
     multiple = who_multiple(pm25)
     if multiple is None:

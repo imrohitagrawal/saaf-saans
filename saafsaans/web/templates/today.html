@@ -187,9 +187,15 @@
           Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
       <span class="mono reading-meta">
         <a class="term" href="/?{{ q_term_aqi }}#reading" aria-expanded="{{ 'true' if term == 'AQI' else 'false' }}">AQI</a>
-        {#- Only the caption is branched, not this whole span: it also carries
-            the AQI glossary link above and the observation time below, both of
-            which must survive on a page with no reading. -#}
+        {# Only the caption is branched, not this whole span: it also carries
+           the AQI glossary link above and the observation time below, both of
+           which must survive on a page with no reading.
+
+           Plain comment markers, deliberately. The whitespace-stripping form
+           ate the newline on BOTH sides and welded the separator onto the link,
+           so every live render read "AQI· India's CPCB scale" while every other
+           separator on the line had its space. base.html's footer documents the
+           same trap for the same reason. #}
         {% if scale_note %}· {{ scale_note }} {% endif %}· {{ obs_time }}
       </span>
     </div>
@@ -252,7 +258,10 @@
        explanation, so it carries one to the Guide section that gives it. -#}
     {% if who_line %}<p class="caveat">{{ who_line }}
       <a href="/guide?{{ q }}#who">{{ T('ui', 'link_who', 'How this compares ›') }}</a></p>{% endif %}
-    <p class="caveat"><a href="/guide?{{ q }}">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
+    {#- Anchored, like its twin below and like every other Guide link on this
+        page (#who, #risk). The same link TEXT landing in two different places
+        is a worse inconsistency than a long page. -#}
+    <p class="caveat"><a href="/guide?{{ q }}#numbers">{{ T('ui', 'link_numbers', 'What do these numbers mean? ›') }}</a></p>
   </section>
 
   {# --- Five-day outlook --------------------------------------------------- #}

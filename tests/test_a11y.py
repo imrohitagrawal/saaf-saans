@@ -1234,3 +1234,32 @@ def test_the_coarse_pointer_block_only_ever_raises_a_target(sheet):
             assert coarse >= base, (
                 f"@media (pointer: coarse) gives {part} {coarse}px of vertical padding "
                 f"against {base}px at top level -- coarse is the floor, not the ceiling")
+
+
+@pytest.mark.parametrize("path", ["/", "/city", "/guide", "/system"])
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_footer_is_a_landmark_and_not_buried_inside_main(path, lang):
+    """`<footer>` maps to `contentinfo` only when it is NOT inside `<main>`.
+
+    It was the last child of `<main>` on every page, so the medical-device
+    disclaimer -- the one sentence saying this is not a medical device -- and the
+    only site-wide source list were unreachable by landmark navigation. Screen
+    reader users navigate by landmark; that content was there and not findable.
+
+    Also asserts the footer kept `shell`. That class carries the page's
+    max-width, centring and horizontal padding, and a footer promoted out of
+    `<main>` without it renders edge to edge -- fixing the landmark by breaking
+    the layout is not a fix.
+    """
+    with TestClient(app) as client:
+        body = client.get(path, params={"lang": lang}).text
+
+    main_close, footer_open = body.find("</main>"), body.find("<footer")
+    assert main_close != -1, (path, lang, "no </main>")
+    assert footer_open != -1, (path, lang, "no <footer>")
+    assert main_close < footer_open, (
+        path, lang, "the footer is inside <main>, so it is not a contentinfo landmark")
+
+    tag = body[footer_open:body.find(">", footer_open)]
+    assert "shell" in tag, (path, lang, tag,
+                            "the promoted footer lost the page's width and padding")

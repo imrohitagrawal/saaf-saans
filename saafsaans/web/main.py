@@ -481,6 +481,13 @@ def today(request: Request):
     term = q.get("term") if q.get("term") in TERMS else None
     persona_open = q.get("edit") == "1"
     obs_time = _fmt_time(data["reading"].get("obs_time"), lang)
+    # What the provenance chip prints after the state word. A live reading is
+    # dated by its clock time; a HELD one has to be dated by its AGE, because the
+    # clock time alone is what let three weeks read as minutes. See the chip's
+    # entry in the context below.
+    _held_age = _age_label(data["reading"].get("obs_time"), lang) if fresh == "held" else ""
+    _chip_when = (f"{_held_age} " + i18n.t(lang, "ui", "tag_old", "OLD")
+                  if _held_age else obs_time)
 
     # Newest first, and the whole history: a user tracking a decision needs to
     # re-read what they already asked, not have it replaced by the next answer.
@@ -549,9 +556,21 @@ def today(request: Request):
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"],
                                       persona, lang=lang),
         "scale_pos": pr.scale_position(data["reading"].get("aqi")),
+        # A held reading's chip carried _fmt_time alone -- a bare clock time --
+        # so a measurement 21 days old rendered "◌ CACHED · 5:26 PM" at 5:26 PM
+        # and read as minutes old. The one surface whose whole job is to date the
+        # number was the one that did not. guide.html promises "we tell you what
+        # it was AND when it was taken", and City Pulse already prints
+        # "CACHED · 13 H OLD" for this exact state -- so the reader has learnt
+        # that vocabulary on the other page and must not meet a different one
+        # here. Same argument provenance_chip's own docstring makes about the
+        # word CACHED.
+        #
+        # _age_label and ui.tag_old are both already translated, so no new copy.
+        # Falls back to the clock time when the age cannot be established:
+        # "· OLD" with nothing in front of it says less than a time does.
         "prov_chip": pr.provenance_chip(
-            data["waqi_status"], obs_time, lang=lang,
-            state=pr.freshness(data["waqi_status"], data["reading"])),
+            data["waqi_status"], _chip_when, lang=lang, state=fresh),
         # The templates call this per stored turn, so a turn indexed before the
         # field existed answers "live"/"none" exactly as it did before.
         "freshness": pr.freshness,

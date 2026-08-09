@@ -199,7 +199,11 @@ def _source_clause(lang, path):
     """
     with TestClient(app) as c:
         body = htmllib.unescape(c.get(path, params={"lang": lang}).text)
-    footer = body[body.find('class="foot"'):]
+    # Located by the ELEMENT, not by an exact class string. `class="foot"` stopped
+    # matching the moment the footer also took `shell` (it needs that class's
+    # max-width and padding now that it sits outside <main>), and a test that
+    # cannot find the footer fails claiming the footer says the wrong thing.
+    footer = body[body.find("<footer"):]
     footer = footer[:footer.find("</footer>")]
     assert len(footer) > 50, (lang, path, "no footer rendered")
     tail = i18n.t(lang, "ui", "footer_advisories",

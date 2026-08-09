@@ -590,3 +590,58 @@ def test_a_page_with_no_reading_does_not_explain_a_missing_outlook(monkeypatch, 
                   "did not arrive with one, so there is none to show — a "
                   "reading read from CPCB directly never carries a forecast."
                   ) not in html.unescape(_today(lang))
+
+
+# ------------------------------------------------- dating a held reading
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_readings_chip_says_how_old_it_is_not_what_time_it_was(monkeypatch, lang):
+    """The chip printed `_fmt_time` alone, so a measurement three weeks old
+    rendered "CACHED · 5:26 PM" -- at 5:26 PM -- and read as minutes old. The one
+    surface whose whole job is to date the number was the one that did not.
+
+    Asserted as "the age is present AND the bare clock time is not", because
+    either half alone passes for the wrong reason: adding the age while keeping
+    the clock time leaves the misreading available, and dropping the clock time
+    without adding the age leaves the reading undated.
+
+    Same vocabulary City Pulse already teaches for this state ("CACHED · 13 H
+    OLD"), and both `_age_label` and `ui.tag_old` were already translated, so no
+    new copy was needed in either language.
+    """
+    from saafsaans.web import main as web_main
+
+    old = (clock.now_ist() - timedelta(days=21)).isoformat()
+
+    def feed(locality, es_client=None):
+        return waqi._reading(PM25, PM10, station=locality, city="Delhi",
+                             stale=False, forecast=None, obs_time=old,
+                             retained=True, source="cpcb"), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", feed)
+    monkeypatch.setattr(web_main, "waqi", waqi)
+
+    chip = re.search(r'<span class="prov[^"]*">(.*?)</span>',
+                     html.unescape(_today(lang)), re.S)
+    assert chip, (lang, "the provenance chip did not render")
+    text = re.sub(r"<[^>]+>", "", chip.group(1)).strip()
+
+    age = web_main._age_label(old, lang)
+    assert age, "the fixture produced no age, so this proves nothing"
+    assert age in text, (lang, text, "the chip does not say how old the reading is")
+    assert web_main._fmt_time(old, lang) not in text, (
+        lang, text, "the chip still prints the bare clock time")
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_live_reading_is_still_dated_by_its_clock_time(monkeypatch, lang):
+    """The mirror. An age on a live reading would be noise -- "0 MIN OLD" beside
+    a reading that just arrived -- and the clock time is what a reader checks it
+    against."""
+    from saafsaans.web import main as web_main
+
+    _feed(monkeypatch, retained=False)
+    chip = re.search(r'<span class="prov[^"]*">(.*?)</span>',
+                     html.unescape(_today(lang)), re.S)
+    assert chip, (lang, "the provenance chip did not render")
+    text = re.sub(r"<[^>]+>", "", chip.group(1)).strip()
+    assert web_main._fmt_time(OBS, lang) in text, (lang, text)

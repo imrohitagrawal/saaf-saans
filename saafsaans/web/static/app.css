@@ -198,7 +198,12 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    sentence explaining why there is no number -- the one dated measurement on the
    page, visually indistinguishable from the apology around it. Its own line, and
    the figure in the same mono face the rest of the site uses for measurements. */
-.last-real { display: block; margin-top: 6px; color: var(--text-1); }
+/* --text-1 is declared nowhere in this file, so the colour resolved to inherit
+   and did nothing; and the comment above claimed the figure was put in "the same
+   mono face the rest of the site uses for measurements" while the rule set no
+   font-family at all. Both now true. */
+.last-real { display: block; margin-top: 6px; color: var(--text-2);
+             font-family: var(--mono); }
 
 /* --------------------------------------------------------------- persona -- */
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
