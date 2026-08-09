@@ -191,6 +191,22 @@ def _specificity(selector):
     return (ids, classes, types)
 
 
+def _nth_matches(expr, index):
+    """Whether ``nth-child(expr)`` selects the 1-based ``index``.
+
+    Only the two forms this stylesheet writes are understood -- ``-n+K`` and
+    ``n+K``. Anything else raises, on the same principle as
+    NOT_THE_RESTING_ELEMENT: an unfamiliar form stops the test instead of
+    reading as a miss and leaving a child silently unranked.
+    """
+    expr = expr.replace(" ", "")
+    if re.fullmatch(r"-n\+\d+", expr):
+        return index <= int(expr[3:])
+    if re.fullmatch(r"n\+\d+", expr):
+        return index >= int(expr[2:])
+    raise AssertionError(f"nth-child({expr}) is a form this matcher cannot decide")
+
+
 # Pseudo-classes and pseudo-elements that describe something other than the
 # resting state of this element, and so never decide how a caveat is painted
 # when nobody is interacting with it. Named rather than skipped by pattern, so
@@ -465,3 +481,147 @@ def test_every_class_the_no_reading_state_emits_is_styled():
     for cls in ("stale-note", "last-real"):
         assert cls in classes, (cls, "the no-reading state did not render it")
         assert re.search(r"\.%s\b" % re.escape(cls), css), cls
+
+
+# --- Values the inline-style sweep moved into classes ------------------------
+# The sweep replaced 26 style="" attributes with classes, and the only standing
+# guard -- test_a11y.py's dead-class detector -- proves a class is REFERENCED,
+# never what it declares. These two cover the values where a silent drift would
+# misinform a reader about air quality rather than merely look wrong.
+
+_SCALE_SPAN = re.compile(r"^\.scale\s+span(?::nth-child\(([^)]*)\))?$")
+
+
+def _scale_span_widths(rules):
+    """The resolved `width` of each of the six `.scale span` children, ranked by
+    specificity then source order, as floats in percent."""
+    resolved = []
+    for index in range(1, 7):
+        winner = None
+        for selector, decls, order in rules:
+            for part in (s.strip() for s in selector.split(",")):
+                found = _SCALE_SPAN.match(part)
+                if not found or "width" not in decls:
+                    continue
+                if found.group(1) is not None and not _nth_matches(found.group(1), index):
+                    continue
+                rank = (_specificity(part), order)
+                if winner is None or rank > winner[0]:
+                    winner = (rank, decls["width"])
+        assert winner, f"the .scale span at position {index} has no width rule"
+        assert winner[1].endswith("%"), (index, winner[1])
+        resolved.append(float(winner[1][:-1]))
+    return resolved
+
+
+def test_the_scale_band_widths_are_the_segments_the_marker_is_placed_on(today):
+    """Two independent copies of one geometry, with nothing making them agree.
+
+    The six-segment CPCB bar is painted by `.scale span` nth-child widths in
+    app.css; the caret above it is placed by `presenters._SEGMENTS`. Both encode
+    the same 10/10/20/20/20/20 split. A typo in either moves the bar out from
+    under a caret that did not move, and the page then shows a measurement
+    sitting in the wrong band -- a false claim about the air, made in pixels.
+    """
+    from saafsaans.services import normalize
+    from saafsaans.web import presenters as pr
+
+    block = re.search(r'<div class="scale"[^>]*>(.*?)</div>', today["en"], re.S)
+    assert block, "the six-segment scale bar is not rendered, so this proved nothing"
+    children = re.findall(r'<span class="([^"]+)"', block.group(1))
+    assert children == [f"band-g{n}" for n in range(1, 7)], children
+
+    expected = [end - start for _lo, _hi, start, end in pr._SEGMENTS]
+    assert sum(expected) == 100, ("the segments no longer tile the bar", expected)
+
+    rules, at_rules = _rules(CSS_PATH.read_text())
+    assert ".scale span" not in at_rules, (
+        "an at-rule now re-widths the scale bar; this test resolves the top "
+        "level only, so extend it rather than letting the rule go unranked")
+    resolved = _scale_span_widths(rules)
+    assert resolved == expected, (
+        f"the painted bar {resolved} is not the geometry the caret is placed on "
+        f"{expected}")
+
+    # Probes straddle every CPCB boundary, because that is where a width drift
+    # first puts the caret over a neighbouring band.
+    edges, running = [], 0.0
+    for width in resolved:
+        edges.append((running, running + width))
+        running += width
+    violations = []
+    for aqi in (0, 25, 49, 50, 51, 75, 99, 100, 101, 150, 199, 200,
+                201, 250, 299, 300, 301, 350, 399, 400, 401, 450, 499, 500):
+        start, end = edges[int(normalize.band_slug(aqi)[1:]) - 1]
+        position = pr.scale_position(aqi)
+        if not start <= position <= end:
+            violations.append(f"AQI {aqi} ({normalize.band_slug(aqi)}): caret at "
+                              f"{position}%, band painted {start}-{end}%")
+    assert not violations, ("the caret points outside its own band:\n  "
+                            + "\n  ".join(violations))
+
+
+_CLASS_COMPOUND = re.compile(r"^(?:\.[\w-]+)+$")
+
+
+def _class_cascade(rules, classes):
+    """(resolved declarations, the selectors that decided them) for an element
+    whose class set is `classes`.
+
+    Only selectors that are one compound of class tokens are resolvable here.
+    Any other selector mentioning one of these classes raises rather than being
+    skipped, so a new descendant rule that outranks the compound is a failure
+    instead of a silent input.
+    """
+    wanted = {"." + name for name in classes}
+    ranked = []
+    for selector, decls, order in rules:
+        for part in (s.strip() for s in selector.split(",")):
+            tokens = set(re.findall(r"\.[\w-]+", part))
+            if not tokens & wanted:
+                continue
+            assert _CLASS_COMPOUND.match(part), (
+                f"{part!r} now reaches {sorted(classes)} and is not a plain class "
+                "compound; extend the resolver rather than leaving it unranked")
+            if tokens <= wanted:
+                ranked.append(((_specificity(part), order), part, decls))
+    ranked.sort(key=lambda entry: entry[0])
+    resolved = {}
+    for _rank, _part, decls in ranked:
+        resolved.update(decls)
+    return resolved, [part for _rank, part, _decls in ranked]
+
+
+def test_the_baseline_head_rows_still_outrank_the_row_they_sit_on(today):
+    """`.reading-head` and `.ask-head` re-declare `align-items` and `gap` at the
+    same specificity as the `.row` they sit on, so they win on source order
+    alone. Moving `.row` further down app.css would drop the 46px AQI numeral
+    and its band chip back to centre alignment against a chip half its height,
+    and no flat selector read of the stylesheet would notice.
+    """
+    for name in ("reading-head", "ask-head"):
+        assert f'class="row {name}"' in today["en"], (
+            f".{name} no longer sits on .row, so the override proves nothing")
+
+    rules, at_rules = _rules(CSS_PATH.read_text())
+    for name in ("reading-head", "ask-head"):
+        assert name not in at_rules, f"an at-rule now sets .{name}"
+
+    reading, reading_order = _class_cascade(rules, {"row", "reading-head"})
+    assert reading["align-items"] == "baseline", reading
+    assert reading["gap"] == "12px", reading
+
+    ask, ask_order = _class_cascade(rules, {"row", "ask-head"})
+    assert ask["align-items"] == "baseline", ask
+    assert ask["gap"] == "10px", ask
+
+    # Named last so a value drift reports as a value, not as a list diff. This
+    # is the guard on the inputs: a third rule reaching either element would
+    # otherwise be resolved silently.
+    assert reading_order == [".row", ".reading-head"], reading_order
+    assert ask_order == [".row", ".ask-head"], ask_order
+
+    # The partner check: without it, both assertions above would still pass if
+    # the heads declared nothing and `.row` happened to agree.
+    base, _selectors = _class_cascade(rules, {"row"})
+    assert base["align-items"] == "center", base
