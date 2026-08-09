@@ -1045,7 +1045,10 @@ def test_every_link_carries_the_language():
     """The first link a Hindi reader clicks must not return them to English."""
     import re
     body = _lang("/", "hi", edit="1")
-    internal = [h for h in re.findall(r'href="(/[^"]*)"', body) if "?" in h]
+    # Static asset URLs carry ?v=<content hash>, not page state; they are the
+    # same bytes in either language and are excluded rather than exempted.
+    internal = [h for h in re.findall(r'href="(/[^"]*)"', body)
+                if "?" in h and not h.startswith("/static/")]
     assert internal
     # Exactly one link on a Hindi page may leave Hindi: the toggle itself.
     to_english = [h for h in internal if "lang=en" in h]
@@ -1059,10 +1062,13 @@ def test_every_link_carries_the_language():
 
 
 def test_the_devanagari_font_is_requested_only_for_hindi():
-    """A real download an English reader would never see a glyph from."""
+    """A real download an English reader would never see a glyph from. The
+    marker is the self-hosted stylesheet that declares the face, since the
+    Google css2 link it replaced is gone from every page."""
     for path in HINDI_PAGES:
-        assert "Anek+Devanagari" in _lang(path, "hi"), path
-        assert "Anek+Devanagari" not in _lang(path, "en"), path
+        assert "fonts-hi.css" in _lang(path, "hi"), path
+        assert "fonts-hi.css" not in _lang(path, "en"), path
+        assert "anek-devanagari" not in _lang(path, "en"), path
 
 
 def test_the_stylesheet_switches_the_display_face_for_hindi():
@@ -1705,17 +1711,21 @@ def test_every_page_forbids_script_execution_in_the_browser(client, path):
     assert response.headers.get("X-Content-Type-Options") == "nosniff", path
 
 
-def test_the_policy_allows_exactly_the_hosts_the_pages_actually_use(client):
-    """A policy naming hosts the page does not load is noise; one omitting a host
-    it does load breaks the page silently in a way no test that only reads HTML
-    would see. Derived from the rendered markup, so adding a font host without
-    updating the policy fails here.
+def test_the_policy_names_no_host_because_the_pages_use_none(client):
+    """The policy used to whitelist the Google font hosts because the pages
+    loaded from them. The fonts are self-hosted now, so both halves must say
+    so: the markup loads nothing off-origin (test_privacy sweeps every view),
+    and the policy has stopped allowing hosts nothing uses -- an allowance no
+    resource needs is a door left open. style/font at 'self' is the runtime
+    enforcement: a template that re-adds a font host breaks in the browser,
+    not just in this suite. Red if either the css2 link or the host
+    whitelist returns.
     """
     body = client.get("/", params={**PERSONA, "lang": "hi"}).text
-    used = set(re.findall(r"https://[a-z0-9.\-]+", body))
+    assert not re.findall(r"https://[a-z0-9.\-]+", body), "page loads off-origin"
     policy = client.get("/", params=PERSONA).headers["Content-Security-Policy"]
-    for host in used:
-        assert host in policy, (host, "loaded by the page, absent from the policy")
+    assert "https://" not in policy, (policy, "whitelists a host nothing uses")
+    assert "style-src 'self'" in policy and "font-src 'self'" in policy, policy
 
 
 def test_the_guide_names_every_effort_level_the_way_its_own_table_does(client):

@@ -19,9 +19,14 @@
   --n1: #DCE9F6; --n2: #DAEAEE; --n3: #F3E4C4; --n4: #F6DFD2; --n5: #F4D9D7; --n6: #EFD7D2;
   --gx: #6B665D; --nx: #E9E7E2;
 
-  --disp: "Anek Latin", "Segoe UI", sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* The "* Fallback" faces are Arial / Courier New with size-adjust and
+     ascent/descent overrides measured from the real font files by
+     scripts/build_fonts.py (defined in fonts.css), so text that renders
+     before a woff2 arrives occupies the same lines and nothing jumps on
+     swap. */
+  --disp: "Anek Latin", "Anek Latin Fallback", "Segoe UI", sans-serif;
+  --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
 
 [data-theme="dark"] {
@@ -475,8 +480,9 @@ html[lang="hi"] {
    weights are untouched -- these rules are scoped to html[lang="hi"] and set no
    value the English page reads.
 
-   Two headings are already at 800, the top of the range base.html requests for
-   Anek Devanagari (500-800), and so cannot be raised: .verdict and .wordmark b.
+   Two headings are already at 800, the top of the range the self-hosted
+   Anek Devanagari variable face carries (fonts-hi.css declares 400-800), and
+   so cannot be raised: .verdict and .wordmark b.
    The remaining Hindi text is set in the body and mono faces, neither of which
    ships Devanagari, so it falls back to the reader's system font and gets no
    benefit from a weight named here. */
@@ -623,8 +629,8 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
   letter-spacing: normal;
 }
 *:lang(en) {
-  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
 
 /* Vertical centring across scripts. Latin and Devanagari allocate their line

@@ -3,12 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-{#- The persona rides in the query string, and this page makes cross-origin
-    requests for its fonts. Every current browser defaults to
-    strict-origin-when-cross-origin, which sends only the origin -- but a
-    default is not a guarantee, and the one thing that must never leak is the
-    reader's health condition. Declared, so it does not depend on the visitor's
-    browser choosing well. -#}
+{#- The persona rides in the query string. The fonts are self-hosted now, so
+    no request leaves this origin on a page view -- but the policy stays
+    declared: it is what keeps the reader's health condition out of the
+    Referer if a cross-origin link or resource is ever added, rather than
+    depending on the visitor's browser choosing well. -#}
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>{% block title %}SaafSaans{% endblock %}</title>
 {#- Forwarding is how this site travels, so a pasted link has to be readable
@@ -23,21 +22,40 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{{ share.title }}">
 <meta name="twitter:description" content="{{ share.description }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-{#- The Devanagari display face is a real download and an English reader would
-    never see a glyph from it, so it is requested only when Hindi is active.
-    The stylesheet switches --disp on html[lang="hi"] to match. -#}
+{#- Self-hosted, subsetted faces (scripts/build_fonts.py): no third-party
+    request on any page view, no render-blocking css2 round trip. The two
+    faces preloaded are the ones the first paint is made of -- the body text
+    and the display face the verdict is set in; on a Hindi page the Devanagari
+    file takes both roles and its latin-subset sibling carries the digits the
+    AQI numerals are set in, so those two are preloaded instead. Font preloads
+    need `crossorigin` even same-origin, because fonts are always fetched in
+    CORS mode.
+
+    Bare URLs, not asset(): fonts.css declares src: url(/static/fonts/...)
+    unversioned (their names encode identity -- see _ImmutableStatic), and
+    preload matching is exact-URL, so a ?v= here would make every preloaded
+    font download twice. -#}
 {% if lang == 'hi' %}
-<link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="/static/fonts/anek-devanagari-400-800.devanagari.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/anek-devanagari-400-800.latin.woff2" as="font" type="font/woff2" crossorigin>
+{% else %}
+<link rel="preload" href="/static/fonts/plex-sans-400-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/anek-latin-600-800.woff2" as="font" type="font/woff2" crossorigin>
+{% endif %}
+<link rel="stylesheet" href="{{ asset('fonts.css') }}">
+{#- The Devanagari face is a real download and an English reader would never
+    see a glyph from it, so its @font-face rules ship in a second stylesheet
+    linked only when Hindi is active. The stylesheet switches --disp on
+    html[lang="hi"] to match. -#}
+{% if lang == 'hi' %}
+<link rel="stylesheet" href="{{ asset('fonts-hi.css') }}">
 {% endif %}
 {#- SVG first for anything modern, .ico as the fallback, and a square PNG for
     an iOS home screen, which masks its own corners. -#}
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<link rel="alternate icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
-<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+<link rel="alternate icon" href="{{ asset('favicon.ico') }}" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="stylesheet" href="{{ asset('app.css') }}">
 </head>
 <body>
 {#- Persona, theme and language ride in the query string, so every link must

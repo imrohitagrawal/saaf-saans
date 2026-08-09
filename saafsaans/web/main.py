@@ -15,6 +15,7 @@ Persona travels in the query string too, so any view is shareable. Only the
 chat transcript needs continuity; it is held per session id in memory and never
 persisted, because the persona is sensitive and must not reach an index.
 """
+import hashlib
 import time
 import uuid
 from collections import OrderedDict, deque
@@ -24,6 +25,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -37,8 +39,47 @@ from saafsaans.web import presenters as pr
 
 BASE = Path(__file__).parent
 app = FastAPI(title="SaafSaans")
-app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
+# Compress responses a client asks to have compressed. The pages are
+# server-rendered HTML of 30-60 KB and app.css is ~35 KB, served to phones on
+# Delhi mobile networks; gzip takes them to roughly a fifth. woff2 is already
+# brotli inside, so the floor spares the tiny responses and gzip merely wastes
+# a few cycles on fonts -- correct either way, since the middleware only acts
+# on Accept-Encoding.
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+class _ImmutableStatic(StaticFiles):
+    """/static with far-future caching.
+
+    Safe because nothing under /static is referenced by a bare name: every URL
+    a template emits goes through ``_asset`` below and carries ``?v=<content
+    hash>``, so a changed file is a new URL and the year-long lifetime can
+    never pin a stale copy. The font files are referenced from inside
+    fonts.css without a version, deliberately: their names encode family,
+    weight and script, and scripts/build_fonts.py renames on any change of
+    meaning, while the referencing stylesheet's hash changes with its content.
+    """
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+app.mount("/static", _ImmutableStatic(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
+
+# name -> short content hash, filled lazily and held for the process life.
+# Static files only change with a deploy, and a deploy restarts the process.
+_ASSET_VERSIONS: dict = {}
+
+
+def _asset(name: str) -> str:
+    """``/static/app.css?v=1a2b3c...`` -- the cache key IS the content."""
+    version = _ASSET_VERSIONS.get(name)
+    if version is None:
+        digest = hashlib.sha256((BASE / "static" / name).read_bytes())
+        version = _ASSET_VERSIONS[name] = digest.hexdigest()[:12]
+    return f"/static/{name}?v={version}"
 
 AGES = ["Child", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
@@ -372,6 +413,7 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
     return {
         "request": request, "persona": persona, "theme": theme, "active": active,
         "lang": lang,
+        "asset": _asset,
         "persona_applied": applied,
         # Opens the persona editor from ANY page: the Hindi banner's path in
         # base.html points here, and /city, /system and /guide render that
@@ -1481,16 +1523,18 @@ def _set_cookies(response, request: Request, sid: str, theme: str = None,
 # BROWSER refuse to execute one, which is the second, runtime enforcement the
 # stricter rule can have and the weaker one cannot.
 #
-# style-src and font-src name the Google hosts because base.html loads the
-# Devanagari and display faces from them; 'self' covers app.css. No connect-src
-# is needed -- nothing on these pages talks to the network after load, which is
-# the whole point of the architecture.
+# style-src and font-src are 'self' alone: the faces are self-hosted under
+# /static/fonts (scripts/build_fonts.py), so a page that tried to reach the
+# Google font hosts again would be refused by its own policy -- the runtime
+# enforcement of test_privacy's no-third-party rule. No connect-src is needed
+# -- nothing on these pages talks to the network after load, which is the
+# whole point of the architecture.
 _SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "script-src 'none'; "
-        "style-src 'self' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; "
+        "style-src 'self'; "
+        "font-src 'self'; "
         "img-src 'self' data:; "
         "form-action 'self'; "
         "frame-ancestors 'none'; "

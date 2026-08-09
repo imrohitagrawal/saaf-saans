@@ -173,11 +173,17 @@ class is banned.
 
 ## Typography
 
-**Display Font:** Anek Latin (with Segoe UI fallback) — weights 500–800
+**Display Font:** Anek Latin (with Segoe UI fallback) — weights 600–800
 **Body Font:** IBM Plex Sans (with Segoe UI fallback) — weights 400–700
-**Label/Mono Font:** IBM Plex Mono (with ui-monospace, Menlo fallback) — 400–600
+**Label/Mono Font:** IBM Plex Mono (with ui-monospace, Menlo fallback) — 400 and 600
 **Hindi:** Anek Devanagari replaces all three when the computed language is
 Hindi (it is one superfamily with Anek Latin, loaded only on Hindi pages).
+
+All faces are self-hosted as subsetted woff2 under `/static/fonts` — no request
+leaves the origin for type. `scripts/build_fonts.py` regenerates the files and
+the metric-matched fallback faces (Arial / Courier New with measured
+size-adjust and ascent/descent overrides), so fallback text holds the same
+lines while a face loads and nothing jumps on swap.
 
 **Character:** A condensed, high-x-height display face that reads in sunlight,
 over a bookish humanist body; every number, timestamp, and label sits in an
