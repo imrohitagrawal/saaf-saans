@@ -18,6 +18,14 @@
   --g1: #2F6FB5; --g2: #3F7180; --g3: #8A5A0E; --g4: #9C4519; --g5: #8A2A26; --g6: #58150E;
   --n1: #DCE9F6; --n2: #DAEAEE; --n3: #F3E4C4; --n4: #F6DFD2; --n5: #F4D9D7; --n6: #EFD7D2;
   --gx: #6B665D; --nx: #E9E7E2;
+  /* A neutral chart ink, for a bar that carries no severity meaning -- the
+     outlook fill and the System bar-chart columns used to sit on --g3 and --g5,
+     two of the six severity inks, which taught a reader that hue on the band
+     chips and then spent it again here meaning nothing. Measured against
+     --surface-2 (E9E7E2, where .fill's .track sits): 4.27:1. Against --surface
+     (FBFAF8, where .col .b sits): 5.06:1. Both clear the 3:1 non-text floor
+     (SC 1.4.11) with the same margin the g1-dark ramp below is held to. */
+  --chart: #726B5E;
 
   --disp: "Anek Latin", "Segoe UI", sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -44,6 +52,10 @@
   --g1: #5A8CBA; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
   --n1: #1C2938; --n2: #1B2C31; --n3: #322815; --n4: #362216; --n5: #351D1B; --n6: #3A1F18;
   --gx: #8B877E; --nx: #232834;
+  /* Measured against --surface-2 (232834, the lower-contrast of the two bar
+     backdrops in this theme -- surface-2 reads lighter than surface here,
+     inverted from light): 5.13:1. Against --surface (1B1F28): 5.74:1. */
+  --chart: #9F9885;
 }
 
 /* Sky pairs per band. The hero carries data-band, so the sky clears or thickens
@@ -143,11 +155,19 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .seg a, .seg button { border: none; cursor: pointer; font-family: var(--mono); font-size: 11px;
         padding: 5px 11px; background: none; color: var(--text-2); text-decoration: none; }
 .seg [aria-current="true"] { background: var(--accent); color: var(--on-accent); }
+/* System's own two-way seg (Observability / Security): wider than the header's
+   language toggle, and its two labels split the width evenly rather than
+   sizing to their own text. */
+.seg-tabs { margin-top: 14px; max-width: 420px; }
+.seg-tabs a { flex: 1; text-align: center; }
 
 /* ----------------------------------------------------------------- grid -- */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
         gap: 16px; align-items: start; }
 .grid > .wide { grid-column: 1 / -1; }
+/* Every grid that follows a page header carries this; Today's own .grid is the
+   page's first element and never had it, so it stays unmodified. */
+.grid-top { margin-top: 14px; }
 .card { background: var(--surface); border: 1px solid var(--border);
         border-radius: 16px; padding: 16px; }
 
@@ -213,6 +233,10 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .pill-btn { border: 1px solid var(--border-s); background: none; color: var(--accent);
             font-family: var(--mono); font-size: 11px; padding: 4px 12px;
             border-radius: 999px; cursor: pointer; text-decoration: none; }
+/* Same push-right idiom as .prov-count/.trend-val, scoped to the row rather
+   than a class of its own: the "Change details" toggle is the only pill-btn
+   that shares a row with running text. */
+.persona-head .pill-btn { margin-left: auto; }
 .fields { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
 .fields label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 130px; }
 .fields .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); }
@@ -226,6 +250,9 @@ select, input[type="text"] {
           border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
 
 /* --------------------------------------------------------------- reading -- */
+/* The AQI number and the band chip beside it: same baseline-aligned row shape
+   as .trend-head, extracted for the same reason. */
+.reading-head { align-items: baseline; gap: 12px; }
 .aqi-num { font-family: var(--mono); font-weight: 600; font-size: 46px;
            line-height: 1; letter-spacing: -.02em; }
 .band-chip { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
@@ -237,6 +264,13 @@ select, input[type="text"] {
 .scale-mark { position: absolute; top: 0; transform: translateX(-50%);
               font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+/* The legend reuses .band-g1..g6, which already expose --ink, rather than
+   repeating the six hexes a second time. Widths mirror the CPCB ranges each
+   band covers out of the 0-500 scale: Good and Satisfactory are 50 points
+   wide each (10%), the rest are 100 (20%). */
+.scale span { background: var(--ink); }
+.scale span:nth-child(-n+2) { width: 10%; }
+.scale span:nth-child(n+3) { width: 20%; }
 .scale-ends { display: flex; justify-content: space-between; font-family: var(--mono);
               font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
 .pollutants { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
@@ -257,13 +291,16 @@ select, input[type="text"] {
 .bar-row { display: grid; grid-template-columns: 96px 36px 1fr; gap: 10px;
            align-items: center; font-family: var(--mono); font-size: 12.5px; }
 .bar-row .v { text-align: right; font-weight: 600; }
+.bar-row .is-today { font-weight: 600; }
 .track { position: relative; height: 8px; background: var(--surface-2);
          border-radius: 4px; overflow: hidden; }
-.fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--g3); }
+.fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--chart); }
 .fill-accent { background: var(--accent); }
 .caption { margin: 10px 0 0; font-size: 11.5px; color: var(--text-3); text-wrap: pretty; }
 
 /* ------------------------------------------------------------------- ask -- */
+/* Title and its subtitle, same baseline-aligned row shape as .trend-head. */
+.ask-head { align-items: baseline; gap: 10px; }
 .q { display: flex; gap: 10px; }
 .q .mark { font-family: var(--mono); font-size: 12px; color: var(--text-3); flex: none; padding-top: 2px; }
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
@@ -303,6 +340,10 @@ select, input[type="text"] {
        font-family: var(--body); font-size: 14px; font-weight: 600; }
 
 /* ------------------------------------------------------------ city pulse -- */
+/* The Delhi/NCR list-title above each station-list. The macro that renders it
+   runs twice per page, so this was one inline style repeated by rendering,
+   not by markup. */
+.group-kicker { margin: 0 4px 6px; }
 .station-list { display: flex; flex-direction: column; background: var(--surface);
                 border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
 .station { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px;
@@ -370,8 +411,12 @@ select, input[type="text"] {
 .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
        align-self: stretch; justify-content: flex-end; }
 .col .n { font-family: var(--mono); font-size: 10px; color: var(--text-2); }
-.col .b { width: 100%; background: var(--g5); border-radius: 4px 4px 0 0; }
+.col .b { width: 100%; background: var(--chart); border-radius: 4px 4px 0 0; }
 .col .d { font-family: var(--mono); font-size: 9px; color: var(--text-3); }
+/* Pushes the red-team simulation button to the row's far edge, same idiom as
+   .prov-count/.trend-val. */
+.sim-form { margin-left: auto; }
+.attempts-list { margin-top: 8px; display: flex; flex-direction: column; }
 .attempt-group { padding: 11px 0; border-top: 1px solid var(--border); }
 .attempt-head { display: flex; align-items: baseline; gap: 10px; }
 .variant { display: flex; align-items: baseline; gap: 10px; margin-top: 6px;
@@ -416,6 +461,19 @@ select, input[type="text"] {
 .faq dt { font-weight: 600; font-size: 14px; }
 .faq dd { margin: 3px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .faq em { font-style: italic; }
+
+/* h3.kicker is used only inside the Guide's sub-sections, and three of its
+   four headings there open the same gap above them, so the fourth (the
+   score-words heading, 18px) is the one that keeps writing its own margin. */
+h3.kicker { margin-top: 20px; }
+/* Three of the Guide's four tables open with the same gap below the text
+   above them; the bands table (12px) is the one exception and keeps writing
+   its own inline margin rather than being forced onto this default. */
+.table-scroll { margin-top: 8px; }
+/* The band table's "what it means for you" cell. font-family dropped: the
+   cell already inherits --body from <body>, so naming it again said nothing. */
+.band-meaning { color: var(--text-2); }
+.age-band { color: var(--text-3); }
 
 /* --------------------------------------------------------------- Hindi ---- */
 /* Anek Latin has no Devanagari, so Hindi headings would fall back to whatever

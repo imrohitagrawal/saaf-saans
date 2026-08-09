@@ -60,6 +60,24 @@ def test_theme_switches_the_root_attribute():
         assert 'data-theme="light"' in c.get("/", params={**PERSONA, "theme": "light"}).text
 
 
+def test_google_fonts_request_does_not_carry_an_unused_weight():
+    """Every font-weight rule in app.css against a --disp element (Anek Latin)
+    or a --mono element (IBM Plex Mono) sets 400, 600, 700 or 800 -- never 500 --
+    so requesting weight 500 for either family downloaded a face nothing on the
+    page ever selects. IBM Plex Sans genuinely needs 500: .meaning sets it, so
+    that family's weight list is left untouched."""
+    from pathlib import Path
+    base = (Path(__file__).resolve().parents[1]
+            / "saafsaans/web/templates/base.html").read_text()
+    href = re.search(r'href="(https://fonts\.googleapis\.com/css2\?[^"]+)"', base)
+    assert href, "no Google Fonts stylesheet link found in base.html"
+    families = dict(re.findall(r'family=([\w+]+):wght@([\d;]+)', href.group(1)))
+    assert "500" not in families["Anek+Latin"].split(";"), families["Anek+Latin"]
+    assert "500" not in families["IBM+Plex+Mono"].split(";"), families["IBM+Plex+Mono"]
+    assert "500" in families["IBM+Plex+Sans"].split(";"), \
+        "IBM Plex Sans 500 is genuinely used by .meaning; it must stay requested"
+
+
 # --- Today -----------------------------------------------------------------
 def test_today_shows_the_persona_specific_verdict_and_comparison(client, live_feed):
     # Needs a reading: the healthy-adult comparison quotes two risk scores

@@ -11,7 +11,7 @@
     without making a ragged list the price. -#}
 {%- set any_band = rows | selectattr('band') | list -%}
 <div>
-  <h2 class="kicker" style="margin:0 4px 6px">{{ title }}</h2>
+  <h2 class="kicker group-kicker">{{ title }}</h2>
   <div class="station-list{{ '' if any_band else ' no-bands' }}">
     {% for s in rows %}
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"
@@ -59,7 +59,7 @@
 <p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we are still holding an earlier reading for that place rather than showing one that just arrived, and the tag says how old the measurement is. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}
   {{ T('ui', 'tag_partial_legend', 'PART means that station measured only part of what goes into the number, so its figure is not directly comparable with the others. Open the station to see what it did measure.') }}</p>
 
-<div class="grid" style="margin-top:14px">
+<div class="grid grid-top">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
     {#- Sizes belong in the stylesheet, not here. An inline declaration outranks
         every selector, so the 11px this header used to carry was out of reach of
