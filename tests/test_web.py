@@ -172,6 +172,26 @@ def test_repeated_source_still_opens_only_one_definition(client, live_feed):
     assert opened.count('class="def-slot"') == 1
 
 
+def test_repeated_source_marks_only_one_pill_as_expanded(client, live_feed):
+    """The sibling above proves the def-slot itself does not duplicate; this
+    proves the pill's own aria-expanded does not lie about which one opened it.
+
+    Red before the fix: `aria-expanded` on each pill was computed straight
+    from `term == s.source`, independent of the `src_ns.shown` flag that
+    gates the def-slot render, so both rows citing CPCB-AQI-scale reported
+    aria-expanded="true" even though only the first row's def-slot actually
+    rendered -- a screen reader is told two identical controls are both
+    expanded when only one of them has any content to show.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "CPCB-AQI-scale"}).text
+    pills = re.findall(
+        r'<a class="term" href="[^"]*" aria-expanded="(true|false)">CPCB-AQI-scale</a>', opened
+    )
+    assert len(pills) >= 2, "need at least two CPCB-AQI-scale pills to prove the state is not shared"
+    assert pills.count("true") == 1, f"expected exactly one expanded CPCB-AQI-scale pill, got {pills}"
+
+
 def test_source_tag_link_keeps_the_provenance_panel_open(client, live_feed):
     """The pill lives inside the panel the def-slot renders in. A link that
     dropped `prov` closed that panel on click, so the definition the reader

@@ -440,15 +440,23 @@
                     {% if group %}
                     <div class="kicker">{{ kicker }}</div>
                     {% for s in group %}
+                    {#- The def-slot itself only ever fires for the first row that
+                        matches, via src_ns.shown below -- but aria-expanded used to
+                        be computed straight from `term == s.source`, so every row
+                        sharing that source (CPCB-AQI-scale, routinely) reported
+                        itself expanded even on rows with no def-slot to point at.
+                        Deciding it once, here, and reusing it for both the pill
+                        and the render guard keeps the two in lockstep. -#}
+                    {% set is_open = term == s.source and not src_ns.shown %}
                     <div class="src-row">
                       {#- prov carries the panel's own open state forward. Without it
                           this link closed the very panel the def-slot renders inside,
                           since the term toggle's query string otherwise says nothing
                           about prov and _qs drops any key it is not given. -#}
-                      <span class="src-tag"><a class="term" href="/?{{ q_term_source(s.source, t.id) }}#turn-{{ t.id }}" aria-expanded="{{ 'true' if term == s.source else 'false' }}">{{ s.source }}</a></span>
+                      <span class="src-tag"><a class="term" href="/?{{ q_term_source(s.source, t.id) }}#turn-{{ t.id }}" aria-expanded="{{ 'true' if is_open else 'false' }}">{{ s.source }}</a></span>
                       <span>{{ advisory_text(s) }}</span>
                     </div>
-                    {% if term == s.source and not src_ns.shown %}
+                    {% if is_open %}
                     <p class="def-slot">{{ T('glossary', term, glossary[term]) }}</p>
                     {% set src_ns.shown = true %}
                     {% endif %}
