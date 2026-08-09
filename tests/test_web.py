@@ -296,25 +296,79 @@ def test_source_tag_link_keeps_the_provenance_panel_open(client, live_feed):
     )
 
 
-def test_source_tag_definition_is_in_hindi_when_the_page_is(client, live_feed):
-    """The English test above proves the mechanism opens the right definition;
-    it cannot catch a wrong or missing Hindi entry, since it never sets
-    lang=hi. Nothing else exercised this exact combination either -- the
-    disclosure sweep in test_hindi_completeness.py opens `term` and `prov`
-    as two separate single-parameter states, never both together, and this
-    def-slot only renders when both are set.
+# The eleven source tags, each with an AQI and persona overrides that actually
+# retrieve it, and the phrase naming the body its Hindi gloss credits. The
+# phrases are written out here rather than read back from i18n.HI, which would
+# compare the corpus with itself: ACOG's entry naming the sports-medicine
+# college instead of the obstetricians passes every other test -- key parity,
+# non-emptiness, Devanagari presence and the Latin-term rule in test_i18n.py
+# and test_hindi_completeness.py all still hold. Every phrase names the body
+# itself, never what that body publishes: the assertion runs against the one
+# definition the slot rendered, so a phrase that would be ambiguous across the
+# whole corpus is still exact there, and only the institution name catches a
+# gloss that credits the wrong institution. The
+# def-slot in today.html is the only surface that renders these eleven; the
+# Guide's glossary excludes them (main.py builds it with `k not in
+# SOURCE_TERMS`).
+SOURCE_GLOSS_HI = {
+    "CPCB-AQI-scale":          (168, {}, "केंद्रीय प्रदूषण नियंत्रण बोर्ड"),
+    "GINA-guidance":           (168, {}, "अस्थमा की वैश्विक पहल"),
+    "Lancet-Planetary-Health": (168, {}, "लैंसेट प्लैनेटरी हेल्थ"),
+    "GOLD-guidance":           (168, {"condition": "COPD"},
+                                "दीर्घकालिक अवरोधी फेफड़े की बीमारी की वैश्विक पहल"),
+    "AHA-airpollution":        (168, {"condition": "Heart condition"}, "अमेरिकी हृदय संघ"),
+    "ACOG-airquality":         (168, {"condition": "Pregnancy"},
+                                "अमेरिकी प्रसूति एवं स्त्री रोग महाविद्यालय"),
+    "AIIMS-advisory":          (168, {"condition": "Fit", "age": "Senior"},
+                                "अखिल भारतीय आयुर्विज्ञान संस्थान"),
+    "WHO-children-air":        (168, {"condition": "Fit", "age": "Child",
+                                      "activity": "School run"},
+                                "बच्चों और वायु प्रदूषण पर विश्व स्वास्थ्य संगठन"),
+    "EPA-indoor-air":          (168, {"condition": "Fit", "activity": "Stay home"},
+                                "अमेरिकी पर्यावरण संरक्षण एजेंसी"),
+    "ACSM-guidance":           (350, {"condition": "Fit"}, "अमेरिकी खेल चिकित्सा महाविद्यालय"),
+    "WHO-AQG-2021":            (250, {"condition": "Fit", "activity": "Commute"},
+                                "विश्व स्वास्थ्य संगठन (WHO) के 2021 वायु गुणवत्ता दिशा-निर्देश"),
+}
 
-    Red before the fix for the same two reasons as the English test (no <a>,
-    term rejected by TERMS), and would also go red on a mistyped or missing
-    HI['glossary'] key even after the fix, since `i18n.t` falls back to the
-    English sentence rather than raising.
+
+@pytest.mark.parametrize("source", sorted(SOURCE_GLOSS_HI))
+def test_every_source_tag_definition_names_its_body_in_hindi(client, monkeypatch, source):
+    """The English tests above prove the mechanism opens the right definition;
+    they cannot catch a wrong or missing Hindi entry, since they never set
+    lang=hi. Only GINA-guidance was ever opened with `prov` and `term` together
+    on a Hindi page, and this def-slot renders only when both are set -- the
+    disclosure sweep in test_hindi_completeness.py opens them as two separate
+    single-parameter states.
+
+    A gloss that names the wrong institution is invisible to every corpus test:
+    those check keys, non-emptiness, Devanagari presence and difference from the
+    English, never which body the sentence actually credits. Asserting the
+    English is absent as well keeps `i18n.t`'s silent fallback from passing this
+    for the wrong reason.
     """
-    params = {**PERSONA, "lang": "hi"}
+    from tests.conftest import LIVE_READING
+    from saafsaans.services import normalize, waqi
+
+    aqi, overrides, names_the_body = SOURCE_GLOSS_HI[source]
+    monkeypatch.setattr(waqi, "get_aqi", lambda loc, es_client=None:
+                        ({**LIVE_READING, "aqi": aqi, "station": loc}, "ok"))
+    params = {**PERSONA, **overrides, "lang": "hi"}
     client.post("/ask", params=params, data={"question": "Can I cycle to work?"})
-    opened = client.get("/", params={**params, "prov": "0", "term": "GINA-guidance"}).text
-    assert opened.count('class="def-slot"') == 1
-    assert "अस्थमा की वैश्विक पहल" in opened
-    assert "Global Initiative for Asthma" not in opened
+    opened = client.get("/", params={**params, "prov": "0", "term": source}).text
+    slot = re.search(r'<p class="def-slot">(.*?)</p>', opened, re.S)
+    assert slot, f"{source} was not cited by this turn, so no definition opened"
+    assert names_the_body in slot.group(1), (
+        f"the Hindi definition of {source} does not name its body: {slot.group(1)[:120]}")
+    assert normalize.GLOSSARY[source] not in opened, "the English fallback rendered instead"
+
+
+def test_the_hindi_source_gloss_table_covers_every_source_tag():
+    """A row dropped from the table above would take a source tag's only Hindi
+    coverage with it and leave the suite green."""
+    from saafsaans.web.main import SOURCE_TERMS
+
+    assert sorted(SOURCE_GLOSS_HI) == sorted(SOURCE_TERMS)
 
 
 def test_ask_redirects_so_a_refresh_cannot_resubmit(client):
