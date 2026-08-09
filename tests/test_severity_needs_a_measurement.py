@@ -28,7 +28,10 @@ from saafsaans.services import i18n, normalize, risk, waqi
 from saafsaans.web import presenters as pr
 from saafsaans.web.main import app
 
-PERSONA = {"age": "Senior", "condition": "COPD",
+# All four fields: persona_applied requires the full set, and these pages are
+# meant to be the ones an applied-persona reader sees, not the first-visit
+# example state.
+PERSONA = {"locality": "Anand Vihar", "age": "Senior", "condition": "COPD",
            "activity": "Outdoor exercise", "theme": "light"}
 
 BANDS = ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe")
