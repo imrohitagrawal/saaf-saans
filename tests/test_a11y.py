@@ -839,6 +839,33 @@ def test_hindi_never_renders_a_caveat_below_the_devanagari_floor(sheet):
     assert floors.get(":lang(hi) .hero-window .caveat", 0) > floors[".hero-window .caveat"]
 
 
+def test_every_uppercasing_rule_has_a_lang_hi_reset(sheet):
+    """Devanagari is unicameral, so an uppercase that reaches it changes no
+    glyph -- it is invisible in the rendered text and invisible to any
+    assertion on the markup. The only place the defect exists is the selector
+    list of the reset itself, so that list is what gets read here. `.place`
+    carries the Hindi spelling of the locality, and the rule that shouts it
+    was never named in the carve-out."""
+    shouts, resets = [], []
+    for selector, decls in sheet["top"]:
+        parts = [s.strip() for s in selector.split(",")]
+        if decls.get("text-transform") == "uppercase":
+            shouts += parts
+        if decls.get("text-transform") == "none":
+            resets += [p[len(":lang(hi)"):].strip()
+                       for p in parts if p.startswith(":lang(hi)")]
+    for required in (".hero-pill", ".chip-risk", ".band-chip", ".hero-meta .place"):
+        assert required in resets, (
+            f"{required} uppercases, and the :lang(hi) reset list does not name it")
+    # A reset on the bare class also covers a tag-qualified shout of the same
+    # class: (0,2,0) outranks (0,1,1) and the reset sits later in source.
+    uncovered = [s for s in shouts
+                 if s not in resets
+                 and not any(s.endswith("." + r.lstrip(".")) for r in resets)]
+    assert not uncovered, (
+        "uppercasing rules with no Devanagari reset: " + ", ".join(uncovered))
+
+
 # --- 6. Devanagari never renders below the floor ----------------------------
 # The three defects this section exists for were all invisible to the helpers
 # above, and for the same reason: those helpers read the stylesheet as a flat

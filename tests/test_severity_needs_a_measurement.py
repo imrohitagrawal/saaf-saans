@@ -352,4 +352,6 @@ def test_a_row_with_no_usable_date_is_not_shown_at_all(monkeypatch):
     with TestClient(app) as c:
         body = c.get("/", params={**PERSONA, "locality": "ITO"}).text
     assert 'class="last-real"' not in body
-    assert "149" not in body
+    # The asset cache-busters are content hashes, so any three digits can turn
+    # up inside one; only the rendered page can answer whether a number shipped.
+    assert "149" not in re.sub(r"\?v=[0-9a-f]+", "", body)
