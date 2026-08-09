@@ -393,6 +393,14 @@ select, input[type="text"] {
 .reading-meta { font-size: 11px; color: var(--text-3); }
 .ask-sub { font-size: 12.5px; color: var(--text-3); }
 .ask-chips { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+/* The chip the page was seeded from takes the same accent fill the language and
+   theme segments use: --on-accent measures 6.88:1 on --accent in light and
+   8.75:1 in dark, and the fill's edge is 6.59:1 / 7.90:1 against --surface. The
+   border moves with the fill because a --border-s hairline around a filled pill
+   reads as a leftover of the unselected state. No weight change: these are mono
+   pills in a wrapping row, and a bolder label would rewrap the row. */
+.ask-chips [aria-current="true"] { background: var(--accent); color: var(--on-accent);
+            border-color: var(--accent); }
 .ask-form { margin-top: 16px; display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; font-size: 14px; }
 .btn { border: none; cursor: pointer; padding: 11px 20px; border-radius: 10px;

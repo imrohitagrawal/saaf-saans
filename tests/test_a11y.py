@@ -228,6 +228,9 @@ def pages():
             "today-first-visit": ("/", {"theme": "light"}),
             "today-persona-open": ("/", {**PERSONA, "edit": "1"}),
             "today-term-open": ("/", {**PERSONA, "term": "PM2.5"}),
+            # An ask chip is only ever the current one on a chip-seeded
+            # arrival; no other state renders a selected chip.
+            "today-ask-chip": ("/", {**PERSONA, "ask": "best_time"}),
             "city": ("/city", PERSONA),
             "system": ("/system", PERSONA),
             "system-security": ("/system", {**PERSONA, "view": "security"}),
@@ -1428,3 +1431,59 @@ def test_list_style_none_ol_and_ul_elements_carry_role_list(sheet, pages):
                 "semantics")
     assert checked, ("no list-style:none <ol>/<ul> was found on a rendered page -- "
                      "this test proved nothing")
+
+
+# --- 11. Every announced current state is also a drawn one ------------------
+# Properties that change what a sighted reader sees. A rule keyed on
+# aria-current which declares none of these announces without marking.
+MARK_PROPERTIES = {"background", "background-color", "color", "border", "border-color",
+                   "border-bottom-color", "box-shadow", "font-weight", "text-decoration",
+                   "outline"}
+
+
+def test_every_aria_current_state_is_also_a_visible_one(sheet, pages):
+    """`aria-current` names the current item for a screen reader and for nobody
+    else. Sighted readers need the mark drawn, so every element the site renders
+    as current is resolved against the stylesheet's aria-current rules here: a
+    state that is announced but painted identically to its siblings fails before
+    a reader has to notice that nothing moved."""
+    marks = [(part.strip(), decls) for selector, decls in sheet["top"]
+             for part in selector.split(",")
+             if "[aria-current" in part and MARK_PROPERTIES & set(decls)]
+    assert marks, "no aria-current rule in app.css declares a visible property"
+
+    unpaired = []
+    seen = set()
+    for name, root in pages.items():
+        for node in _walk(root):
+            if node["attrs"].get("aria-current") not in ("true", "page"):
+                continue
+            seen |= _classes(node) or {node["tag"]}
+            if not any(_matches(node, selector) for selector, _ in marks):
+                unpaired.append(f'{name}: <{node["tag"]} class='
+                                f'"{node["attrs"].get("class", "")}">')
+    # Neither a site-wide count nor a per-page one partners this loop: the theme
+    # and language segments and the nav announce current on every page, so both
+    # stay non-zero with the chip row's attribute gone. The class is what pins
+    # each announcing surface, so every surface is named here by class.
+    for required in ("pill-btn", "station"):
+        assert required in seen, (
+            f".{required} rendered no current element on any page -- "
+            "this test proved nothing about it")
+    assert not unpaired, "announced current, drawn identical: " + "; ".join(unpaired)
+
+
+def test_the_selected_ask_chip_clears_the_text_floor_in_both_themes(sheet):
+    """The chip's mark is a fill, so its label is painted on a colour rather
+    than on paper. Both tokens are read out of the rule itself and measured, so
+    re-tokening the fill is measured too, not just deleting it."""
+    css = _strip_comments(sheet["raw"])
+    chip = _decls(sheet["top"], '.ask-chips [aria-current="true"]')
+    assert chip, "the selected ask chip has no rule -- this test would prove nothing"
+    for theme, block in THEMES:
+        fg = _token(css, block,
+                    re.fullmatch(r"var\((--[\w-]+)\)", chip["color"]).group(1))
+        bg = _token(css, block,
+                    re.fullmatch(r"var\((--[\w-]+)\)", chip["background"]).group(1))
+        ratio = _ratio(fg, bg)
+        assert ratio >= AA_TEXT, f"{theme} selected ask chip: {ratio:.2f}:1"
