@@ -199,13 +199,17 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _city_body(monkeypatch, rows, lang="en"):
-    """Render /city with the station grid pinned, so freshness and age are fixed."""
+def _city_body(monkeypatch, rows, lang="en", **params):
+    """Render /city with the station grid pinned, so freshness and age are fixed.
+
+    ``params`` rides into the query string, for tests that need a particular
+    station selected in the trend header.
+    """
     from saafsaans.web import main as web_main
     monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
     monkeypatch.setattr(web_main, "get_client", lambda: object())
     with TestClient(app) as c:
-        return c.get("/city", params={**PERSONA, "lang": lang}).text
+        return c.get("/city", params={**PERSONA, "lang": lang, **params}).text
 
 
 def _city_rows(monkeypatch, rows, lang="en"):
@@ -238,6 +242,65 @@ def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
     for name, row in rows.items():
         assert "CACHED" not in row, name       # nothing is stored, so nothing is cached
         assert "NO READING" in row, name
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_each_tag_carries_its_definition_at_the_row(monkeypatch, lang):
+    """The legend paragraph defines the tag vocabulary once, up to 21 rows
+    above where a tag is actually read. Each tag now also carries its own
+    definition in `title`, so the row explains itself -- the legend stays, this
+    is in addition. Removing the title attributes in city.html turns this red."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}],
+                      lang=lang)
+    cached_def = i18n.t(lang, "ui", "tag_cached_def",
+                        "A reading we are still holding from earlier, shown "
+                        "with its age — not the air right now.")
+    none_def = i18n.t(lang, "ui", "tag_no_reading_def",
+                      "We hold nothing for this station, so no figure is "
+                      "shown — none is invented.")
+    assert f'title="{cached_def}"' in rows["Rohini"], rows["Rohini"]
+    assert f'title="{none_def}"' in rows["ITO"], rows["ITO"]
+    # The screen-reader half of the same device: title is pointer-only, so the
+    # row's own <a> points at an offscreen copy of the definition by id. The
+    # ids' existence is asserted in the trend-header test below, which holds
+    # the whole page body.
+    assert 'aria-describedby="tag-def-cached"' in rows["Rohini"], rows["Rohini"]
+    assert 'aria-describedby="tag-def-none"' in rows["ITO"], rows["ITO"]
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_trend_header_tag_defines_itself_like_the_rows_do(monkeypatch, lang):
+    """The header tag was the one tag left undefined: a review stripped its
+    title attributes and the suite stayed green. Both header states are pinned
+    -- title for pointer users, aria-describedby for screen readers -- plus the
+    partner check that each referenced id exists on the page, so a description
+    cannot dangle. Removing either attribute from the trend-head spans in
+    city.html, or the sr-def block their ids live in, turns this red."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    cached_def = i18n.t(lang, "ui", "tag_cached_def",
+                        "A reading we are still holding from earlier, shown "
+                        "with its age — not the air right now.")
+    none_def = i18n.t(lang, "ui", "tag_no_reading_def",
+                      "We hold nothing for this station, so no figure is "
+                      "shown — none is invented.")
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+
+    body = _city_body(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}],
+                      lang=lang, station="Rohini")
+    head = re.search(r'class="row trend-head">(.*?)</div>', body, re.S).group(1)
+    assert f'title="{cached_def}"' in head, head
+    assert 'aria-describedby="tag-def-cached"' in head, head
+    assert 'id="tag-def-cached"' in body      # the description has a target
+
+    body = _city_body(monkeypatch, [], lang=lang)   # selected station: no reading
+    head = re.search(r'class="row trend-head">(.*?)</div>', body, re.S).group(1)
+    assert f'title="{none_def}"' in head, head
+    assert 'aria-describedby="tag-def-none"' in head, head
+    assert 'id="tag-def-none"' in body
 
 
 def test_a_station_with_no_reading_carries_no_number_and_no_band(monkeypatch):
@@ -396,6 +459,52 @@ def test_a_stored_turn_replayed_in_the_other_language_is_marked(client):
                 data={"question": "Can I go for a run?"})
     hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
     assert 'class="answer-body" lang="en"' in hindi
+
+
+def test_the_answered_for_line_follows_the_page_language(client):
+    """The persona sentence is chrome, not stored copy: a turn stores the
+    persona FACTS and the sentence is recomposed in the page's language at
+    render time, so a question asked in English does not pin an English
+    sentence into the middle of the Hindi page. Reverting either the "persona"
+    facts stored in main.ask or the turn_persona_line renderer in main.today
+    turns this red. The answer BODY stays stored copy and keeps its lang
+    stamp -- the test above."""
+    from saafsaans.services import i18n
+    from saafsaans.web import presenters as pr
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    persona = {k: PERSONA[k] for k in ("locality", "age", "condition", "activity")}
+
+    # Asserted on the "Answered for" span itself, not on the sentence alone:
+    # the persona CARD prints the same sentence in the page language, so a
+    # bare substring check passes with the transcript line broken.
+    def answered_for(lang):
+        return (i18n.t(lang, "ui", "answered_for", "Answered for")
+                + f" <span>{pr.persona_line(persona, lang=lang)}</span>")
+
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert answered_for("hi") in hindi
+    assert '<span lang="en">an adult with asthma' not in hindi
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert answered_for("en") in english
+
+
+def test_a_turn_stored_before_the_persona_facts_still_renders_marked(client):
+    """Backwards compatibility: a turn from before the facts were stored
+    carries only its rendered persona_line. It must still render -- and, being
+    stored copy, keep the language mark on the other-language page. Deleting
+    the persona_line fallback in main.today's turn_persona_line turns this
+    red. (The `not t.persona` guard on the lang attribute is pinned by the
+    sibling test above, whose new-style turn must render an unmarked span.)"""
+    from saafsaans.web import main as web_main
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    for store in web_main._TRANSCRIPTS.values():
+        for turn in store["turns"]:
+            if "persona" in turn:
+                del turn["persona"]
+                turn["persona_line"] = "an adult with asthma, planning outdoor exercise"
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
     assert '<span lang="en">an adult with asthma' in hindi
 
 

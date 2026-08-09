@@ -328,13 +328,16 @@
             claim it -- Hindi phonetics from a screen reader over English
             prose, and the :lang(hi) type floors applied to text that is not
             Devanagari. Each turn carries the language it was composed in, and
-            the parts of it that are STORED copy (the persona line here, the
-            answer body below) declare it whenever it differs from the page.
-            The chrome around them -- "Answered for", the refusal copy -- is
-            rendered fresh through T in the page's own language and stays
-            unmarked. A turn stored before the stamp existed has no t.lang and
-            renders exactly as it always did. -#}
-        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} <span{% if t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>{{ t.persona_line }}</span></p>
+            the parts of it that are STORED copy (the answer body below)
+            declare it whenever it differs from the page. The chrome --
+            "Answered for", the refusal copy, and the persona sentence, which
+            is recomposed from the turn's stored facts -- is rendered fresh
+            through T in the page's own language and stays unmarked. A turn
+            stored before the facts existed carries only its rendered
+            persona_line, so that one line still replays as stored copy and
+            keeps the lang mark; one with no t.lang either renders exactly as
+            it always did. -#}
+        <p class="caveat">{{ T('ui', 'answered_for', 'Answered for') }} <span{% if not t.persona and t.lang and t.lang != lang %} lang="{{ t.lang }}"{% endif %}>{{ turn_persona_line(t) }}</span></p>
 
         {% if t.kind == 'throttled' %}
           {#- Same flat treatment as a refusal: being asked to wait is not an

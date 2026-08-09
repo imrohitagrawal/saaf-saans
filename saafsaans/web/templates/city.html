@@ -14,8 +14,16 @@
   <h2 class="kicker" style="margin:0 4px 6px">{{ title }}</h2>
   <div class="station-list{{ '' if any_band else ' no-bands' }}">
     {% for s in rows %}
+    {#- Which offscreen definitions this row's tags need. On the row's <a>,
+        not the tag spans: descriptions are reliably announced on the focusable
+        element, and the row is the one thing here that takes focus. -#}
+    {%- set defs = [] -%}
+    {%- if s.source in ('cached', 'held') %}{% set _ = defs.append('tag-def-cached') %}
+    {%- elif s.source == 'none' %}{% set _ = defs.append('tag-def-none') %}{% endif -%}
+    {%- if s.partial %}{% set _ = defs.append('tag-def-partial') %}{% endif -%}
     <a class="station band-{{ s.slug }}" href="/city?{{ q_station(s.name) }}"
-       aria-current="{{ 'true' if s.selected else 'false' }}">
+       aria-current="{{ 'true' if s.selected else 'false' }}"{% if defs %}
+       aria-describedby="{{ defs | join(' ') }}"{% endif %}>
       <span class="dot" aria-hidden="true"></span>
       <span class="nm">{{ place(s.name) }}</span>
       {#- The tag is the same word in three places -- here, the caption below,
@@ -28,8 +36,15 @@
           they came from, not in what the reader must do with them: neither is
           the air now, and both carry their own age. A second word would be a
           distinction the reader cannot act on. -#}
-      {% if s.source in ('cached', 'held') %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
-      {% elif s.source == 'none' %}<span class="tag">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>{% endif %}
+      {#- Each tag carries its own definition, in `title`. The legend below the
+          summary still defines the vocabulary in full, but it is 21 rows away
+          by the bottom of the list and had to be carried in memory. The
+          reading card's device for this -- a dotted defined-term link -- needs
+          an <a>, and this row already is one, so a nested link is not valid
+          markup here; `title` is the zero-JS device that puts the definition
+          at the row without one. -#}
+      {% if s.source in ('cached', 'held') %}<span class="tag" title="{{ T('ui', 'tag_cached_def', 'A reading we are still holding from earlier, shown with its age — not the air right now.') }}">{{ T('ui', 'tag_cached', 'CACHED') }}{% if s.age %} · {{ s.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {% elif s.source == 'none' %}<span class="tag" title="{{ T('ui', 'tag_no_reading_def', 'We hold nothing for this station, so no figure is shown — none is invented.') }}">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>{% endif %}
       <span class="n">{{ s.aqi if s.aqi is not none else '--' }}</span>
       {#- No band word without a number to have earned it. The band used to be
           rendered unconditionally, so a station we hold nothing for still got a
@@ -39,7 +54,7 @@
           number worked out from one particulate is not comparable with one
           worked out from two. Plain language: the particulate is named on the
           Today page for this station, not here. -#}
-      {% if s.partial %}<span class="tag">{{ T('ui', 'tag_partial', 'PART') }}</span>{% endif %}
+      {% if s.partial %}<span class="tag" title="{{ T('ui', 'tag_partial_def', 'Worked out from only part of what goes into the number, so not directly comparable with the other stations.') }}">{{ T('ui', 'tag_partial', 'PART') }}</span>{% endif %}
     </a>
     {% endfor %}
   </div>
@@ -58,6 +73,17 @@
     The old wording promised a threshold the page does not apply. -#}
 <p class="caption">{{ T('ui', 'tag_legend', 'CACHED means we are still holding an earlier reading for that place rather than showing one that just arrived, and the tag says how old the measurement is. NO READING means we hold nothing for it — no figure is shown, because we do not have one and will not invent one.') }}
   {{ T('ui', 'tag_partial_legend', 'PART means that station measured only part of what goes into the number, so its figure is not directly comparable with the others. Open the station to see what it did measure.') }}</p>
+{#- The same short definitions the tags' `title` attributes carry, addressable
+    by id so each tagged row's aria-describedby can reach one: title is
+    pointer-only -- invisible on touch, unannounced on a span -- and the
+    visible legend cannot be pointed at per tag, because one sentence there
+    defines two tags. Offscreen with the skip link's mechanics, never
+    display:none, which would empty the accessible description. -#}
+<p class="sr-def">
+  <span id="tag-def-cached">{{ T('ui', 'tag_cached_def', 'A reading we are still holding from earlier, shown with its age — not the air right now.') }}</span>
+  <span id="tag-def-none">{{ T('ui', 'tag_no_reading_def', 'We hold nothing for this station, so no figure is shown — none is invented.') }}</span>
+  <span id="tag-def-partial">{{ T('ui', 'tag_partial_def', 'Worked out from only part of what goes into the number, so not directly comparable with the other stations.') }}</span>
+</p>
 
 <div class="grid" style="margin-top:14px">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
@@ -73,8 +99,8 @@
           Without it this header stated a figure with no provenance directly
           above a tile dating that identical figure -- and a reader comparing the
           two would have no way to know they were the same number. -#}
-      {% if selected_row and selected_row.source in ('cached', 'held') %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if selected_row.age %} · {{ selected_row.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
-      {%- elif selected_row and selected_row.source == 'none' %}<span class="tag">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>
+      {% if selected_row and selected_row.source in ('cached', 'held') %}<span class="tag" title="{{ T('ui', 'tag_cached_def', 'A reading we are still holding from earlier, shown with its age — not the air right now.') }}" aria-describedby="tag-def-cached">{{ T('ui', 'tag_cached', 'CACHED') }}{% if selected_row.age %} · {{ selected_row.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {%- elif selected_row and selected_row.source == 'none' %}<span class="tag" title="{{ T('ui', 'tag_no_reading_def', 'We hold nothing for this station, so no figure is shown — none is invented.') }}" aria-describedby="tag-def-none">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>
       {%- endif %}
     </div>
     {% if spark %}
@@ -91,6 +117,15 @@
           from real observations. -#}
       <p class="empty">{{ T('ui', 'no_trend_before', 'No readings stored for') }} {{ place(selected) }}
         {{ T('ui', 'no_trend_tail', 'yet — every live reading is indexed as it arrives, so this fills in as the feed answers.') }}</p>
+      {#- Only when the header actually shows a number over this empty state.
+          Observed live at AQI 341: the header stated a figure two lines above
+          "No readings stored yet", and reconciling the two -- one current
+          reading against a stored history that does not exist yet -- was left
+          to the reader. In the caveat register, because it qualifies the empty
+          state rather than adding a finding to it. -#}
+      {% if selected_aqi is not none %}
+      <p class="caveat">{{ T('ui', 'no_trend_number_note', 'The figure in the header is the latest single reading we can show; this curve is drawn only from stored history, so a number can sit above an empty chart until that history builds.') }}</p>
+      {% endif %}
     {% endif %}
   </section>
 

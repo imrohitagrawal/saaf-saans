@@ -465,6 +465,54 @@ def test_the_partial_tag_explains_itself_in_the_legend(monkeypatch, lang):
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_partial_tag_carries_its_definition_at_the_row(monkeypatch, lang):
+    """Same device as the cached/no-reading tags: the definition rides on the
+    tag itself in `title`, so the reader is not sent back up to the legend
+    from the row where the tag is met."""
+    _mixed(monkeypatch, {"Wazirpur"})
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    rows = _rows(body)
+    part_def = i18n.t(lang, "ui", "tag_partial_def",
+                      "Worked out from only part of what goes into the number, "
+                      "so not directly comparable with the other stations.")
+    assert f'title="{part_def}"' in rows["Wazirpur"], rows["Wazirpur"]
+    # The screen-reader half, and its partner: the id being described must
+    # exist, or the description dangles.
+    assert 'aria-describedby="tag-def-partial"' in rows["Wazirpur"], rows["Wazirpur"]
+    assert 'id="tag-def-partial"' in body
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_an_empty_trend_reconciles_the_number_in_its_header(monkeypatch, lang):
+    """Observed live at AQI 341: the trend header stated a figure two lines
+    above "No readings stored yet", and reconciling the two -- one current
+    reading against a stored history that does not exist -- was left to the
+    reader. Both directions: the caveat renders when a number sits over the
+    empty state, and must NOT render when there is no number to reconcile.
+    Removing the caveat in city.html fails the first half; rendering it
+    unconditionally fails the second."""
+    note = i18n.t(lang, "ui", "no_trend_number_note",
+                  "The figure in the header is the latest single reading we "
+                  "can show; this curve is drawn only from stored history, so "
+                  "a number can sit above an empty chart until that history "
+                  "builds.")
+    empty = i18n.t(lang, "ui", "no_trend_before", "No readings stored for")
+
+    _live(monkeypatch)                # the feed answers; the index holds nothing
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    assert empty in body, (lang, "no empty state, so this proves nothing")
+    assert note in body, (lang, "a header figure over the empty state is unreconciled")
+
+    _live(monkeypatch, only=set())    # nothing answers: no figure in the header
+    with TestClient(app) as client:
+        body = client.get("/city", params={**PERSONA, "lang": lang}).text
+    assert empty in body, (lang, "no empty state, so this proves nothing")
+    assert note not in body, (lang, "the reconciliation renders with nothing to reconcile")
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_the_tile_marker_never_names_a_particulate(monkeypatch, lang):
     """Hard rule: PM2.5 and PM10 belong in the Guide, the System views and the
     provenance panel. This grid is none of those, so the marker says what the

@@ -475,6 +475,11 @@ html { scroll-padding-top: 76px; }
         border: 1px solid var(--border-s); border-radius: 0 0 8px 0; }
 .skip:focus { left: 0; }
 
+/* Offscreen aria-describedby targets (City Pulse's per-tag definitions). The
+   same offscreen mechanics as .skip, never display:none, which would empty
+   the accessible description the ids exist to provide. */
+.sr-def { position: absolute; left: -9999px; }
+
 /* .seg clips the global focus ring (outline-offset draws outside the child),
    and on the active pill the ring colour equalled its own background. Draw it
    inside, in the segment's own foreground colour. */

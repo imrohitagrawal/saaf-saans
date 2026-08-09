@@ -574,6 +574,15 @@ def today(request: Request):
         # The templates call this per stored turn, so a turn indexed before the
         # field existed answers "live"/"none" exactly as it did before.
         "freshness": pr.freshness,
+        # A turn stores the persona FACTS and this composes the "Answered for"
+        # sentence in the page's language at render time -- the sentence is
+        # chrome, not stored copy, so it must not be frozen in the language the
+        # question happened to be asked in. A turn from before the facts were
+        # stored has only its rendered persona_line; that renders unchanged,
+        # and the template still marks it with the turn's own language.
+        "turn_persona_line": lambda t: (pr.persona_line(t["persona"], lang=lang)
+                                        if t.get("persona")
+                                        else t.get("persona_line", "")),
         # Says which particulates the index was actually worked out from. The
         # caption used to claim both, unconditionally, over a reading that can
         # be built from one.
@@ -646,10 +655,16 @@ def ask(request: Request, question: str = Form(...)):
         # a page whose <html lang="hi"> claims them as Hindi -- wrong for a
         # screen reader's phonetics and for the :lang(hi) floors alike -- so
         # the template marks a turn whose stamp differs from the page.
+        # The persona FACTS, not the rendered sentence. The "Answered for" line
+        # is composed from these at display time in the page's own language, so
+        # a turn asked in English reads in Hindi on the Hindi page -- unlike the
+        # answer body, which is stored copy and keeps its lang stamp. A turn
+        # stored before this field existed carries only its old persona_line,
+        # and the template renders that, marked, exactly as it did.
         add_turn(sid, {"kind": "throttled", "lang": lang,
                        "question": normalize.excerpt(question),
                        "minutes": max(1, (retry_after + 59) // 60),
-                       "persona_line": pr.persona_line(persona, lang=lang)})
+                       "persona": dict(persona)})
         return _back(request, sid, theme, lang)
 
     data = advisor_data(persona, lang)
@@ -675,7 +690,7 @@ def ask(request: Request, question: str = Form(...)):
         add_turn(sid, {"kind": "refusal", "lang": lang,
                        "question": normalize.excerpt(question),
                        "pattern": pattern,
-                       "persona_line": pr.persona_line(persona, lang=lang)})
+                       "persona": dict(persona)})
         return _back(request, sid, theme, lang)
 
     try:
@@ -719,7 +734,7 @@ def ask(request: Request, question: str = Form(...)):
         parsed = llm.parse_advice(text)
         add_turn(sid, {
             "kind": "answer", "lang": lang, "question": question,
-            "persona_line": pr.persona_line(persona, lang=lang),
+            "persona": dict(persona),
             "blocks": pr.answer_sections(parsed, lang=lang),
             "disclaimer": parsed.get("disclaimer"),
             "sources": advisories,
@@ -735,7 +750,7 @@ def ask(request: Request, question: str = Form(...)):
     except Exception as exc:  # pragma: no cover - top-level safety net
         add_turn(sid, {
             "kind": "answer", "lang": lang, "question": question,
-            "persona_line": pr.persona_line(persona, lang=lang),
+            "persona": dict(persona),
             "blocks": [{"heading": i18n.t(lang, "ui", "heading_verdict", "Verdict"),
                         "lead": True,
                         "text": i18n.t(
