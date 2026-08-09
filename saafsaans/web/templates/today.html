@@ -157,8 +157,13 @@
         79. Your 91 ..."). Both are derived from the AQI, so with no reading
         both are derived from the ASSUMED one -- the same invented severity the
         risk chip was suppressed for, arriving by a second route. The drivers
-        below stay: their first chip names the absence rather than a figure. -#}
-    {% if has_reading %}
+        below stay: their first chip names the absence rather than a figure.
+
+        is_current, not has_reading: a HELD reading HAS an aqi, so has_reading
+        let both scores through on a page whose own chip reads "HELD READING --
+        WE CANNOT SCORE YOUR RISK" forty lines above. Same defect as the
+        assumed-AQI case, one freshness state over. -#}
+    {% if is_current %}
     <p class="compare">{{ compare }}</p>
     {% endif %}
     <div class="drivers">

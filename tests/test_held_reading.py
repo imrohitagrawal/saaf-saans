@@ -23,7 +23,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import aqi_scale, clock, i18n, normalize, waqi
+from saafsaans.services import aqi_scale, clock, i18n, normalize, risk, waqi
 from saafsaans.web import presenters as pr
 from saafsaans.web.main import app
 
@@ -140,6 +140,16 @@ def test_a_held_reading_earns_no_band_word_but_keeps_its_number(monkeypatch, lan
     body = _today(lang)
     hero = _hero(body)
     assert f"AQI {AQI}" in hero, "the held number was suppressed as well"
+    # Asserted as the SHAPE of the pill, not as the absence of band words in it.
+    # `_named_bands(...) == set()` could not fail: deleting the pill's
+    # {% if is_current %} guard makes it print the NEUTRALISED label, which is
+    # "Unknown" / "पता नहीं" -- not a band word, so the word check stayed green
+    # while the pill printed a claim the reading had not earned. This is the
+    # same trap the band-chip assertion below already documents, and the same
+    # fix: pin the element's content, not a vocabulary it happens to avoid.
+    pill = re.search(r'<span class="hero-pill">(.*?)</span>', hero, re.S)
+    assert pill, (lang, "the hero pill did not render")
+    assert pill.group(1).strip() == f"AQI {AQI}", (lang, pill.group(1))
     assert _named_bands(hero, lang, "hero-pill") == set()
     # The reading card carries the second one, and it is a separate element
     # with its own branch, so a fix applied to the hero alone would leave it.
@@ -250,6 +260,124 @@ def test_a_page_with_no_reading_at_all_still_names_a_window(monkeypatch, lang):
     assert 'class="hero-window"' in _today(lang)
 
 
+# --------------------------------------------- the surfaces carrying PROSE
+#
+# The first pass suppressed every LABEL on a held hero -- band word, colour,
+# risk chip, go-out window, share title -- and left every surface carrying a
+# SENTENCE. Those are the ones a reader acts on, and the suite could not see
+# any of them: all four defects below were live with 1196 tests passing.
+
+
+def _feed_values(monkeypatch, *, pm25, pm10, retained):
+    """Serve one CPCB reading of the given concentrations for every locality."""
+    def get_aqi(locality, es_client=None):
+        return waqi._reading(pm25, pm10, station=locality, city="Delhi",
+                             stale=False, forecast=None, obs_time=OBS,
+                             retained=retained, source="cpcb"), "ok"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+
+
+# A reading whose own meaning is REASSURING, deliberately -- the rest of this
+# file uses a reading nobody could mistake for neutral, but the direction is
+# what made this the worst of the held-reading defects. The page UNDER-warned.
+# Delhi goes from 40 to 300 inside a morning inversion, so "Outdoor activity is
+# fine for everyone" over a three-hour-old clean reading is the sentence that
+# puts an asthmatic reader outside.
+CLEAN_PM25, CLEAN_PM10 = 12.0, 30.0
+CLEAN_AQI = aqi_scale.cpcb_aqi(CLEAN_PM25, CLEAN_PM10)[0]
+
+
+def _earned_meaning(lang, aqi_val):
+    """The band meaning this reading would earn if it were current."""
+    category = normalize.aqi_category(aqi_val)[0]
+    return i18n.t(lang, "aqi_meaning", category,
+                  normalize.aqi_meaning(category))
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_does_not_print_the_meaning_of_its_own_band(monkeypatch, lang):
+    """`meaning` is keyed by CATEGORY, and neutralising the category did not
+    neutralise the prose derived from it.
+
+    This was broken in ENGLISH ONLY, which is why reading the Hindi corpus would
+    never have found it: i18n.t returns its fallback for any lang != "hi", and
+    that fallback was the meaning computed from the real aqi. Hindi happens to
+    have an aqi_meaning["Unknown"] and so took the safe branch. The reviewed
+    language was the unsafe one.
+    """
+    _feed_values(monkeypatch, pm25=CLEAN_PM25, pm10=CLEAN_PM10, retained=True)
+    body = html.unescape(_today(lang))
+    earned = _earned_meaning(lang, CLEAN_AQI)
+
+    # Partner assertion: prove the paragraph still renders, so this cannot pass
+    # by the meaning vanishing altogether -- a held reading that explains
+    # nothing is a different defect, not a fix.
+    printed = re.search(r'<p class="meaning">(.*?)</p>', body, re.S)
+    assert printed and len(printed.group(1).strip()) > 20, (
+        lang, "the meaning paragraph vanished instead of being replaced")
+    assert earned not in body, (
+        lang, "a held reading printed the meaning of the band it did not earn")
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_clean_reading_live_does_print_its_meaning(monkeypatch, lang):
+    """The mirror. Without it, deleting the meaning entirely would pass."""
+    _feed_values(monkeypatch, pm25=CLEAN_PM25, pm10=CLEAN_PM10, retained=False)
+    body = html.unescape(_today(lang))
+    assert _earned_meaning(lang, CLEAN_AQI) in body, lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_forwarded_held_reading_carries_no_band_meaning(monkeypatch, lang):
+    """og:description read data["meaning"], and the card is built after it is
+    translated -- so the forwarded preview carried the same false reassurance.
+    Forwards are how this app travels, so it is often the ONLY thing seen."""
+    _feed_values(monkeypatch, pm25=CLEAN_PM25, pm10=CLEAN_PM10, retained=True)
+    body = html.unescape(_today(lang))
+    described = re.search(r'<meta property="og:description" content="([^"]*)"',
+                          body)
+    assert described, "the forwarded card has no description at all"
+    assert _earned_meaning(lang, CLEAN_AQI) not in described.group(1), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_prints_no_risk_comparison(monkeypatch, lang):
+    """The comparison names two figures ("would be at 79", "your 91") -- the
+    risk score arriving by a second route, forty lines under a chip that says
+    it cannot be scored. The block was already guarded for NO reading; a held
+    reading has an aqi, so it walked straight through."""
+    _feed_values(monkeypatch, pm25=PM25, pm10=PM10, retained=True)
+    assert 'class="compare"' not in _today(lang), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_reading_live_prints_its_risk_comparison(monkeypatch, lang):
+    _feed_values(monkeypatch, pm25=PM25, pm10=PM10, retained=False)
+    assert 'class="compare"' in _today(lang), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_makes_no_who_comparison(monkeypatch, lang):
+    """Every surviving branch of who_line is present tense about the air, and
+    the PM10-only branch says a station "is not reporting them right now" --
+    live claims over a measurement hours old. has_index does not gate it: it
+    only reaches the PM10-only branch, so the comparison printed regardless."""
+    _feed_values(monkeypatch, pm25=CLEAN_PM25, pm10=CLEAN_PM10, retained=True)
+    sentence = pr.who_line(CLEAN_PM25, lang=lang, has_index=True)
+    assert sentence, "the fixture produces no WHO line, so this proves nothing"
+    assert sentence not in html.unescape(_today(lang)), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_reading_live_makes_the_who_comparison(monkeypatch, lang):
+    _feed_values(monkeypatch, pm25=CLEAN_PM25, pm10=CLEAN_PM10, retained=False)
+    sentence = pr.who_line(CLEAN_PM25, lang=lang, has_index=True)
+    assert sentence and sentence in html.unescape(_today(lang)), lang
+
+
 # ------------------------------------------------------- the forwarded card
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_a_forwarded_held_reading_names_no_band(monkeypatch, lang):
@@ -337,6 +465,62 @@ def test_a_live_reading_reaches_the_prompt_unmarked():
                                     "ITO", "2:00 PM")
     assert "HELD" not in prompt
     assert "STALE DATA" not in prompt
+
+
+def test_the_prompt_never_calls_a_held_reading_live():
+    """The same line that carries HELD READING, NOT CURRENT also opened with
+    "Live AQI", so the label contradicted the correction beside it."""
+    from saafsaans.services import llm
+
+    held = waqi._reading(PM25, PM10, station="ITO", city="Delhi", stale=False,
+                         forecast=None, obs_time=OBS, retained=True,
+                         source="cpcb")
+    prompt = llm.build_user_message(held, PERSONA, [], "Can I go out?",
+                                    "ITO", "2:00 PM")
+    assert "HELD READING" in prompt, "the marker itself went missing"
+    assert "Live AQI" not in prompt
+    # Partner assertion: the number is still labelled, so this cannot pass by
+    # the whole line disappearing.
+    assert f"AQI (ITO, 2:00 PM): {int(AQI)}" in prompt
+
+
+def _band_passed_to_the_model(monkeypatch, *, retained):
+    """The risk_band kwarg main.ask hands to llm.answer for this freshness."""
+    captured = {}
+    _feed_values(monkeypatch, pm25=PM25, pm10=PM10, retained=retained)
+    from saafsaans.web import main as web_main
+
+    def fake_answer(*args, **kwargs):
+        captured.update(kwargs)
+        return "### Verdict\nGo ahead\n", 0, "ok"
+
+    monkeypatch.setattr(web_main.llm, "answer", fake_answer)
+    with TestClient(app) as client:
+        client.post("/ask", params={**PERSONA, "lang": "en"},
+                    data={"question": "Can I go for a run this evening?"})
+    assert captured, "llm.answer was never reached, so this proves nothing"
+    return captured.get("risk_band")
+
+
+def test_a_held_reading_does_not_republish_its_suppressed_band_to_the_model(monkeypatch):
+    """The hero withholds the band; ask() passed it anyway, into the answer card
+    AND the system prompt, under the line "This is what the page already tells
+    them above your answer, so do not be more permissive than it" -- which was
+    false. The aqi-only test let it through because a held reading HAS an aqi.
+
+    This matters on the shipped path specifically: OPENROUTER_API_KEY is unset in
+    production, so llm._rule_based runs, and it states the band in prose with no
+    freshness awareness of its own.
+    """
+    assert _band_passed_to_the_model(monkeypatch, retained=True) is None
+
+
+def test_the_same_reading_live_does_pass_its_band_to_the_model(monkeypatch):
+    """The mirror. Passing None always would make the assertion above vacuous
+    and would also lose the constraint that stops the card being more permissive
+    than the verdict printed above it."""
+    band = _band_passed_to_the_model(monkeypatch, retained=False)
+    assert band and band in risk.BAND_ADVICE, band
 
 
 # ------------------------------------------------- a section that vanishes

@@ -305,6 +305,14 @@ HI: dict = {
         # on the air, and an assumed AQI would make the number an invented one.
         "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
         "risk_held": "सहेजी हुई रीडिंग — आपका ख़तरा नहीं आँका जा सकता",
+        # Replaces the CATEGORY meaning when the only reading we hold is an
+        # older one. Hindi already had a safe aqi_meaning["Unknown"] and so was
+        # never exposed to the defect this string fixes -- it is added so both
+        # languages say the same thing for the same reason, rather than one
+        # being correct by the accident of having a translation at all.
+        "meaning_held": "यह हवा का वह हाल है जब यहाँ आख़िरी बार माप हुई थी, अभी का "
+                        "नहीं। यह कितनी सुरक्षित है, इसके बारे में इससे कुछ भी नहीं "
+                        "निकाला गया है।",
         # Wraps the last stored reading and its date. Two fragments because the
         # template interleaves the number and the date between them, and Hindi
         # puts the date before the verb: "<date> को यहाँ आख़िरी बार AQI <n> दर्ज

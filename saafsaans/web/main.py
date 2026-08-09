@@ -511,7 +511,31 @@ def today(request: Request):
     # template because the share card is built from them too, and the card must
     # not name a band in a language the page does not use.
     band_label = i18n.t(lang, "band_label", data["category"][0], data["category"][0])
-    data["meaning"] = i18n.t(lang, "aqi_meaning", data["category"][0], data["meaning"])
+    # `meaning` is the one severity claim the neutralise block above cannot
+    # correct at its source: it is prose, so it is translated here, and
+    # `aqi_meaning` is keyed by CATEGORY. Neutralising the category alone left a
+    # held reading broken in ENGLISH ONLY -- i18n.t returns its fallback for any
+    # lang != "hi", and that fallback is the meaning computed from the REAL aqi
+    # at _page_data. A three-hour-held reading of 40 printed "Air is clean.
+    # Outdoor activity is fine for everyone." four elements below a hero
+    # promising no band, no colour, no risk score and no window. Hindi has a
+    # real aqi_meaning["Unknown"] and took the safe branch, so the reviewed
+    # language was the unsafe one, and the error direction was UNDER-warning on
+    # a page an asthmatic reader is using to decide whether to go out.
+    #
+    # Not recomputed as aqi_meaning("Unknown") either: that says the reading is
+    # "unavailable right now" directly beside a printed number, which is the
+    # self-contradiction hero.held exists to avoid. It gets its own string, the
+    # way advice_held and risk_held do.
+    if has_reading and not is_current:
+        data["meaning"] = i18n.t(
+            lang, "ui", "meaning_held",
+            "This is what the air was when it was last measured here, not what "
+            "it is now. Nothing about how safe it is has been worked out from "
+            "it.")
+    else:
+        data["meaning"] = i18n.t(lang, "aqi_meaning", data["category"][0],
+                                 data["meaning"])
     ctx["meaning"] = data["meaning"]
 
     ctx.update({
@@ -550,8 +574,16 @@ def today(request: Request):
         # waqi._fallback always returns a full dict, so "a reading exists"
         # would print the explanation on every NO READING page in both
         # languages.
-        "who_line": pr.who_line(data["reading"].get("pm25"), lang=lang,
-                                has_index=data["reading"].get("aqi") is not None),
+        # Suppressed entirely on a held reading, not reworded. Every surviving
+        # branch is present tense about the air ("The air here is about at...",
+        # and the PM10-only branch says a station "is not reporting them right
+        # now"), which is a live claim over a measurement taken hours ago. The
+        # hero already withholds band, colour, score and window from a held
+        # reading; this was the one severity-adjacent sentence still speaking in
+        # the present. `has_index` alone does not do it: it gates only the
+        # PM10-only branch, so the main comparison printed regardless.
+        "who_line": (pr.who_line(data["reading"].get("pm25"), lang=lang,
+                                 has_index=True) if is_current else ""),
         # Each link toggles its own disclosure and clears the others.
         "q_persona_toggle": _qs(persona, theme, lang,
                                 edit=None if persona_open else "1"),
@@ -646,8 +678,18 @@ def ask(request: Request, question: str = Form(...)):
             # hero suppresses; passing it here re-published the suppressed
             # severity through the answer card, and through the system prompt
             # on the paid path (llm.py:133). No measurement, no band.
+            #
+            # Freshness too, not just existence. A HELD reading has an aqi, so
+            # the aqi-only test passed the suppressed band into the answer card
+            # AND into the system prompt, under the line "This is what the page
+            # already tells them above your answer, so do not be more permissive
+            # than it" -- which was false: the page had withdrawn it. On the
+            # shipped path OPENROUTER_API_KEY is unset, so llm._rule_based runs
+            # and states the band in prose with no freshness awareness at all.
             risk_band=(data["risk"]["band"]
-                       if reading.get("aqi") is not None else None))
+                       if reading.get("aqi") is not None
+                       and pr.freshness(waqi_status, reading) == "live"
+                       else None))
         parsed = llm.parse_advice(text)
         add_turn(sid, {
             "kind": "answer", "question": question,

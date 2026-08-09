@@ -118,7 +118,10 @@ def build_user_message(reading: dict, persona: dict, advisories: list, question:
     else:
         stale_tag = ""
     aqi_line = (
-        f"Live AQI ({locality}, {timestamp}): {reading.get('aqi')} | "
+        # Not "Live AQI": the very same line carries the HELD READING, NOT
+        # CURRENT marker above when the reading is one we are re-serving, so
+        # labelling it live contradicted the correction beside it.
+        f"AQI ({locality}, {timestamp}): {reading.get('aqi')} | "
         f"PM2.5: {reading.get('pm25')} ug/m3 | dominant: {reading.get('dominant_pollutant')}"
         f"{stale_tag}"
     )
