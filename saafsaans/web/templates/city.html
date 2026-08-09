@@ -36,6 +36,11 @@
           they came from, not in what the reader must do with them: neither is
           the air now, and both carry their own age. A second word would be a
           distinction the reader cannot act on. -#}
+      {#- Tag, figure and band word travel as one group so the row can break
+          between the name and them. Loose, each was its own flex item, and at
+          320px the name was the only item that could yield: it shrank to 50px
+          for a 66px word and printed its last glyphs through the tag. -#}
+      <span class="meta">
       {#- Each tag carries its own definition, in `title`. The legend below the
           summary still defines the vocabulary in full, but it is 21 rows away
           by the bottom of the list and had to be carried in memory. The
@@ -55,6 +60,7 @@
           worked out from two. Plain language: the particulate is named on the
           Today page for this station, not here. -#}
       {% if s.partial %}<span class="tag" title="{{ T('ui', 'tag_partial_def', 'Worked out from only part of what goes into the number, so not directly comparable with the other stations.') }}">{{ T('ui', 'tag_partial', 'PART') }}</span>{% endif %}
+      </span>
     </a>
     {% endfor %}
   </div>
