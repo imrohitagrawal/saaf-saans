@@ -366,3 +366,35 @@ def test_every_credential_config_reads_is_blanked_by_the_test_harness():
     assert not missing, (
         f"config.py reads {missing} but tests/conftest.py does not blank it -- "
         f"the suite will make live calls against it")
+
+
+def test_the_suite_cannot_reach_the_network_even_when_a_test_asks_it_to():
+    """Blanking the credentials is the intent; this is the enforcement.
+
+    The test above proves no credential leaks IN. It cannot prove no call goes
+    OUT, and the difference was live: a test stubbed ``config.cpcb_available()``
+    True without stubbing ``config.cpcb_key()``, so the request path believed it
+    had a key and sent real requests to api.data.gov.in with an empty one -- six
+    parametrisations, every run, invisible except as a suite runtime that ranged
+    from 5.6s to 19.4s.
+
+    So the guard itself needs a test, or it is one refactor from being
+    decorative while the suite quietly goes back online.
+    """
+    import socket
+
+    from tests._netguard import NetworkUsedInTests
+
+    sock = socket.socket()
+    try:
+        with pytest.raises(NetworkUsedInTests):
+            sock.connect(("api.data.gov.in", 443))
+    finally:
+        sock.close()
+
+    # Deliberately NOT an Exception. Every outbound call site in the service
+    # layer catches Exception so a dead upstream degrades instead of 500ing, and
+    # an Exception-derived guard was swallowed by exactly those handlers: the
+    # offline path was taken, the test passed, and the connection attempt still
+    # happened. This subclass check is what keeps a leak loud.
+    assert not issubclass(NetworkUsedInTests, Exception)

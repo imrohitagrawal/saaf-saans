@@ -209,6 +209,25 @@ def _source_clause(lang, path):
     return footer[:cut]
 
 
+def _no_upstream(monkeypatch):
+    """Keep a footer test off the network.
+
+    These tests set ``config.cpcb_available()`` True so the configured footer
+    renders. ``cpcb.available()`` delegates to that one predicate -- deliberately,
+    it is the single oracle -- so the request path then believes it has a key and
+    calls ``_fetch_city``, which built a real HTTPS request to api.data.gov.in
+    with an empty ``api-key``. Six parametrisations did this on every run, and
+    the stalled handshakes were the whole reason suite runtime ranged from 5.6s
+    to 19.4s.
+
+    The subject of these tests is the footer's text as a function of the config
+    predicates. Fetching was never part of it.
+    """
+    from saafsaans.services import cpcb
+
+    monkeypatch.setattr(cpcb, "_fetch_city", lambda city: [])
+
+
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
 @pytest.mark.parametrize("path", ["/", "/guide", "/city"])
 def test_the_footer_names_both_sources_when_both_are_configured(
@@ -217,6 +236,7 @@ def test_the_footer_names_both_sources_when_both_are_configured(
     fallback first, primary second, and no host at all."""
     from saafsaans.services import config, cpcb
 
+    _no_upstream(monkeypatch)
     monkeypatch.setattr(config, "cpcb_available", lambda: True)
     monkeypatch.setattr(config, "waqi_available", lambda: True)
     clause = _source_clause(lang, path)
@@ -256,6 +276,7 @@ def test_the_footer_names_exactly_the_one_source_that_is_configured(
     actually lands in. Each must name its own source and not the other."""
     from saafsaans.services import config, cpcb
 
+    _no_upstream(monkeypatch)
     monkeypatch.setattr(config, "cpcb_available", lambda: configured == "cpcb")
     monkeypatch.setattr(config, "waqi_available", lambda: configured == "waqi")
     clause = _source_clause(lang, "/")

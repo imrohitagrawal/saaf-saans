@@ -15,6 +15,8 @@ offline paths, which is what these tests are for.
 """
 import pytest
 
+from tests._netguard import NetworkUsedInTests
+
 # Every credential the app reads to reach an external service. A name missing
 # here is not a small oversight: the suite silently starts making live calls,
 # which is how a run once took three minutes instead of thirty seconds and
@@ -40,6 +42,57 @@ def _no_live_external_calls():
         if v is not None:
             os.environ[k] = v
     main._client = None
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "allow_network: this test genuinely needs outbound transport")
+
+
+@pytest.fixture(autouse=True)
+def _no_outbound_sockets(request):
+    """Make the offline paths ENFORCED rather than merely intended.
+
+    Blanking the credentials states the intent and does not secure it. A test
+    stubbed ``config.cpcb_available()`` to True without stubbing
+    ``config.cpcb_key()``, so ``cpcb.available()`` was true while the key was
+    "" and ``cpcb._fetch_city`` issued a real HTTPS request to api.data.gov.in
+    -- with ``api-key=`` in the query string -- on six parametrisations of every
+    run. Around twelve outbound calls per run, and the reason the suite's
+    runtime ranged from 5.6s to 19.4s: the tail was ``_CITY_FETCH_BUDGET``
+    expiring on a stalled TLS handshake, so a green run and a slow one differed
+    by Delhi's network rather than by anything in the tree.
+
+    An assertion about hermeticity written as a comment is a wish. This is the
+    same argument the module docstring already makes, enforced.
+
+    Loopback stays open -- TestClient speaks ASGI in-process, so nothing here
+    needs it, but a future fixture binding a local port should not have to
+    fight this. A test that truly needs transport marks itself ``allow_network``,
+    which is greppable; a silent leak is not.
+    """
+    if request.node.get_closest_marker("allow_network"):
+        yield
+        return
+
+    import socket
+
+    real_connect = socket.socket.connect
+
+    def blocked(self, address, *args, **kwargs):
+        host = address[0] if isinstance(address, (tuple, list)) else address
+        if host in ("127.0.0.1", "::1", "localhost"):
+            return real_connect(self, address, *args, **kwargs)
+        raise NetworkUsedInTests(
+            f"the suite tried to reach {host!r}. These tests run offline: stub "
+            "the call, or mark the test `allow_network` if it really needs a "
+            "network.")
+
+    socket.socket.connect = blocked
+    try:
+        yield
+    finally:
+        socket.socket.connect = real_connect
 
 
 @pytest.fixture(autouse=True)
