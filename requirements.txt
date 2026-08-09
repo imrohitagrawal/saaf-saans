@@ -7,3 +7,7 @@ requests
 python-dotenv
 httpx
 pytest
+# Read-only in the test suite: tests/test_static_delivery.py opens the shipped
+# woff2 faces to check their glyph tables. brotli is what decompresses woff2.
+fonttools
+brotli

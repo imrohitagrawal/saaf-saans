@@ -31,7 +31,7 @@ FACES_KB = {
     "plex-mono-400.woff2": 24,
     "plex-mono-600.woff2": 24,
     "anek-devanagari-400-800.devanagari.woff2": 300,
-    "anek-devanagari-400-800.latin.woff2": 64,
+    "anek-devanagari-400-800.latin.r2.woff2": 64,
 }
 
 
@@ -54,6 +54,39 @@ def test_every_font_file_exists_is_woff2_and_stays_subsetted():
         assert 1024 < len(data) <= cap_kb * 1024, (
             f"{name} is {len(data) / 1024:.1f} KB, outside (1, {cap_kb}] KB -- "
             "if it grew, it was probably regenerated without subsetting")
+
+
+def test_no_shipped_face_calls_the_middot_a_combining_mark():
+    """U+00B7 separates the meta lines on every view. A face that files it
+    under GDEF glyph class 3 (mark) makes HarfBuzz zero its advance, and on
+    Hindi pages -- where Anek Devanagari carries the Latin punctuation too --
+    the dot then lands on the following word: "AQI 325 ·बहुत ख़राब".
+
+    The dieresis assertion is the partner check: it proves the GDEF class
+    table was really read, so a green here cannot mean "found no table".
+    """
+    from fontTools.ttLib import TTFont
+
+    MARK = 3
+    carriers = []
+    for name in FACES_KB:
+        font = TTFont(STATIC / "fonts" / name)
+        cmap = font.getBestCmap()
+        gdef = font.get("GDEF")
+        classes = ({} if gdef is None or gdef.table.GlyphClassDef is None
+                   else gdef.table.GlyphClassDef.classDefs)
+        dot = cmap.get(0x00B7)
+        if dot is None:
+            continue
+        carriers.append(name)
+        assert classes.get(dot) != MARK, (
+            f"{name} classifies U+00B7 as a mark -- its advance renders as 0")
+        assert font["hmtx"][dot][0] > 0, f"{name} gives U+00B7 a zero advance"
+        if name.startswith("anek-devanagari") and ".latin" in name:
+            assert classes.get(cmap[0x00A8]) == MARK, (
+                f"{name} lost its real accent marks -- the GDEF check above "
+                "is passing on an empty class table")
+    assert len(carriers) >= 5, f"only {carriers} carry U+00B7"
 
 
 def test_the_stylesheets_declare_swap_and_a_file_that_exists():
