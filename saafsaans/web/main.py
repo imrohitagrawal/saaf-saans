@@ -358,6 +358,10 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         # reader switching language does not also lose their persona or theme.
         "q_en": _qs(persona, theme, "en"),
         "q_hi": _qs(persona, theme, "hi"),
+        # The Hindi banner's path into the persona editor: it must work from
+        # every page (City Pulse, Guide, System), not only Today, so it is
+        # built here rather than beside the toggle Today already owns.
+        "q_persona_edit": _qs(persona, theme, lang, edit="1"),
         # Shown on every Hindi page. Not a template literal: the wording of a
         # caveat about unreviewed health copy belongs beside the copy it is
         # about.

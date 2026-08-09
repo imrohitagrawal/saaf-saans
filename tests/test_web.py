@@ -839,6 +839,31 @@ def test_the_banner_does_not_break_the_skip_link():
     assert body.index('id="main"') < body.index('class="notice"')
 
 
+def test_the_hindi_banner_gets_a_path_into_the_persona_editor_on_today_only():
+    """The default persona (Asthma, Adult, Anand Vihar) is a single global
+    default, identical for English and Hindi (main.read_persona). What was
+    actually missing on the Hindi page was any nudge to change it: the persona
+    card's "Change details" pill sits well below the fold, behind the hero and
+    the unreviewed-translation banner, and nothing above it points a reader
+    there. The new line sits OUTSIDE <aside class="notice"> -- test_the_banner_
+    cannot_be_dismissed_and_precedes_the_content already pins that the banner
+    itself carries no control -- and only on Today, the one page with a #persona
+    section for it to point at."""
+    for path in HINDI_PAGES:
+        body = _lang(path, "hi")
+        after_banner = body.split("</aside>", 1)[1]
+        has_path = "persona-path" in after_banner
+        assert has_path == (path == "/"), path
+        if has_path:
+            line = after_banner.split("persona-path", 1)[1]
+            assert 'href="/?' in line
+            assert "edit=1" in line and "#persona" in line
+            assert "lang=hi" in line
+    # English has no unreviewed-translation banner to sit behind, so it gets
+    # none of this either.
+    assert "persona-path" not in _lang("/", "en")
+
+
 def test_the_language_toggle_is_a_pair_of_plain_links():
     body = _lang("/", "hi")
     assert "<script" not in body.lower()

@@ -242,6 +242,11 @@ HI: dict = {
         "theme_night": "रात",
         "lang_group": "भाषा",
         "banner_label": "अनुवाद की स्थिति",
+        # The line under the banner, Today only -- see base.html. The default
+        # persona (अस्थमा, बड़ा व्यक्ति, आनंद विहार) is the same one every
+        # reader gets until they change it; this is what points at how.
+        "persona_path": "यह सलाह नीचे दिए ब्यौरे के लिए है, ज़रूरी नहीं कि यह आप हों।",
+        "link_persona_path": "यहाँ बदलिए ›",
         "footer": "आपकी उम्र, बीमारी और आपके काम इसी सेशन में रहते हैं — कहीं दर्ज नहीं "
                   "की जाती। टेलीमेट्री में सिर्फ़ हैश किया हुआ सेशन आईडी और आपका चुना हुआ "
                   "इलाक़ा रहता है, ताकि सिस्टम व्यू इलाक़े के हिसाब से रिक्वेस्ट दिखा सके।",
