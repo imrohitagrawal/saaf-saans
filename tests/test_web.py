@@ -135,6 +135,30 @@ def test_the_grid_keeps_three_tracks_when_the_outlook_renders(client, monkeypatc
     assert "grid-duo" not in body and "grid-solo" not in body
 
 
+def test_the_grid_caps_when_the_editor_opens_over_a_forecast(client, monkeypatch):
+    """Opening the persona editor turns it `wide` regardless of the outlook,
+    so with a forecast present the narrow cards drop from three (persona,
+    reading, outlook) to two (reading, outlook) -- the same two-track case as
+    an absent outlook, reached a different way. A cap gated on `not outlook`
+    alone misses this combination and leaves the bare, three-track `.grid`,
+    reopening the dead-track defect on every first visit to a deployment with
+    a live WAQI key (persona_open defaults true until the first Apply)."""
+    from datetime import timedelta
+
+    from tests.conftest import LIVE_READING
+    from saafsaans.services import clock, waqi
+
+    days = [clock.today_ist() + timedelta(days=n) for n in range(2)]
+    forecast = {"daily": {"pm25": [
+        {"day": day.isoformat(), "avg": 55, "min": 20, "max": 95} for day in days
+    ]}}
+    monkeypatch.setattr(waqi, "get_aqi", lambda loc, es_client=None:
+                        ({**LIVE_READING, "forecast": forecast, "station": loc}, "ok"))
+    body = client.get("/", params={**PERSONA, "edit": "1"}).text
+    assert 'aria-label="Five-day outlook"' in body   # the premise: it rendered
+    assert '<div class="grid grid-duo">' in body
+
+
 def test_term_definition_opens_in_the_shared_slot_and_is_exclusive(client):
     body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
     assert "def-slot" in body and "Fine particles under 2.5 micrometres" in body

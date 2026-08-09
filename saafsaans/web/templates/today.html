@@ -3,14 +3,20 @@
 
 {% block content %}
 {#- The wide rows span 1/-1 and occupy every track auto-fit lays, so a column
-    no card fills can never collapse: with the outlook absent -- a CPCB
-    reading, or no reading at all, which is the zero-keys deployment on every
-    render -- the third track sat open and dead from a 676px container up.
-    Which narrow cards exist is known here at render time (the reading always,
-    the persona while its editor is closed, the outlook when the feed sent
-    one), so the template caps the tracks to that count and app.css needs no
-    guess. With an outlook the count is three and the grid stays bare. -#}
-<div class="grid{% if not outlook %}{{ ' grid-solo' if persona_open else ' grid-duo' }}{% endif %}">
+    no card fills can never collapse: with too few narrow cards to fill every
+    auto-fit track, the extra track sat open and dead from a 676px container
+    up. Which narrow cards exist is known here at render time -- the reading
+    always, the persona only while its editor is closed (persona_open makes
+    it `wide`, see below), the outlook when the feed sent one -- so the
+    template counts them and caps the tracks to that count; app.css needs no
+    guess. Both persona_open and outlook vary independently (a first-time
+    visitor with a live WAQI key opens the editor over a page that already
+    has a forecast), so the count is taken over both rather than gated on
+    outlook alone: that gate left persona_open true + outlook present -- two
+    narrow cards, reading and outlook -- rendering the bare, three-track
+    `.grid` and reopening the dead-track defect this cap exists to close. -#}
+{%- set narrow_cards = (0 if persona_open else 1) + 1 + (1 if outlook else 0) -%}
+<div class="grid{% if narrow_cards == 1 %} grid-solo{% elif narrow_cards == 2 %} grid-duo{% endif %}">
 
   {# --- Sky hero. data-band drives the gradient, so the sky clears or thickens
          with the reading instead of being decoration. --------------------- #}
