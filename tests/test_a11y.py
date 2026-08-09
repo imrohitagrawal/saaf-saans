@@ -615,6 +615,41 @@ def test_no_track_or_fixed_width_forces_the_layout_past_320px(sheet, pages):
     assert not problems, "horizontal overflow at 320px:\n  " + "\n  ".join(problems)
 
 
+def test_the_capped_grid_cannot_lay_a_dead_track(sheet):
+    """today.html caps the Today grid when the five-day outlook is absent,
+    because `.wide` rows occupy every laid track and auto-fit cannot collapse
+    a column no card fills. `.grid-duo` must lay exactly two tracks at every
+    container from the 676px two-up threshold to the 1084px shell maximum,
+    and `.grid-solo` exactly one. Reverting either cap to `.grid`'s bare
+    330px-minimum track turns this red: a 1022px container then lays the
+    third track the outlook is not there to fill."""
+    import math
+
+    duo = _decls(sheet["top"], ".grid-duo").get("grid-template-columns", "")
+    m = re.fullmatch(r"repeat\(auto-fit,\s*minmax\(max\(min\((\d+)px, 100%\),"
+                     r"\s*50% - (\d+)px\), 1fr\)\)", duo)
+    assert m, f".grid-duo tracks changed shape, re-derive this walk: {duo!r}"
+    floor_px, half_gap = float(m.group(1)), float(m.group(2))
+    gap = _px(_decls(sheet["top"], ".grid").get("gap", "")) or 0.0
+    assert half_gap == gap / 2, "the duo minimum must split .grid's own gap"
+
+    def tracks(width):
+        minimum = max(min(floor_px, width), width / 2 - half_gap)
+        return math.floor((width + gap) / (minimum + gap))
+
+    for width in (676.0, 900.0, 1022.0, 1084.0):
+        assert tracks(width) == 2, f"{tracks(width)} tracks at {width}px"
+    # Below 676px the 330px floor wins, so the one-column threshold stays
+    # exactly where .grid puts it -- including the 288px the shell offers at
+    # the 320px reflow width, where min(330px, 100%) yields to the container.
+    for width in (288.0, 660.0):
+        assert tracks(width) == 1, f"{tracks(width)} tracks at {width}px"
+
+    solo = _decls(sheet["top"], ".grid-solo").get("grid-template-columns", "")
+    assert re.fullmatch(r"minmax\(min\(\d+px, 100%\), 1fr\)", solo), \
+        f".grid-solo must lay a single track: {solo!r}"
+
+
 def test_flex_items_sized_past_their_container_are_allowed_to_shrink(sheet, pages):
     """`flex-shrink` is capped by `min-width: auto`, which for a replaced
     element like a <select> is its intrinsic width. An item given a basis wider

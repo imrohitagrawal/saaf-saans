@@ -169,6 +169,18 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
         grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
         gap: 16px; align-items: start; }
 .grid > .wide { grid-column: 1 / -1; }
+/* Track caps, set by today.html where the narrow-card count is known at
+   render time. `.wide` spans 1/-1 and occupies every laid track, so auto-fit
+   cannot collapse a column no card fills: with the five-day outlook absent,
+   the two remaining narrow cards left a dead third track at every container
+   from 676px up. grid-duo raises the track minimum to half the row net of the
+   16px gap once that exceeds 330px, so a third track never fits; below 676px
+   the 330px minimum wins and the one-column threshold is exactly .grid's.
+   grid-solo is the open-editor no-outlook page, where the reading is the only
+   narrow card left. tests/test_a11y.py walks the duo arithmetic at 288, 676
+   and 1084px; tests/test_web.py pins which renders carry which cap. */
+.grid-duo  { grid-template-columns: repeat(auto-fit, minmax(max(min(330px, 100%), 50% - 8px), 1fr)); }
+.grid-solo { grid-template-columns: minmax(min(330px, 100%), 1fr); }
 .card { background: var(--surface); border: 1px solid var(--border);
         border-radius: 16px; padding: 16px; }
 /* The persona card until the first Apply: on a first visit the editor is the

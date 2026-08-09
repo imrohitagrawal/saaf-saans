@@ -2,7 +2,15 @@
 {% block title %}SaafSaans — {{ place(persona.locality) }}{% endblock %}
 
 {% block content %}
-<div class="grid">
+{#- The wide rows span 1/-1 and occupy every track auto-fit lays, so a column
+    no card fills can never collapse: with the outlook absent -- a CPCB
+    reading, or no reading at all, which is the zero-keys deployment on every
+    render -- the third track sat open and dead from a 676px container up.
+    Which narrow cards exist is known here at render time (the reading always,
+    the persona while its editor is closed, the outlook when the feed sent
+    one), so the template caps the tracks to that count and app.css needs no
+    guess. With an outlook the count is three and the grid stays bare. -#}
+<div class="grid{% if not outlook %}{{ ' grid-solo' if persona_open else ' grid-duo' }}{% endif %}">
 
   {# --- Sky hero. data-band drives the gradient, so the sky clears or thickens
          with the reading instead of being decoration. --------------------- #}

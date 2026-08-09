@@ -89,6 +89,52 @@ def test_persona_change_moves_the_score(client, live_feed):
     assert copd > fit
 
 
+def test_the_grid_reserves_no_track_for_an_absent_outlook(client, live_feed):
+    """The wide rows hold every auto-fit track open, so with the outlook gone
+    (LIVE_READING carries forecast=None) a bare `.grid` lays a permanently
+    dead third column from 676px up. today.html must cap the tracks to the
+    narrow cards that exist. Removing the cap from the template leaves the
+    class list at "grid" and turns every line here red."""
+    # Persona applied, editor closed: persona + reading share the row two-up.
+    # The cap is markup, not copy, so it cannot vary by language or theme.
+    for extra in ({}, {"lang": "hi"}, {"theme": "dark"}):
+        assert '<div class="grid grid-duo">' in client.get("/", params={**PERSONA, **extra}).text
+    # Editor open: the persona card goes wide and the reading is the only
+    # narrow card left, so no second track may be reserved either.
+    assert '<div class="grid grid-solo">' in client.get("/", params={**PERSONA, "edit": "1"}).text
+
+
+def test_the_zero_keys_render_is_capped_too(client):
+    """No credentials means no reading and never a forecast -- the state the
+    public deployment is in on every render, and the one the critique
+    measured. First visit opens the editor, so the reading stands alone."""
+    assert '<div class="grid grid-solo">' in client.get("/").text
+    assert '<div class="grid grid-duo">' in client.get("/", params={**PERSONA, "edit": "0"}).text
+
+
+def test_the_grid_keeps_three_tracks_when_the_outlook_renders(client, monkeypatch):
+    """With a forecast the narrow cards number three and the grid must stay
+    bare: capping it here would shrink the layout the outlook was designed
+    into. An unconditional cap in today.html turns this red."""
+    from datetime import timedelta
+
+    from tests.conftest import LIVE_READING
+    from saafsaans.services import clock, waqi
+
+    # Dated from today: outlook_rows drops days already past, so a fixed date
+    # would quietly stop rendering the section this test's premise needs.
+    days = [clock.today_ist() + timedelta(days=n) for n in range(2)]
+    forecast = {"daily": {"pm25": [
+        {"day": day.isoformat(), "avg": 55, "min": 20, "max": 95} for day in days
+    ]}}
+    monkeypatch.setattr(waqi, "get_aqi", lambda loc, es_client=None:
+                        ({**LIVE_READING, "forecast": forecast, "station": loc}, "ok"))
+    body = client.get("/", params=PERSONA).text
+    assert 'aria-label="Five-day outlook"' in body   # the premise: it rendered
+    assert '<div class="grid">' in body
+    assert "grid-duo" not in body and "grid-solo" not in body
+
+
 def test_term_definition_opens_in_the_shared_slot_and_is_exclusive(client):
     body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
     assert "def-slot" in body and "Fine particles under 2.5 micrometres" in body
