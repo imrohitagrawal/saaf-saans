@@ -8,6 +8,7 @@
 
 /* ---------------------------------------------------------------- tokens -- */
 :root {
+  color-scheme: light;
   --bg: #F2F1EE; --surface: #FBFAF8; --surface-2: #E9E7E2;
   --border: #DCD9D2; --border-s: #8F8B80;   /* 3.26:1 on --surface */
   --text: #211E19; --text-2: #57524A; --text-3: #6B665D;
@@ -30,6 +31,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #12151C; --surface: #1B1F28; --surface-2: #232834;
   --border: #2B303B; --border-s: #6B7280;   /* 3.41:1 on --surface */
   --text: #E8E6E1; --text-2: #ABA79E; --text-3: #8B877E;
