@@ -95,9 +95,12 @@
       reader, English or Hindi, but a Hindi reader arrives right behind the
       banner above -- already told not to trust the copy -- with nothing there
       pointing at the one thing that would make the page actually theirs. Only
-      on Today: it is the one page with a #persona section for this to open. -#}
+      on Today: it is the one page with a #persona section for this to open.
+      Class is "persona-nudge", styled entirely by .caveat -- it carries no
+      rule of its own, on purpose, so it can never pick up an unrelated one
+      by name alone. -#}
   {% if active == 'today' %}
-  <p class="caveat persona-path">{{ T('ui', 'persona_path', 'This advice is for the persona below, not necessarily you.') }}
+  <p class="caveat persona-nudge">{{ T('ui', 'persona_path', 'This advice is for the persona below, not necessarily you.') }}
     <a href="/?{{ q_persona_edit }}#persona">{{ T('ui', 'link_persona_path', 'Change it here ›') }}</a></p>
   {% endif %}
   {% endif %}

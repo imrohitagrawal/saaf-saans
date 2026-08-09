@@ -848,20 +848,29 @@ def test_the_hindi_banner_gets_a_path_into_the_persona_editor_on_today_only():
     there. The new line sits OUTSIDE <aside class="notice"> -- test_the_banner_
     cannot_be_dismissed_and_precedes_the_content already pins that the banner
     itself carries no control -- and only on Today, the one page with a #persona
-    section for it to point at."""
+    section for it to point at.
+
+    The split on the marker is bounded to this element's own closing </p>:
+    left open to the rest of the body, it used to read all the way past the
+    persona card's own "Change details" pill further down the same Today
+    page, which already carries a working /?...&edit=1#persona&lang=hi link
+    of its own -- so the checks below passed even with this element's anchor
+    deleted or pointed at a dead path. The marker itself is "persona-nudge",
+    not "persona-path", because it carries no CSS rule of its own (styled
+    entirely by .caveat) and that exact name is already spoken for elsewhere."""
     for path in HINDI_PAGES:
         body = _lang(path, "hi")
         after_banner = body.split("</aside>", 1)[1]
-        has_path = "persona-path" in after_banner
+        has_path = "persona-nudge" in after_banner
         assert has_path == (path == "/"), path
         if has_path:
-            line = after_banner.split("persona-path", 1)[1]
+            line = after_banner.split("persona-nudge", 1)[1].split("</p>", 1)[0]
             assert 'href="/?' in line
             assert "edit=1" in line and "#persona" in line
             assert "lang=hi" in line
     # English has no unreviewed-translation banner to sit behind, so it gets
     # none of this either.
-    assert "persona-path" not in _lang("/", "en")
+    assert "persona-nudge" not in _lang("/", "en")
 
 
 def test_the_language_toggle_is_a_pair_of_plain_links():
