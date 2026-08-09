@@ -782,7 +782,7 @@ def test_no_link_in_running_prose_is_marked_by_colour_alone(sheet):
              for part in selector.split(",")
              if decls.get("text-wrap") == "pretty"
              and re.fullmatch(r"\.[A-Za-z0-9_-]+", part.strip())}
-    assert {"caveat", "hint"} <= prose, f"prose classes no longer include the caveat: {prose}"
+    assert "caveat" in prose, f"prose classes no longer include the caveat: {prose}"
 
     base_link = _decls(sheet["top"], "a")["color"]
     for css_class in sorted(prose):

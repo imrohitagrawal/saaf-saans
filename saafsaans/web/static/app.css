@@ -516,7 +516,6 @@ select, input[type="text"] {
    a control rather than an outline. Still flat -- tint, border, no shadow. */
 .pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px;
                    font-size: 12.5px; background: var(--accent-tint); }
-.hint { margin: 8px 0 0; font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
 .fields { align-items: flex-end; }
 .fields label { flex: 1 1 200px; }
 .fields .btn { padding: 9px 18px; border-radius: 8px; font-size: 13.5px; }
@@ -802,7 +801,6 @@ h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
 :lang(hi) .ask-sub { font-size: 12.5px; }
 /* The provenance line is the densest text on the site and was entirely mono. */
 :lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
-:lang(hi) .hint,
 :lang(hi) .caveat,
 :lang(hi) .foot,
 :lang(hi) .excerpt { font-size: 13.5px; line-height: 1.65; }
