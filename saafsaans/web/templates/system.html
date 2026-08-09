@@ -47,10 +47,12 @@
         <p class="empty">{{ T('ui', 'sys_empty_telemetry', 'No telemetry yet. Ask a question on Today, or run this to backfill:') }}
           <code lang="en">python -m saafsaans.seed_demo_history</code></p>
         {% else %}
-        {#- Without an index nothing is recorded at all, so the advice above
-            would be a wrong remedy for a misdiagnosed fault: a reader could
-            ask questions all day and this view would stay at zero. -#}
-        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'This view reads from a database index, and none is configured, so nothing is being recorded. The app runs without it; these panels are the part that does not.') }}</p>
+        {#- With no index answering nothing is recorded at all, so the advice
+            above would be a wrong remedy for a misdiagnosed fault: a reader
+            could ask questions all day and this view would stay at zero.
+            "answering", not "configured": a configured endpoint that is down
+            records exactly as much as no endpoint at all. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'This view reads from a database index, and none is answering, so nothing is being recorded. The app runs without it; these panels are the part that does not.') }}</p>
         {% endif %}
       {% endif %}
     </section>
@@ -93,8 +95,12 @@
           </div>
           {% endfor %}
         </div>
-      {% else %}
+      {% elif has_index %}
         <p class="empty">{{ T('ui', 'sys_empty_blocked_7d', 'No blocked attempts recorded in the last 7 days.') }}</p>
+      {% else %}
+        {#- The KPI above reads 0 in both states, and they are different facts:
+            nothing got past the guard, or nothing is being written down. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_blocked_7d_no_index', 'Not a measured zero: no database index is answering, so blocked attempts are not recorded.') }}</p>
       {% endif %}
     </section>
 
@@ -120,7 +126,7 @@
       {% if has_index %}
       <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after', 'known attack prompts at the guard — all blocked before the model, logged below.') }}</p>
       {% else %}
-      <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after_no_index', 'known attack prompts at the guard — all blocked before the model. No database index is configured, so none of them was recorded below.') }}</p>
+      <p class="sim-note">{{ T('ui', 'sys_sim_note_before', 'Simulation fired') }} {{ attack_count }} {{ T('ui', 'sys_sim_note_after_no_index', 'known attack prompts at the guard — all blocked before the model. No database index is answering, so none of them was recorded below.') }}</p>
       {% endif %}
       {% endif %}
 
@@ -165,8 +171,13 @@
            characters and the simulation button fires a ~1,250-character
            attack, so most of what is listed here is truncated. #}
         <p class="caption">{{ T('ui', 'sys_excerpt_caption', 'Shown in whatever language it was typed, and never translated. Long attempts are cut short.') }}</p>
-      {% else %}
+      {% elif has_index %}
         <p class="empty">{{ T('ui', 'sys_empty_attempts', 'Nothing blocked yet. Run the simulation above, or send an injection attempt from Today — either way it is audited here.') }}</p>
+      {% else %}
+        {#- Both remedies above are wrong here: with nothing answering, the
+            simulation and a question from Today are audited nowhere, and the
+            sim-note two lines up has just said so. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_attempts_no_index', 'Nothing is recorded here: no database index is answering. The guard blocks these prompts either way — this list is the part that does not run.') }}</p>
       {% endif %}
     </section>
   </div>

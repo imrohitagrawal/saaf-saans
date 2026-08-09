@@ -111,6 +111,19 @@ def _no_cached_readings_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _no_index_reachability_carryover_between_tests():
+    """Whether the index answered is cached per process, for the same reason
+    the readings are: it is one fact about one endpoint, shared by every
+    request. Held across tests it would make a test that stubs a reachable
+    client decide what the next one sees.
+    """
+    from saafsaans.services import es
+    es.answer_cache_clear()
+    yield
+    es.answer_cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _no_rate_limit_carryover_between_tests():
     """The limiter keys on client IP, and every test client presents the same
     one, so without this the suite shares a single bucket: a file that posts
