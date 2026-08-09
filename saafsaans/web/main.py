@@ -988,6 +988,14 @@ def city(request: Request):
                                    _fmt_stamp(lang), lang=lang),
         "now": _fmt_stamp(lang),
         "selected": selected,
+        # The whole row, not just the number. The trend header printed
+        # `LAST 24 H · AQI 312` bare while the tile ten lines below dated the
+        # identical 312 as `CACHED · 13 H OLD` -- one page saying two different
+        # things about one figure, which is the defect City Pulse was rewritten
+        # to remove, reappearing on the header instead of the tile. The header
+        # now carries the same tag the tile does, from the same row, so the two
+        # cannot disagree.
+        "selected_row": next((s for s in stations if s["name"] == selected), None),
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points"), lang=lang),
         "q_station": lambda name: _qs(persona, theme, lang, station=name),
@@ -1155,11 +1163,24 @@ _FACTOR_OPTION = {
 
 
 def _intensity_labels(lang: str) -> dict:
+    """The four effort levels, named the way the table above them names them.
+
+    Two of the four English names appeared on no column. This page shows the EPA
+    breathing-rate table with the columns `At rest | Light | Moderate | Hard`, and
+    then a second table saying which planned activity is which effort level -- and
+    that one said "sedentary" and "high". A reader told "Outdoor exercise - high"
+    had no `High` column to look up; the hardest one is `Hard`.
+
+    English defaults only. i18n.t returns the Hindi entry when there is one, so
+    Hindi is untouched here -- its own mismatch (level_sedentary is
+    बैठे-बैठे against the आराम में column) is one word of new copy and belongs to
+    the pending Hindi review, not to this change.
+    """
     return {
-        "sedentary": i18n.t(lang, "guide", "level_sedentary", "sedentary"),
+        "sedentary": i18n.t(lang, "guide", "level_sedentary", "at rest"),
         "light": i18n.t(lang, "guide", "level_light", "light"),
         "moderate": i18n.t(lang, "guide", "level_moderate", "moderate"),
-        "high": i18n.t(lang, "guide", "level_high", "high"),
+        "high": i18n.t(lang, "guide", "level_high", "hard"),
     }
 
 
@@ -1373,9 +1394,42 @@ def _set_cookies(response, request: Request, sid: str, theme: str = None,
     return response
 
 
+# Response headers every page carries.
+#
+# The zero-JavaScript rule was enforced by one test grepping the rendered HTML
+# for "<script". That catches a template that adds a script; it cannot stop a
+# script that arrives any other way, and docs/decisions/0001-zero-javascript.md
+# names exactly this as its own open falsification -- "until that is done we do
+# not actually know the rule is enforced at all". `script-src 'none'` makes the
+# BROWSER refuse to execute one, which is the second, runtime enforcement the
+# stricter rule can have and the weaker one cannot.
+#
+# style-src and font-src name the Google hosts because base.html loads the
+# Devanagari and display faces from them; 'self' covers app.css. No connect-src
+# is needed -- nothing on these pages talks to the network after load, which is
+# the whole point of the architecture.
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'none'; "
+        "style-src 'self' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'none'"
+    ),
+    # The persona rides in the query string, so a sniffed content type that let a
+    # response render as something else would be reflecting it into a new context.
+    "X-Content-Type-Options": "nosniff",
+}
+
+
 def _render(request, template, ctx, sid, theme, lang):
-    return _set_cookies(templates.TemplateResponse(request, template, ctx),
-                        request, sid, theme, lang)
+    response = templates.TemplateResponse(request, template, ctx)
+    for header, value in _SECURITY_HEADERS.items():
+        response.headers[header] = value
+    return _set_cookies(response, request, sid, theme, lang)
 
 
 def _month_abbr(lang: str, month: int) -> str:

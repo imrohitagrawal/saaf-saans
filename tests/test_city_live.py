@@ -590,3 +590,42 @@ def test_the_band_column_collapses_only_when_no_station_has_a_band(monkeypatch):
     nothing = _grid_with(monkeypatch, silent=len(waqi.LOCALITIES))
     assert "station-list no-bands" in nothing, (
         "the column stayed 76px wide with nothing in it")
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_trend_header_dates_its_figure_the_same_way_the_tile_does(monkeypatch, lang):
+    """One page must not say two things about one number.
+
+    The header printed `LAST 24 H · AQI 312` bare while the tile ten lines below
+    dated that identical 312 as `CACHED · 13 H OLD`. `selected_aqi` is read out of
+    the tile's own row, so it is the same figure -- a reader comparing them had no
+    way to know that, and the undated one looks current.
+
+    Both directions asserted: the tag appears on a held reading and is ABSENT on
+    a live one, so a header that always tagged itself would fail too.
+    """
+    from saafsaans.services import i18n as i18n_mod
+    from saafsaans.web import main as web_main
+
+    def feed(retained):
+        def f(loc, es_client=None):
+            return waqi._reading(190.0, 300.0, station=loc, city="Delhi",
+                                 stale=False, forecast=None, obs_time=None,
+                                 retained=retained, source="cpcb"), "ok"
+        return f
+
+    cached = i18n_mod.t(lang, "ui", "tag_cached", "CACHED")
+
+    def header(retained):
+        monkeypatch.setattr(waqi, "get_aqi", feed(retained))
+        monkeypatch.setattr(web_main, "waqi", waqi)
+        with TestClient(web_main.app) as client:
+            body = client.get("/city", params={"lang": lang}).text
+        found = re.search(r'class="row trend-head">(.*?)</div>', body, re.S)
+        assert found, (lang, "the trend header did not render")
+        return re.sub(r"<[^>]+>", " ", found.group(1))
+
+    assert cached in header(retained=True), (
+        lang, "a held figure is undated in the trend header")
+    assert cached not in header(retained=False), (
+        lang, "a live figure is tagged as cached in the trend header")

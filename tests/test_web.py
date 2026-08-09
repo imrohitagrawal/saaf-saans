@@ -572,11 +572,22 @@ def test_guide_discloses_the_risk_band_cutoffs(client):
 def test_guide_admits_the_activity_mapping_is_not_from_the_source(client):
     """EPA publishes rates per effort level; deciding a commute is "light" is
     ours. The Guide has to say which is which."""
+    from saafsaans.web import main as web_main
+
     html = client.get("/guide").text
     assert "our reading, not" in html
     # The picker's own wording, so the row can be matched to the option that
     # produced it -- and so it has something to translate.
-    assert "Outdoor exercise = high" in html
+    #
+    # The LEVEL is derived, not spelled out here. This assertion read
+    # "Outdoor exercise = high" and so pinned a vocabulary the page was wrong
+    # about: the effort columns above this table are At rest / Light / Moderate /
+    # Hard, and "high" matched none of them. A test that hardcodes the word blocks
+    # correcting it, and this one is about the row EXISTING and naming its option,
+    # not about which synonym the level uses.
+    level = next(r["level"] for r in web_main._intensity_rows("en")
+                 if r["activity"] == "Outdoor exercise")
+    assert f"Outdoor exercise = {level}" in html
 
 
 # --- The corrected scale, on the page --------------------------------------
@@ -1491,3 +1502,55 @@ def test_every_numbers_link_lands_on_the_numbers_section(client):
     assert hrefs, "no numbers link rendered, so this proves nothing"
     unanchored = [h for h in hrefs if "#numbers" not in h]
     assert not unanchored, unanchored
+
+
+@pytest.mark.parametrize("path", ["/", "/city", "/guide", "/system"])
+def test_every_page_forbids_script_execution_in_the_browser(client, path):
+    """The zero-JavaScript rule had exactly one enforcement: a test grepping the
+    HTML for "<script". That catches a template that adds a script and cannot stop
+    one arriving any other way -- ADR 0001 names this as its own open
+    falsification, "until that is done we do not actually know the rule is
+    enforced at all".
+
+    `script-src 'none'` is the second, runtime enforcement: the browser refuses to
+    execute, whatever the markup says.
+    """
+    response = client.get(path, params={**PERSONA, "lang": "en"})
+    policy = response.headers.get("Content-Security-Policy", "")
+    assert "script-src 'none'" in policy, (path, policy)
+    assert "frame-ancestors 'none'" in policy, (path, policy)
+    assert response.headers.get("X-Content-Type-Options") == "nosniff", path
+
+
+def test_the_policy_allows_exactly_the_hosts_the_pages_actually_use(client):
+    """A policy naming hosts the page does not load is noise; one omitting a host
+    it does load breaks the page silently in a way no test that only reads HTML
+    would see. Derived from the rendered markup, so adding a font host without
+    updating the policy fails here.
+    """
+    body = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    used = set(re.findall(r"https://[a-z0-9.\-]+", body))
+    policy = client.get("/", params=PERSONA).headers["Content-Security-Policy"]
+    for host in used:
+        assert host in policy, (host, "loaded by the page, absent from the policy")
+
+
+def test_the_guide_names_every_effort_level_the_way_its_own_table_does(client):
+    """Two of the four English names appeared on no column. The page shows the EPA
+    rate table with columns `At rest | Light | Moderate | Hard`, then a second
+    table saying which activity is which effort -- and that one said "sedentary"
+    and "high", so a reader told "Outdoor exercise - high" had no High column.
+
+    English only: Hindi's own mismatch is one word of new copy and belongs to the
+    pending translation review.
+    """
+    from saafsaans.services import i18n
+    from saafsaans.web import main as web_main
+
+    columns = {i18n.t("en", "guide", key, default).lower() for key, default in
+               (("th_rest", "At rest"), ("th_light", "Light"),
+                ("th_moderate", "Moderate"), ("th_hard", "Hard"))}
+    levels = {row["level"].lower() for row in web_main._intensity_rows("en")}
+    assert levels, "no intensity rows, so this proves nothing"
+    assert levels <= columns, (sorted(levels - columns),
+                              "effort levels a reader cannot find a column for")

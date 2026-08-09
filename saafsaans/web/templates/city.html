@@ -69,6 +69,13 @@
       <span class="trend-place">{{ place(selected) }}</span>
       <span class="mono trend-lbl">{{ T('ui', 'last_24h', 'LAST 24 H') }} · AQI</span>
       <span class="mono trend-val">{{ selected_aqi if selected_aqi is not none else '--' }}</span>
+      {#- The SAME tag vocabulary the tile below uses, built from the same row.
+          Without it this header stated a figure with no provenance directly
+          above a tile dating that identical figure -- and a reader comparing the
+          two would have no way to know they were the same number. -#}
+      {% if selected_row and selected_row.source in ('cached', 'held') %}<span class="tag">{{ T('ui', 'tag_cached', 'CACHED') }}{% if selected_row.age %} · {{ selected_row.age }} {{ T('ui', 'tag_old', 'OLD') }}{% endif %}</span>
+      {%- elif selected_row and selected_row.source == 'none' %}<span class="tag">{{ T('ui', 'tag_no_reading', 'NO READING') }}</span>
+      {%- endif %}
     </div>
     {% if spark %}
       <div class="spark">{{ spark }}</div>
