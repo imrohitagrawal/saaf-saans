@@ -89,6 +89,76 @@ def test_persona_change_moves_the_score(client, live_feed):
     assert copd > fit
 
 
+def test_the_grid_reserves_no_track_for_an_absent_outlook(client, live_feed):
+    """The wide rows hold every auto-fit track open, so with the outlook gone
+    (LIVE_READING carries forecast=None) a bare `.grid` lays a permanently
+    dead third column from 676px up. today.html must cap the tracks to the
+    narrow cards that exist. Removing the cap from the template leaves the
+    class list at "grid" and turns every line here red."""
+    # Persona applied, editor closed: persona + reading share the row two-up.
+    # The cap is markup, not copy, so it cannot vary by language or theme.
+    for extra in ({}, {"lang": "hi"}, {"theme": "dark"}):
+        assert '<div class="grid grid-duo">' in client.get("/", params={**PERSONA, **extra}).text
+    # Editor open: the persona card goes wide and the reading is the only
+    # narrow card left, so no second track may be reserved either.
+    assert '<div class="grid grid-solo">' in client.get("/", params={**PERSONA, "edit": "1"}).text
+
+
+def test_the_zero_keys_render_is_capped_too(client):
+    """No credentials means no reading and never a forecast -- the state the
+    public deployment is in on every render, and the one the critique
+    measured. First visit opens the editor, so the reading stands alone."""
+    assert '<div class="grid grid-solo">' in client.get("/").text
+    assert '<div class="grid grid-duo">' in client.get("/", params={**PERSONA, "edit": "0"}).text
+
+
+def test_the_grid_keeps_three_tracks_when_the_outlook_renders(client, monkeypatch):
+    """With a forecast the narrow cards number three and the grid must stay
+    bare: capping it here would shrink the layout the outlook was designed
+    into. An unconditional cap in today.html turns this red."""
+    from datetime import timedelta
+
+    from tests.conftest import LIVE_READING
+    from saafsaans.services import clock, waqi
+
+    # Dated from today: outlook_rows drops days already past, so a fixed date
+    # would quietly stop rendering the section this test's premise needs.
+    days = [clock.today_ist() + timedelta(days=n) for n in range(2)]
+    forecast = {"daily": {"pm25": [
+        {"day": day.isoformat(), "avg": 55, "min": 20, "max": 95} for day in days
+    ]}}
+    monkeypatch.setattr(waqi, "get_aqi", lambda loc, es_client=None:
+                        ({**LIVE_READING, "forecast": forecast, "station": loc}, "ok"))
+    body = client.get("/", params=PERSONA).text
+    assert 'aria-label="Five-day outlook"' in body   # the premise: it rendered
+    assert '<div class="grid">' in body
+    assert "grid-duo" not in body and "grid-solo" not in body
+
+
+def test_the_grid_caps_when_the_editor_opens_over_a_forecast(client, monkeypatch):
+    """Opening the persona editor turns it `wide` regardless of the outlook,
+    so with a forecast present the narrow cards drop from three (persona,
+    reading, outlook) to two (reading, outlook) -- the same two-track case as
+    an absent outlook, reached a different way. A cap gated on `not outlook`
+    alone misses this combination and leaves the bare, three-track `.grid`,
+    reopening the dead-track defect on every first visit to a deployment with
+    a live WAQI key (persona_open defaults true until the first Apply)."""
+    from datetime import timedelta
+
+    from tests.conftest import LIVE_READING
+    from saafsaans.services import clock, waqi
+
+    days = [clock.today_ist() + timedelta(days=n) for n in range(2)]
+    forecast = {"daily": {"pm25": [
+        {"day": day.isoformat(), "avg": 55, "min": 20, "max": 95} for day in days
+    ]}}
+    monkeypatch.setattr(waqi, "get_aqi", lambda loc, es_client=None:
+                        ({**LIVE_READING, "forecast": forecast, "station": loc}, "ok"))
+    body = client.get("/", params={**PERSONA, "edit": "1"}).text
+    assert 'aria-label="Five-day outlook"' in body   # the premise: it rendered
+    assert '<div class="grid grid-duo">' in body
+
+
 def test_term_definition_opens_in_the_shared_slot_and_is_exclusive(client):
     body = client.get("/", params={**PERSONA, "term": "PM2.5"}).text
     assert "def-slot" in body and "Fine particles under 2.5 micrometres" in body
@@ -199,13 +269,17 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _city_body(monkeypatch, rows, lang="en"):
-    """Render /city with the station grid pinned, so freshness and age are fixed."""
+def _city_body(monkeypatch, rows, lang="en", **params):
+    """Render /city with the station grid pinned, so freshness and age are fixed.
+
+    ``params`` rides into the query string, for tests that need a particular
+    station selected in the trend header.
+    """
     from saafsaans.web import main as web_main
     monkeypatch.setattr(web_main.metrics, "station_grid", lambda client, locs: rows)
     monkeypatch.setattr(web_main, "get_client", lambda: object())
     with TestClient(app) as c:
-        return c.get("/city", params={**PERSONA, "lang": lang}).text
+        return c.get("/city", params={**PERSONA, "lang": lang, **params}).text
 
 
 def _city_rows(monkeypatch, rows, lang="en"):
@@ -238,6 +312,65 @@ def test_station_with_no_stored_reading_is_not_called_cached(monkeypatch):
     for name, row in rows.items():
         assert "CACHED" not in row, name       # nothing is stored, so nothing is cached
         assert "NO READING" in row, name
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_each_tag_carries_its_definition_at_the_row(monkeypatch, lang):
+    """The legend paragraph defines the tag vocabulary once, up to 21 rows
+    above where a tag is actually read. Each tag now also carries its own
+    definition in `title`, so the row explains itself -- the legend stays, this
+    is in addition. Removing the title attributes in city.html turns this red."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+    rows = _city_rows(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}],
+                      lang=lang)
+    cached_def = i18n.t(lang, "ui", "tag_cached_def",
+                        "A reading we are still holding from earlier, shown "
+                        "with its age — not the air right now.")
+    none_def = i18n.t(lang, "ui", "tag_no_reading_def",
+                      "We hold nothing for this station, so no figure is "
+                      "shown — none is invented.")
+    assert f'title="{cached_def}"' in rows["Rohini"], rows["Rohini"]
+    assert f'title="{none_def}"' in rows["ITO"], rows["ITO"]
+    # The screen-reader half of the same device: title is pointer-only, so the
+    # row's own <a> points at an offscreen copy of the definition by id. The
+    # ids' existence is asserted in the trend-header test below, which holds
+    # the whole page body.
+    assert 'aria-describedby="tag-def-cached"' in rows["Rohini"], rows["Rohini"]
+    assert 'aria-describedby="tag-def-none"' in rows["ITO"], rows["ITO"]
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_trend_header_tag_defines_itself_like_the_rows_do(monkeypatch, lang):
+    """The header tag was the one tag left undefined: a review stripped its
+    title attributes and the suite stayed green. Both header states are pinned
+    -- title for pointer users, aria-describedby for screen readers -- plus the
+    partner check that each referenced id exists on the page, so a description
+    cannot dangle. Removing either attribute from the trend-head spans in
+    city.html, or the sr-def block their ids live in, turns this red."""
+    from datetime import datetime, timedelta, timezone
+    from saafsaans.services import i18n
+    cached_def = i18n.t(lang, "ui", "tag_cached_def",
+                        "A reading we are still holding from earlier, shown "
+                        "with its age — not the air right now.")
+    none_def = i18n.t(lang, "ui", "tag_no_reading_def",
+                      "We hold nothing for this station, so no figure is "
+                      "shown — none is invented.")
+    old = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
+
+    body = _city_body(monkeypatch, [{"station": "Rohini", "aqi": 390, "ts": old}],
+                      lang=lang, station="Rohini")
+    head = re.search(r'class="row trend-head">(.*?)</div>', body, re.S).group(1)
+    assert f'title="{cached_def}"' in head, head
+    assert 'aria-describedby="tag-def-cached"' in head, head
+    assert 'id="tag-def-cached"' in body      # the description has a target
+
+    body = _city_body(monkeypatch, [], lang=lang)   # selected station: no reading
+    head = re.search(r'class="row trend-head">(.*?)</div>', body, re.S).group(1)
+    assert f'title="{none_def}"' in head, head
+    assert 'aria-describedby="tag-def-none"' in head, head
+    assert 'id="tag-def-none"' in body
 
 
 def test_a_station_with_no_reading_carries_no_number_and_no_band(monkeypatch):
@@ -385,6 +518,91 @@ def test_each_turn_records_the_persona_it_was_answered_for(client):
     assert "an adult in good health, planning outdoor exercise" in body
 
 
+def test_a_stored_turn_replayed_in_the_other_language_is_marked(client):
+    """Turns outlive the page state that made them: an English answer replayed
+    on the Hindi page sat under <html lang="hi">, claiming Hindi phonetics for
+    English prose and the Devanagari type floors for Latin text. The stored
+    parts of a turn now carry the language they were composed in. Reverting
+    either the "lang" stamp in main.ask or the attribute in today.html turns
+    this red."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert 'class="answer-body" lang="en"' in hindi
+
+
+def test_the_question_itself_carries_the_turn_language_too(client):
+    """The visitor's own typed words are stored copy exactly like the answer
+    body: an English question replayed on the Hindi page must not be
+    announced with Hindi phonetics either. Reverting the lang attribute on
+    the question <p> in today.html turns this red."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert '<p lang="en">Can I go for a run?</p>' in hindi
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert '<p lang="en">Can I go for a run?</p>' not in english
+    assert '<p>Can I go for a run?</p>' in english
+
+
+def test_the_answered_for_line_follows_the_page_language(client):
+    """The persona sentence is chrome, not stored copy: a turn stores the
+    persona FACTS and the sentence is recomposed in the page's language at
+    render time, so a question asked in English does not pin an English
+    sentence into the middle of the Hindi page. Reverting either the "persona"
+    facts stored in main.ask or the turn_persona_line renderer in main.today
+    turns this red. The answer BODY stays stored copy and keeps its lang
+    stamp -- the test above."""
+    from saafsaans.services import i18n
+    from saafsaans.web import presenters as pr
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    persona = {k: PERSONA[k] for k in ("locality", "age", "condition", "activity")}
+
+    # Asserted on the "Answered for" span itself, not on the sentence alone:
+    # the persona CARD prints the same sentence in the page language, so a
+    # bare substring check passes with the transcript line broken.
+    def answered_for(lang):
+        return (i18n.t(lang, "ui", "answered_for", "Answered for")
+                + f" <span>{pr.persona_line(persona, lang=lang)}</span>")
+
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert answered_for("hi") in hindi
+    assert '<span lang="en">an adult with asthma' not in hindi
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert answered_for("en") in english
+
+
+def test_a_turn_stored_before_the_persona_facts_still_renders_marked(client):
+    """Backwards compatibility: a turn from before the facts were stored
+    carries only its rendered persona_line. It must still render -- and, being
+    stored copy, keep the language mark on the other-language page. Deleting
+    the persona_line fallback in main.today's turn_persona_line turns this
+    red. (The `not t.persona` guard on the lang attribute is pinned by the
+    sibling test above, whose new-style turn must render an unmarked span.)"""
+    from saafsaans.web import main as web_main
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    for store in web_main._TRANSCRIPTS.values():
+        for turn in store["turns"]:
+            if "persona" in turn:
+                del turn["persona"]
+                turn["persona_line"] = "an adult with asthma, planning outdoor exercise"
+    hindi = client.get("/", params={**PERSONA, "lang": "hi"}).text
+    assert '<span lang="en">an adult with asthma' in hindi
+
+
+def test_a_turn_replayed_in_its_own_language_stays_unmarked(client):
+    """The partner: on the page whose language already claims the turn, no
+    attribute is added -- marking it would be redundant and would peel the
+    turn out of the :lang() rules that are correct for it."""
+    client.post("/ask", params={**PERSONA, "lang": "en"},
+                data={"question": "Can I go for a run?"})
+    english = client.get("/", params={**PERSONA, "lang": "en"}).text
+    assert 'class="answer-body"' in english           # the card rendered
+    assert 'class="answer-body" lang=' not in english
+
+
 def test_provenance_opens_per_turn_independently(client):
     client.post("/ask", params=PERSONA, data={"question": "Question one?"})
     client.post("/ask", params=PERSONA, data={"question": "Question two?"})
@@ -483,6 +701,25 @@ def test_guide_band_table_shows_a_colour_swatch_per_band():
         assert f'class="band-{slug}"' in body
 
 
+def test_guide_tables_scroll_in_their_own_container_and_name_their_columns():
+    """The EPA rate table is five mono columns and cannot shrink below them,
+    so without a scroll container of its own it forced the whole page sideways
+    (WCAG 1.4.10); and a header row that is not a thead of scope="col" cells
+    leaves a screen reader announcing bare figures (WCAG 1.3.1). One template
+    serves both languages, so both are asserted. Removing a wrapper, a thead
+    or a scope in guide.html turns this red."""
+    for lang in ("en", "hi"):
+        with TestClient(app) as c:
+            body = c.get("/guide", params={**PERSONA, "lang": lang}).text
+        tables = body.count("<table")
+        assert tables >= 4                       # the things counted exist
+        assert body.count('class="table-scroll"') == tables
+        assert body.count("<thead>") == tables
+        assert body.count("<tbody>") == tables
+        assert "<th>" not in body                # no header cell without a scope
+        assert body.count('<th scope="col"') >= tables * 2
+
+
 def test_security_empty_state_says_how_to_produce_data():
     """With no Elasticsearch the view must explain itself, not render blank.
 
@@ -529,6 +766,36 @@ def test_simulation_note_reports_the_real_attack_count():
     with TestClient(app) as c:
         body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
     assert f"Simulation fired {len(ATTACKS)} known attack prompts" in body
+
+
+def test_simulation_note_does_not_claim_logging_without_an_index():
+    """The note said "all blocked ... logged below" directly above "Nothing
+    blocked yet." -- a false claim demonstrated on the page whose job is
+    showing what is in the index. The suite runs without an index (conftest),
+    which is exactly the deployment that reproduced it. Reverting the
+    has_index branch on the sim-note in system.html turns this red."""
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
+    assert "logged below" not in body
+    assert "none of them was recorded below" in body
+    # The empty state the old note contradicted is still there, and now agrees.
+    assert "Nothing blocked yet" in body
+
+
+def test_simulation_note_still_claims_logging_when_an_index_exists(monkeypatch):
+    """The partner proving the suppressed claim still exists: with an index
+    configured, the note must keep saying the blocks are logged below."""
+    import saafsaans.web.main as main
+    from saafsaans.services import metrics
+    monkeypatch.setattr(main, "_client", object())
+    monkeypatch.setattr(metrics, "security_stats",
+                        lambda c: {"block_rate": 1.0, "by_pattern": []})
+    monkeypatch.setattr(metrics, "security_daily", lambda c, days=7: [])
+    monkeypatch.setattr(metrics, "recent_security_events", lambda c, limit=40: [])
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security", "sim": "1"}).text
+    assert "logged below" in body
+    assert "none of them was recorded below" not in body
 
 
 # --- Risk-score provenance is on the page, not only in the repo ------------
@@ -839,40 +1106,6 @@ def test_the_banner_does_not_break_the_skip_link():
     assert body.index('id="main"') < body.index('class="notice"')
 
 
-def test_the_hindi_banner_gets_a_path_into_the_persona_editor_on_today_only():
-    """The default persona (Asthma, Adult, Anand Vihar) is a single global
-    default, identical for English and Hindi (main.read_persona). What was
-    actually missing on the Hindi page was any nudge to change it: the persona
-    card's "Change details" pill sits well below the fold, behind the hero and
-    the unreviewed-translation banner, and nothing above it points a reader
-    there. The new line sits OUTSIDE <aside class="notice"> -- test_the_banner_
-    cannot_be_dismissed_and_precedes_the_content already pins that the banner
-    itself carries no control -- and only on Today, the one page with a #persona
-    section for it to point at.
-
-    The split on the marker is bounded to this element's own closing </p>:
-    left open to the rest of the body, it used to read all the way past the
-    persona card's own "Change details" pill further down the same Today
-    page, which already carries a working /?...&edit=1#persona&lang=hi link
-    of its own -- so the checks below passed even with this element's anchor
-    deleted or pointed at a dead path. The marker itself is "persona-nudge",
-    not "persona-path", because it carries no CSS rule of its own (styled
-    entirely by .caveat) and that exact name is already spoken for elsewhere."""
-    for path in HINDI_PAGES:
-        body = _lang(path, "hi")
-        after_banner = body.split("</aside>", 1)[1]
-        has_path = "persona-nudge" in after_banner
-        assert has_path == (path == "/"), path
-        if has_path:
-            line = after_banner.split("persona-nudge", 1)[1].split("</p>", 1)[0]
-            assert 'href="/?' in line
-            assert "edit=1" in line and "#persona" in line
-            assert "lang=hi" in line
-    # English has no unreviewed-translation banner to sit behind, so it gets
-    # none of this either.
-    assert "persona-nudge" not in _lang("/", "en")
-
-
 def test_the_language_toggle_is_a_pair_of_plain_links():
     body = _lang("/", "hi")
     assert "<script" not in body.lower()
@@ -896,7 +1129,10 @@ def test_every_link_carries_the_language():
     """The first link a Hindi reader clicks must not return them to English."""
     import re
     body = _lang("/", "hi", edit="1")
-    internal = [h for h in re.findall(r'href="(/[^"]*)"', body) if "?" in h]
+    # Static asset URLs carry ?v=<content hash>, not page state; they are the
+    # same bytes in either language and are excluded rather than exempted.
+    internal = [h for h in re.findall(r'href="(/[^"]*)"', body)
+                if "?" in h and not h.startswith("/static/")]
     assert internal
     # Exactly one link on a Hindi page may leave Hindi: the toggle itself.
     to_english = [h for h in internal if "lang=en" in h]
@@ -910,10 +1146,13 @@ def test_every_link_carries_the_language():
 
 
 def test_the_devanagari_font_is_requested_only_for_hindi():
-    """A real download an English reader would never see a glyph from."""
+    """A real download an English reader would never see a glyph from. The
+    marker is the self-hosted stylesheet that declares the face, since the
+    Google css2 link it replaced is gone from every page."""
     for path in HINDI_PAGES:
-        assert "Anek+Devanagari" in _lang(path, "hi"), path
-        assert "Anek+Devanagari" not in _lang(path, "en"), path
+        assert "fonts-hi.css" in _lang(path, "hi"), path
+        assert "fonts-hi.css" not in _lang(path, "en"), path
+        assert "anek-devanagari" not in _lang(path, "en"), path
 
 
 def test_the_stylesheet_switches_the_display_face_for_hindi():
@@ -1556,17 +1795,21 @@ def test_every_page_forbids_script_execution_in_the_browser(client, path):
     assert response.headers.get("X-Content-Type-Options") == "nosniff", path
 
 
-def test_the_policy_allows_exactly_the_hosts_the_pages_actually_use(client):
-    """A policy naming hosts the page does not load is noise; one omitting a host
-    it does load breaks the page silently in a way no test that only reads HTML
-    would see. Derived from the rendered markup, so adding a font host without
-    updating the policy fails here.
+def test_the_policy_names_no_host_because_the_pages_use_none(client):
+    """The policy used to whitelist the Google font hosts because the pages
+    loaded from them. The fonts are self-hosted now, so both halves must say
+    so: the markup loads nothing off-origin (test_privacy sweeps every view),
+    and the policy has stopped allowing hosts nothing uses -- an allowance no
+    resource needs is a door left open. style/font at 'self' is the runtime
+    enforcement: a template that re-adds a font host breaks in the browser,
+    not just in this suite. Red if either the css2 link or the host
+    whitelist returns.
     """
     body = client.get("/", params={**PERSONA, "lang": "hi"}).text
-    used = set(re.findall(r"https://[a-z0-9.\-]+", body))
+    assert not re.findall(r"https://[a-z0-9.\-]+", body), "page loads off-origin"
     policy = client.get("/", params=PERSONA).headers["Content-Security-Policy"]
-    for host in used:
-        assert host in policy, (host, "loaded by the page, absent from the policy")
+    assert "https://" not in policy, (policy, "whitelists a host nothing uses")
+    assert "style-src 'self'" in policy and "font-src 'self'" in policy, policy
 
 
 def test_the_guide_names_every_effort_level_the_way_its_own_table_does(client):
@@ -1588,3 +1831,154 @@ def test_the_guide_names_every_effort_level_the_way_its_own_table_does(client):
     assert levels, "no intensity rows, so this proves nothing"
     assert levels <= columns, (sorted(levels - columns),
                               "effort levels a reader cannot find a column for")
+
+
+# --- First visit: the example persona is labelled as one ---------------------
+# The persona rides only in the query string, so "no valid persona parameter"
+# IS the first-visit state -- detectable with no JavaScript and no client
+# storage. main.persona_applied is the predicate; every link a first-visit
+# page emits keeps the query string persona-free so the state survives the
+# theme toggle, the language toggle and the nav.
+
+def test_first_visit_labels_the_risk_as_an_example_not_yours(client, live_feed):
+    """Bite: reverting the hero branches in today.html turns this red -- the
+    chip read "YOUR RISK · n/100" and the kicker carried no EXAMPLE for the
+    hard-coded Adult/Asthma default the visitor never chose."""
+    body = client.get("/", params={"theme": "light"}).text
+    assert "YOUR RISK" not in body
+    assert re.search(r"EXAMPLE PERSONA · \d+/100", body)
+    assert "EXAMPLE — FOR AN ADULT WITH ASTHMA" in body
+    # The comparison sentence says "Your {score}", the same claim by a second
+    # route, so it waits for a persona.
+    assert 'class="compare"' not in body
+
+
+def test_an_applied_persona_keeps_your_risk_and_loses_the_example_label(client, live_feed):
+    """Bite: guards the other direction -- the returning visitor's page must
+    not start calling their own risk an example's."""
+    body = client.get("/", params=PERSONA).text
+    assert "YOUR RISK · " in body
+    assert "EXAMPLE PERSONA" not in body
+    assert "EXAMPLE — FOR" not in body
+    assert "card-primary" not in body
+    assert 'class="compare"' in body
+
+
+def test_first_visit_opens_the_persona_editor_as_the_primary_card(client):
+    """Bite: fails without main.py's persona_open default and today.html's
+    card-primary class -- the first-visit editor was a closed card behind an
+    11px pill."""
+    body = client.get("/", params={"theme": "light"}).text
+    assert "card-primary" in body
+    assert 'name="condition"' in body                # the form is open
+    assert "This page is showing an example" in body
+    # The first Apply returns the card to its quiet, closed, accent-less self.
+    applied = client.get("/", params=PERSONA).text
+    assert "card-primary" not in applied
+    assert 'name="condition"' not in applied
+    # The default-open editor can still be closed without applying anything.
+    closed = client.get("/", params={"theme": "light", "edit": "0"}).text
+    assert 'name="condition"' not in closed
+    assert "card-primary" in closed
+
+
+def test_a_partial_or_invalid_persona_does_not_earn_the_your_label(client, live_feed):
+    """read_persona swaps a missing or invalid value for its default, so a
+    crafted or hand-truncated link must not dress that default in YOUR.
+
+    Both halves matter. ``/?condition=nonsense``: no valid field at all.
+    ``/?age=Child``: ONE valid field while the other three default -- Asthma
+    included -- which any() accepted as applied. No site-emitted link produces
+    partial params (the form submits all four, links carry all or none), so
+    all() costs nothing legitimate. Bite: reverting persona_applied's all(...)
+    to any(...) turns the partial cases red; checking mere presence instead of
+    validity turns the nonsense case red."""
+    for params in ({"condition": "nonsense"},          # invalid value
+                   {"age": "Child"},                   # one valid, three default
+                   {"age": "Child", "condition": "COPD",
+                    "activity": "Commute"}):           # three valid, one default
+        body = client.get("/", params=params).text
+        assert "YOUR RISK" not in body, params
+        assert re.search(r"EXAMPLE PERSONA · \d+/100", body), params
+    # All four valid fields is the applied state, exactly as the form submits.
+    full = client.get("/", params=PERSONA).text
+    assert "YOUR RISK · " in full
+
+
+def test_first_visit_links_never_smuggle_the_default_persona(client):
+    """The first click -- theme, language, any nav link -- must not write
+    Adult/Asthma into the query string. Bite: fails without base_context
+    building its query strings from an empty persona pre-Apply."""
+    body = client.get("/", params={"theme": "light"}).text
+    hrefs = re.findall(r'href="(/[^"]*\?[^"]*)"', body)
+    assert hrefs, "no internal links found, so this proves nothing"
+    for href in hrefs:
+        for key in ("condition=", "age=", "activity=", "locality="):
+            assert key not in href, (key, href)
+    # ...and the same page with a persona applied carries it on every link,
+    # which is the behaviour the language-toggle test already pins.
+    applied = client.get("/", params=PERSONA).text
+    assert "condition=Asthma" in applied
+
+
+def test_asking_on_a_first_visit_keeps_the_persona_unchosen(client):
+    """Bite: fails without the _back change -- the post-ask redirect rebuilt
+    its query string from read_persona's defaults and applied them."""
+    r = client.post("/ask", data={"question": "Can I go out?"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    location = r.headers["location"]
+    assert "#ask" in location
+    for key in ("condition=", "age=", "activity=", "locality="):
+        assert key not in location, (key, location)
+
+
+def test_change_details_is_no_longer_an_11px_ghost():
+    """The one control that turns the example into the reader's own. Bite:
+    fails if .pill-btn.strong loses its promoted size or its filled ground and
+    falls back to the plain pill's transparent mono 11px."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1]
+           / "saafsaans/web/static/app.css").read_text()
+    block = re.search(r"\.pill-btn\.strong\s*\{([^}]*)\}", css).group(1)
+    assert "font-size: 12.5px" in block
+    assert "background: var(--accent-tint)" in block
+
+
+def test_the_hindi_banner_has_a_path_into_the_persona_editor():
+    """Meera's route: Hindi-first, sees अस्थमा in an example persona, and the
+    element she met first -- the unreviewed-translation banner -- must lead to
+    the editor from EVERY page it renders on. Beside the banner, not inside
+    it: the banner itself may hold no control (pinned above). Bite: fails
+    without the persona-path block in base.html."""
+    with TestClient(app) as c:
+        for path in HINDI_PAGES:
+            body = c.get(path, params={"lang": "hi"}).text
+            found = re.search(r'class="persona-path".*?href="([^"]+)"', body, re.S)
+            assert found, path
+            href = found.group(1)
+            assert href.startswith("/?"), href
+            assert "edit=1" in href and href.endswith("#persona"), href
+            # The first click of a Hindi reader must stay Hindi.
+            assert "lang=hi" in href, href
+    with TestClient(app) as c:
+        # Gone once a persona is applied: the persona card owns the editor then.
+        applied = c.get("/", params={**PERSONA, "lang": "hi"}).text
+        assert "persona-path" not in applied
+    with TestClient(app) as c:
+        # And never on an English page, whose banner does not render either.
+        english = c.get("/", params={"lang": "en"}).text
+        assert "persona-path" not in english
+
+
+def test_the_hindi_first_visit_page_labels_the_example_in_hindi(live_feed):
+    """Bite: fails if the new keys lose their HI entries -- the chip and the
+    kicker would fall back to Latin EXAMPLE strings on a Devanagari page."""
+    with TestClient(app) as c:
+        body = c.get("/", params={"lang": "hi"}).text
+    # The chip's own shape, score attached: the persona-path sentence also
+    # contains उदाहरण व्यक्ति, so a bare substring would not notice the chip
+    # falling back to Latin EXAMPLE PERSONA.
+    assert re.search(r"उदाहरण व्यक्ति · \d+/100", body)
+    assert "उदाहरण —" in body                 # the kicker prefix
+    assert "आपका ख़तरा" not in body           # never "your risk" unchosen

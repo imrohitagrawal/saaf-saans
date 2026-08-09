@@ -15,6 +15,7 @@ Persona travels in the query string too, so any view is shareable. Only the
 chat transcript needs continuity; it is held per session id in memory and never
 persisted, because the persona is sensitive and must not reach an index.
 """
+import hashlib
 import time
 import uuid
 from collections import OrderedDict, deque
@@ -24,6 +25,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -37,8 +39,47 @@ from saafsaans.web import presenters as pr
 
 BASE = Path(__file__).parent
 app = FastAPI(title="SaafSaans")
-app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
+# Compress responses a client asks to have compressed. The pages are
+# server-rendered HTML of 30-60 KB and app.css is ~35 KB, served to phones on
+# Delhi mobile networks; gzip takes them to roughly a fifth. woff2 is already
+# brotli inside, so the floor spares the tiny responses and gzip merely wastes
+# a few cycles on fonts -- correct either way, since the middleware only acts
+# on Accept-Encoding.
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+class _ImmutableStatic(StaticFiles):
+    """/static with far-future caching.
+
+    Safe because nothing under /static is referenced by a bare name: every URL
+    a template emits goes through ``_asset`` below and carries ``?v=<content
+    hash>``, so a changed file is a new URL and the year-long lifetime can
+    never pin a stale copy. The font files are referenced from inside
+    fonts.css without a version, deliberately: their names encode family,
+    weight and script, and scripts/build_fonts.py renames on any change of
+    meaning, while the referencing stylesheet's hash changes with its content.
+    """
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+app.mount("/static", _ImmutableStatic(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
+
+# name -> short content hash, filled lazily and held for the process life.
+# Static files only change with a deploy, and a deploy restarts the process.
+_ASSET_VERSIONS: dict = {}
+
+
+def _asset(name: str) -> str:
+    """``/static/app.css?v=1a2b3c...`` -- the cache key IS the content."""
+    version = _ASSET_VERSIONS.get(name)
+    if version is None:
+        digest = hashlib.sha256((BASE / "static" / name).read_bytes())
+        version = _ASSET_VERSIONS[name] = digest.hexdigest()[:12]
+    return f"/static/{name}?v={version}"
 
 AGES = ["Child", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
@@ -125,6 +166,30 @@ def read_persona(request: Request) -> dict:
         "condition": pick("condition", CONDITIONS, "Asthma"),
         "activity": pick("activity", ACTIVITIES, "Outdoor exercise"),
     }
+
+
+def persona_applied(request: Request) -> bool:
+    """True once the visitor has chosen a persona; False on a first visit.
+
+    The persona travels in the query string and nowhere else, so "chosen" is
+    detectable without any client state: a first visit arrives with no persona
+    parameter at all, and every link the first-visit page emits keeps it that
+    way (``base_context`` builds its query strings from an empty persona until
+    this is True). The first Apply -- the persona form, which submits all four
+    fields -- is what flips it.
+
+    ALL FOUR fields, each with a VALUE THE FORM COULD HAVE SUBMITTED.
+    ``read_persona`` silently swaps a missing or invalid value for its
+    default, so anything less re-opens the claim this predicate exists to
+    prevent: ``any(...)`` meant a hand-truncated ``/?age=Child`` -- one valid
+    field, the other three defaulting, Asthma included -- still earned "YOUR
+    RISK". ``all`` costs no legitimate state: the form submits all four fields
+    and every link the site emits carries all four or none.
+    """
+    q = request.query_params
+    checks = {"locality": waqi.LOCALITIES, "age": AGES,
+              "condition": CONDITIONS, "activity": ACTIVITIES}
+    return all(q.get(key) in options for key, options in checks.items())
 
 
 def read_theme(request: Request) -> str:
@@ -338,9 +403,22 @@ def _qs(persona: dict, theme: str, lang: str, **extra) -> str:
 
 def base_context(request: Request, persona: dict, theme: str, lang: str,
                  active: str) -> dict:
+    # Until the visitor applies a persona, every link the page emits carries
+    # theme and language ONLY. The alternative -- building links from the
+    # default persona -- meant the very first click (the theme toggle, the
+    # Hindi toggle, any nav link) wrote Adult/Asthma into the query string and
+    # turned the example into "YOUR" without the visitor ever choosing it.
+    applied = persona_applied(request)
+    qp = persona if applied else {}
     return {
         "request": request, "persona": persona, "theme": theme, "active": active,
         "lang": lang,
+        "asset": _asset,
+        "persona_applied": applied,
+        # Opens the persona editor from ANY page: the Hindi banner's path in
+        # base.html points here, and /city, /system and /guide render that
+        # banner too.
+        "q_edit": _qs(qp, theme, lang, edit="1"),
         "path": request.url.path,
         "ages": AGES, "conditions": CONDITIONS, "activities": ACTIVITIES,
         # value -> what the reader sees. The values above stay English because
@@ -351,17 +429,13 @@ def base_context(request: Request, persona: dict, theme: str, lang: str,
         "place": lambda name: i18n.place(lang, name),
         "regions": waqi.REGIONS,
         "share": _share_card(lang),
-        "q": _qs(persona, theme, lang),
-        "q_light": _qs(persona, "light", lang),
-        "q_dark": _qs(persona, "dark", lang),
+        "q": _qs(qp, theme, lang),
+        "q_light": _qs(qp, "light", lang),
+        "q_dark": _qs(qp, "dark", lang),
         # The toggle keeps everything else about the page identical, so a
         # reader switching language does not also lose their persona or theme.
-        "q_en": _qs(persona, theme, "en"),
-        "q_hi": _qs(persona, theme, "hi"),
-        # The Hindi banner's path into the persona editor: it must work from
-        # every page (City Pulse, Guide, System), not only Today, so it is
-        # built here rather than beside the toggle Today already owns.
-        "q_persona_edit": _qs(persona, theme, lang, edit="1"),
+        "q_en": _qs(qp, theme, "en"),
+        "q_hi": _qs(qp, theme, "hi"),
         # Shown on every Hindi page. Not a template literal: the wording of a
         # caveat about unreviewed health copy belongs beside the copy it is
         # about.
@@ -482,8 +556,17 @@ def today(request: Request):
         data["category"] = normalize.aqi_category(None)
     ctx.update(data)
 
+    applied = ctx["persona_applied"]
+    # The disclosure links must not smuggle the default persona into the query
+    # string before the visitor has chosen one; same rule as base_context.
+    qp = persona if applied else {}
     term = q.get("term") if q.get("term") in TERMS else None
-    persona_open = q.get("edit") == "1"
+    # Open by DEFAULT on a first visit: until the visitor has applied a
+    # persona, the editor is the page's primary element -- the advice above it
+    # is an example's, and the form is how it becomes theirs. ``edit=0`` is the
+    # explicit close for that state (a bare ``edit`` absent means "default",
+    # which is open only while no persona is applied).
+    persona_open = q.get("edit") == "1" or (not applied and q.get("edit") != "0")
     obs_time = _fmt_time(data["reading"].get("obs_time"), lang)
     # What the provenance chip prints after the state word. A live reading is
     # dated by its clock time; a HELD one has to be dated by its AGE, because the
@@ -578,6 +661,15 @@ def today(request: Request):
         # The templates call this per stored turn, so a turn indexed before the
         # field existed answers "live"/"none" exactly as it did before.
         "freshness": pr.freshness,
+        # A turn stores the persona FACTS and this composes the "Answered for"
+        # sentence in the page's language at render time -- the sentence is
+        # chrome, not stored copy, so it must not be frozen in the language the
+        # question happened to be asked in. A turn from before the facts were
+        # stored has only its rendered persona_line; that renders unchanged,
+        # and the template still marks it with the turn's own language.
+        "turn_persona_line": lambda t: (pr.persona_line(t["persona"], lang=lang)
+                                        if t.get("persona")
+                                        else t.get("persona_line", "")),
         # Says which particulates the index was actually worked out from. The
         # caption used to claim both, unconditionally, over a reading that can
         # be built from one.
@@ -607,15 +699,17 @@ def today(request: Request):
         # PM10-only branch, so the main comparison printed regardless.
         "who_line": (pr.who_line(data["reading"].get("pm25"), lang=lang,
                                  has_index=True) if is_current else ""),
-        # Each link toggles its own disclosure and clears the others.
-        "q_persona_toggle": _qs(persona, theme, lang,
-                                edit=None if persona_open else "1"),
+        # Each link toggles its own disclosure and clears the others. Closing
+        # needs an explicit edit=0 on a first visit, where absence means open.
+        "q_persona_toggle": _qs(qp, theme, lang,
+                                edit=(("0" if not applied else None)
+                                      if persona_open else "1")),
         # Provenance opens per turn, so history stays independently inspectable.
-        "q_prov": lambda tid: _qs(persona, theme, lang,
+        "q_prov": lambda tid: _qs(qp, theme, lang,
                                   prov=None if open_prov == tid else tid),
-        "q_term_aqi": _qs(persona, theme, lang, term=None if term == "AQI" else "AQI"),
-        "q_term_pm25": _qs(persona, theme, lang, term=None if term == "PM2.5" else "PM2.5"),
-        "q_term_pm10": _qs(persona, theme, lang, term=None if term == "PM10" else "PM10"),
+        "q_term_aqi": _qs(qp, theme, lang, term=None if term == "AQI" else "AQI"),
+        "q_term_pm25": _qs(qp, theme, lang, term=None if term == "PM2.5" else "PM2.5"),
+        "q_term_pm10": _qs(qp, theme, lang, term=None if term == "PM10" else "PM10"),
     })
     return _render(request, "today.html", ctx, sid, theme, lang)
 
@@ -644,10 +738,22 @@ def ask(request: Request, question: str = Form(...)):
         # where the reader was already looking. Nothing is logged: a
         # rate-limit trip is not a security event, and writing one per blocked
         # request would hand the flooder the very index this protects.
-        add_turn(sid, {"kind": "throttled",
+        # Every stored turn is stamped with the language it was composed in.
+        # The transcript outlives the page state that made it: a reader who
+        # asked in English and then switched to Hindi replays English turns on
+        # a page whose <html lang="hi"> claims them as Hindi -- wrong for a
+        # screen reader's phonetics and for the :lang(hi) floors alike -- so
+        # the template marks a turn whose stamp differs from the page.
+        # The persona FACTS, not the rendered sentence. The "Answered for" line
+        # is composed from these at display time in the page's own language, so
+        # a turn asked in English reads in Hindi on the Hindi page -- unlike the
+        # answer body, which is stored copy and keeps its lang stamp. A turn
+        # stored before this field existed carries only its old persona_line,
+        # and the template renders that, marked, exactly as it did.
+        add_turn(sid, {"kind": "throttled", "lang": lang,
                        "question": normalize.excerpt(question),
                        "minutes": max(1, (retry_after + 59) // 60),
-                       "persona_line": pr.persona_line(persona, lang=lang)})
+                       "persona": dict(persona)})
         return _back(request, sid, theme, lang)
 
     data = advisor_data(persona, lang)
@@ -670,9 +776,10 @@ def ask(request: Request, question: str = Form(...)):
         # large question in server memory -- through the one path that exists
         # precisely to refuse it. It is also raw user text, which the transcript
         # cap is meant to bound rather than accumulate.
-        add_turn(sid, {"kind": "refusal", "question": normalize.excerpt(question),
+        add_turn(sid, {"kind": "refusal", "lang": lang,
+                       "question": normalize.excerpt(question),
                        "pattern": pattern,
-                       "persona_line": pr.persona_line(persona, lang=lang)})
+                       "persona": dict(persona)})
         return _back(request, sid, theme, lang)
 
     try:
@@ -715,8 +822,8 @@ def ask(request: Request, question: str = Form(...)):
                        else None))
         parsed = llm.parse_advice(text)
         add_turn(sid, {
-            "kind": "answer", "question": question,
-            "persona_line": pr.persona_line(persona, lang=lang),
+            "kind": "answer", "lang": lang, "question": question,
+            "persona": dict(persona),
             "blocks": pr.answer_sections(parsed, lang=lang),
             "disclaimer": parsed.get("disclaimer"),
             "sources": advisories,
@@ -731,8 +838,8 @@ def ask(request: Request, question: str = Form(...)):
             "error": "; ".join(degraded)})
     except Exception as exc:  # pragma: no cover - top-level safety net
         add_turn(sid, {
-            "kind": "answer", "question": question,
-            "persona_line": pr.persona_line(persona, lang=lang),
+            "kind": "answer", "lang": lang, "question": question,
+            "persona": dict(persona),
             "blocks": [{"heading": i18n.t(lang, "ui", "heading_verdict", "Verdict"),
                         "lead": True,
                         "text": i18n.t(
@@ -1002,7 +1109,10 @@ def city(request: Request):
         "selected_row": next((s for s in stations if s["name"] == selected), None),
         "selected_aqi": next((s["aqi"] for s in stations if s["name"] == selected), None),
         "spark": pr.sparkline_svg(trend.get("points"), lang=lang),
-        "q_station": lambda name: _qs(persona, theme, lang, station=name),
+        # Built from the same persona-or-empty dict as every other link: a
+        # station tile is not a persona choice, so it must not apply one.
+        "q_station": lambda name: _qs(
+            persona if ctx["persona_applied"] else {}, theme, lang, station=name),
     })
     return _render(request, "city.html", ctx, session_id(request), theme, lang)
 
@@ -1023,8 +1133,10 @@ def system(request: Request):
         # asking questions on Today can never populate this view, so telling a
         # reader to go and ask one is a wrong remedy for a misdiagnosed fault.
         "has_index": get_client() is not None,
-        "q_obs": _qs(persona, theme, lang, view="observability"),
-        "q_sec": _qs(persona, theme, lang, view="security"),
+        "q_obs": _qs(persona if ctx["persona_applied"] else {}, theme, lang,
+                     view="observability"),
+        "q_sec": _qs(persona if ctx["persona_applied"] else {}, theme, lang,
+                     view="security"),
         "simulated": request.query_params.get("sim") == "1",
         "attack_count": len(ATTACKS),
     })
@@ -1131,7 +1243,9 @@ def simulate(request: Request):
         # previous run wrote, so there is nothing to explain and nothing new
         # to show.
         return RedirectResponse(
-            "/system?view=security&" + _qs(persona, theme, lang) + "#security",
+            "/system?view=security&"
+            + _qs(persona if persona_applied(request) else {}, theme, lang)
+            + "#security",
             status_code=303)
 
     hashed = normalize.session_hash("red-team-demo")
@@ -1148,7 +1262,8 @@ def simulate(request: Request):
             client.indices.refresh(index=es.INDEX_SECURITY)
     except Exception:
         pass
-    url = "/system?" + _qs(persona, theme, lang, view="security", sim="1")
+    url = "/system?" + _qs(persona if persona_applied(request) else {},
+                           theme, lang, view="security", sim="1")
     return RedirectResponse(url, status_code=303)
 
 
@@ -1408,16 +1523,18 @@ def _set_cookies(response, request: Request, sid: str, theme: str = None,
 # BROWSER refuse to execute one, which is the second, runtime enforcement the
 # stricter rule can have and the weaker one cannot.
 #
-# style-src and font-src name the Google hosts because base.html loads the
-# Devanagari and display faces from them; 'self' covers app.css. No connect-src
-# is needed -- nothing on these pages talks to the network after load, which is
-# the whole point of the architecture.
+# style-src and font-src are 'self' alone: the faces are self-hosted under
+# /static/fonts (scripts/build_fonts.py), so a page that tried to reach the
+# Google font hosts again would be refused by its own policy -- the runtime
+# enforcement of test_privacy's no-third-party rule. No connect-src is needed
+# -- nothing on these pages talks to the network after load, which is the
+# whole point of the architecture.
 _SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "script-src 'none'; "
-        "style-src 'self' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; "
+        "style-src 'self'; "
+        "font-src 'self'; "
         "img-src 'self' data:; "
         "form-action 'self'; "
         "frame-ancestors 'none'; "
@@ -1493,7 +1610,9 @@ def _age_label(ts, lang: str = "en") -> str:
 
 
 def _back(request: Request, sid: str, theme: str, lang: str):
-    persona = read_persona(request)
+    # An empty persona when none was applied: asking a question must not turn
+    # the example persona into a chosen one via the redirect's query string.
+    persona = read_persona(request) if persona_applied(request) else {}
     response = RedirectResponse("/?" + _qs(persona, theme, lang) + "#ask",
                                 status_code=303)
     return _set_cookies(response, request, sid)

@@ -286,14 +286,13 @@ def test_clearing_credentials_needs_them_empty_not_unset():
 
 
 def test_no_page_can_leak_the_persona_in_a_referer_header():
-    """The persona travels in the query string and the page fetches its fonts
-    from a third party, so every page view makes a cross-origin request while
-    the URL holds the reader's age and health condition.
+    """The persona travels in the query string, and the URL holds the reader's
+    age and health condition.
 
-    Current browsers default to strict-origin-when-cross-origin, which sends
-    the origin alone -- so the persona does not in fact reach Google today.
-    That is a default, not a guarantee, and this is the one field that must not
-    leak, so the policy is declared rather than assumed.
+    The fonts are self-hosted now, so no page view makes a cross-origin
+    request -- but the policy stays declared: it is what keeps the persona out
+    of the Referer if a cross-origin link or resource is ever added, rather
+    than depending on the visitor's browser defaulting well.
     """
     from fastapi.testclient import TestClient
 
@@ -309,26 +308,36 @@ def test_no_page_can_leak_the_persona_in_a_referer_header():
             )
 
 
-def test_the_only_third_party_origin_is_the_font_host():
-    """Recorded so that adding another one is a decision rather than a drift.
-
-    The threat model in README names this exposure: a visitor's IP reaches
-    Google on every page view. Self-hosting the two families would remove it
-    and is a change to the deploy artifact, deliberately not made unattended.
+def test_no_page_references_any_third_party_origin():
+    """The fonts were the last third party and they are self-hosted now, so a
+    visitor's IP reaches nobody but this server on a page view. ZERO external
+    origins, in the HTML of every view in both languages and in every
+    stylesheet: adding one back must fail this test, not drift in.
     """
     import re
+    from pathlib import Path
 
     from fastapi.testclient import TestClient
 
     from saafsaans.web.main import app
 
     with TestClient(app) as client:
-        body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
-                                       "condition": "None", "activity": "Walking"}).text
-    origins = {re.match(r"https?://[^/]+", url).group(0)
-               for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', body)}
-    assert origins <= {"https://fonts.googleapis.com", "https://fonts.gstatic.com"}, (
-        f"a new third-party origin appears on the page: {origins}")
+        for path in ("/", "/city", "/system", "/guide"):
+            for lang in ("en", "hi"):
+                body = client.get(path, params={
+                    "locality": "Anand Vihar", "age": "Adult", "lang": lang,
+                    "condition": "Asthma", "activity": "Commute"}).text
+                origins = {re.match(r"https?://[^/]+", url).group(0)
+                           for url in re.findall(
+                               r'(?:href|src)="(https?://[^"]+)"', body)}
+                assert not origins, (
+                    f"{path} ({lang}) references a third-party origin: {origins}")
+
+    import saafsaans.web.main as web_main
+    static = Path(web_main.__file__).parent / "static"
+    for sheet in static.glob("*.css"):
+        assert "url(http" not in sheet.read_text() and "@import" not in sheet.read_text(), (
+            f"{sheet.name} reaches off-origin for a resource")
 
 
 # A credential name that reaches an external service. Deliberately a shape rule

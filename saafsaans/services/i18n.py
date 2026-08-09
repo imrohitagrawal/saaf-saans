@@ -242,11 +242,6 @@ HI: dict = {
         "theme_night": "रात",
         "lang_group": "भाषा",
         "banner_label": "अनुवाद की स्थिति",
-        # The line under the banner, Today only -- see base.html. The default
-        # persona (अस्थमा, बड़ा व्यक्ति, आनंद विहार) is the same one every
-        # reader gets until they change it; this is what points at how.
-        "persona_path": "यह सलाह नीचे दिए ब्यौरे के लिए है, ज़रूरी नहीं कि यह आप हों।",
-        "link_persona_path": "यहाँ बदलिए ›",
         "footer": "आपकी उम्र, बीमारी और आपके काम इसी सेशन में रहते हैं — कहीं दर्ज नहीं "
                   "की जाती। टेलीमेट्री में सिर्फ़ हैश किया हुआ सेशन आईडी और आपका चुना हुआ "
                   "इलाक़ा रहता है, ताकि सिस्टम व्यू इलाक़े के हिसाब से रिक्वेस्ट दिखा सके।",
@@ -289,6 +284,14 @@ HI: dict = {
                       "कितना पुराना है। ‘कोई रीडिंग नहीं’ का मतलब "
                       "है कि उस जगह का कोई आँकड़ा हमारे पास है ही नहीं — इसलिए वहाँ कोई नंबर "
                       "नहीं दिखाया जाता, क्योंकि हमारे पास है नहीं और हम बनाएँगे नहीं।",
+        # Per-row `title` definitions: the legend above, shortened to one
+        # sentence each, because the row is where the tag is read.
+        "tag_cached_def": "पहले की रीडिंग जो अब भी हमारे पास सहेजी हुई है, अपनी उम्र के "
+                          "साथ — यह अभी की हवा नहीं है।",
+        "tag_no_reading_def": "इस स्टेशन का कोई आँकड़ा हमारे पास नहीं है, इसलिए कोई नंबर "
+                              "नहीं दिखाया गया — हम बनाते भी नहीं।",
+        "tag_partial_def": "नंबर में जाने वाली चीज़ों में से सिर्फ़ कुछ से निकाला गया है, "
+                           "इसलिए बाक़ी स्टेशनों से इसकी सीधी तुलना नहीं हो सकती।",
         "sec_trend": "24 घंटे का रुझान",
         "last_24h": "पिछले 24 घंटे",
         "now": "अभी",
@@ -302,10 +305,21 @@ HI: dict = {
         "no_trend_before": "अभी तक कोई रीडिंग सहेजी नहीं गई है —",
         "no_trend_tail": "के लिए। हर लाइव रीडिंग आते ही अपने आप दर्ज हो जाती है, इसलिए "
                          "फ़ीड जवाब देते ही यह भरता जाएगा।",
+        # Reconciles the header's figure with the empty chart under it.
+        "no_trend_number_note": "ऊपर हेडर का आँकड़ा वह सबसे ताज़ा अकेली रीडिंग है जो हम "
+                                "दिखा सकते हैं; यह ग्राफ़ सिर्फ़ सहेजी हुई रीडिंगों से बनता "
+                                "है, इसलिए जब तक वह इतिहास न बन जाए, ऊपर नंबर होते हुए "
+                                "भी ग्राफ़ ख़ाली रह सकता है।",
 
         # --- today.html: hero ---
         "sec_now": "आज की हवा",
         "your_risk": "आपका ख़तरा",
+        # First visit, before any persona is applied: the kicker and the risk
+        # chip both label the default persona as an example rather than
+        # claiming "आपका". Devanagari has no case, so the kicker's CSS
+        # uppercasing changes nothing here.
+        "example_prefix": "उदाहरण —",
+        "example_risk": "उदाहरण व्यक्ति",
         # Replaces the score chip when there is no reading. The score is built
         # on the air, and an assumed AQI would make the number an invented one.
         "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
@@ -354,6 +368,17 @@ HI: dict = {
         # The persona sentence follows, so this ends in a colon rather than
         # wrapping the name the way the English does.
         "advice_for": "यह सलाह इनके लिए है:",
+        # First visit: the same slot, but owning up that the persona shown is
+        # an example. Two fragments around the highlighted persona phrase,
+        # like advice_for above; the second carries the sentence's verb, which
+        # Hindi puts after the phrase.
+        "example_for_before": "यह पेज अभी एक उदाहरण दिखा रहा है —",
+        "example_for_after": "। नीचे अपनी जानकारी भरिए, तो सलाह आपकी अपनी हो जाएगी।",
+        # The path from the unreviewed-translation banner into the persona
+        # editor, rendered directly under the banner on every Hindi page until
+        # a persona is applied.
+        "persona_path_lead": "इस साइट की सलाह अभी एक उदाहरण व्यक्ति के लिए लिखी जा रही है।",
+        "persona_path_link": "अपनी उम्र, सेहत और इलाक़ा यहाँ चुनिए ›",
         "btn_done": "हो गया",
         "btn_change": "जानकारी बदलें",
         "lbl_age": "उम्र",
@@ -586,6 +611,13 @@ HI: dict = {
         "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
         "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
                               "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # The no-index variant. It must not claim anything was logged: with no
+        # database index the guard still blocks, but nothing is recorded, and
+        # the empty state below says so.
+        "sys_sim_note_after_no_index": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक "
+                                       "पहुँचने से पहले रोक दी गईं। कोई डेटाबेस इंडेक्स "
+                                       "कॉन्फ़िगर नहीं है, इसलिए इनमें से कुछ भी नीचे दर्ज "
+                                       "नहीं हुआ।",
         # Follows the count of blocked prompts in one pattern group.
         "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
         # Sits under the list of blocked attempts and explains why the text

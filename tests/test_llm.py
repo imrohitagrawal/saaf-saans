@@ -7,6 +7,10 @@ from saafsaans.services import llm, config, i18n
 
 
 READING = {"aqi": 310, "pm25": 240.0, "dominant_pollutant": "pm25", "stale": False}
+# Unhealthy but below the >300 NO-GO cut, so the verdict is CAUTION and the
+# activity-specific bullet is allowed to appear. Used by the tailoring tests,
+# which need a verdict that does not suppress the thing they assert on.
+CAUTION_READING = {"aqi": 180, "pm25": 110.0, "dominant_pollutant": "pm25", "stale": False}
 STALE_READING = {"aqi": 287, "pm25": 210.0, "dominant_pollutant": "pm25", "stale": True}
 PERSONA = {"age_group": "Adult", "condition": "Asthma", "activity": "Outdoor exercise"}
 ADVISORIES = [{"advice": "Avoid outdoor exercise; wear an N95.", "source": "CPCB"}]
@@ -88,8 +92,13 @@ def test_rule_based_fallback_uses_best_window(monkeypatch):
 
 
 def test_rule_based_fallback_is_activity_aware(monkeypatch):
+    # CAUTION_READING, not READING: at 310 the verdict is NO-GO and the
+    # activity bullet is deliberately withheld (see the suppression tests
+    # below), so tailoring is only observable under a verdict that lets the
+    # activity happen.
     monkeypatch.setattr(config, "openrouter_key", lambda: "")
-    text, _, status = llm.answer(READING, PERSONA, ADVISORIES, "Can I go for swimming?")
+    text, _, status = llm.answer(CAUTION_READING, PERSONA, ADVISORIES,
+                                 "Can I go for swimming?")
     assert status == "llm_fallback"
     assert "swimming" in text.lower()
     assert "pool" in text.lower()  # activity-specific precaution
@@ -99,6 +108,37 @@ def test_rule_based_fallback_generic_when_no_activity(monkeypatch):
     monkeypatch.setattr(config, "openrouter_key", lambda: "")
     text, _, _ = llm.answer(READING, PERSONA, ADVISORIES, "How is the air today?")
     assert "outdoor activity" in text.lower()
+
+
+def test_a_no_go_verdict_suppresses_the_activity_enabling_bullet():
+    """Observed live at AQI 341: the verdict said "avoid walking" and a bullet
+    two lines below said "Keep to shaded, low-traffic streets and take it
+    easy." Every tailored precaution presumes the activity goes ahead, so an
+    avoid verdict must withhold it. Reverting the ``verdict != "NO-GO"`` guard
+    in ``_rule_based`` turns this red."""
+    parsed = llm.parse_advice(
+        llm._rule_based({"aqi": 341}, ADVISORIES, question="Can I go for a walk?"))
+    assert parsed["verdict"] == "NO-GO"
+    assert not any("shaded" in p for p in parsed["precautions"]), parsed["precautions"]
+
+
+def test_a_band_raised_no_go_suppresses_the_bullet_too():
+    """The verdict can reach NO-GO by the persona band as well as by the AQI,
+    and the contradiction is the same either way. AQI 120 alone is a GO."""
+    parsed = llm.parse_advice(
+        llm._rule_based({"aqi": 120}, ADVISORIES, question="Can I go for a walk?",
+                        risk_band="Extreme"))
+    assert parsed["verdict"] == "NO-GO"
+    assert not any("shaded" in p for p in parsed["precautions"]), parsed["precautions"]
+
+
+def test_a_caution_verdict_still_carries_the_tailored_bullet():
+    """The partner that keeps the suppression honest: under a verdict that lets
+    the walk happen, the walking-specific precaution must still appear."""
+    parsed = llm.parse_advice(
+        llm._rule_based(CAUTION_READING, ADVISORIES, question="Can I go for a walk?"))
+    assert parsed["verdict"] == "CAUTION"
+    assert any("shaded" in p for p in parsed["precautions"]), parsed["precautions"]
 
 
 def test_build_message_stale_tag():
@@ -343,8 +383,13 @@ def test_an_untranslated_advisory_still_shows_its_english():
 
 def test_hindi_questions_still_tailor_the_answer_to_the_activity():
     """A Hindi speaker asks in Hindi. Matching English keywords only would give
-    every Hindi reader the generic bullet."""
-    text = llm._rule_based(READING, ADVISORIES, question="क्या मैं आज दौड़ने जा सकता हूँ?")
+    every Hindi reader the generic bullet.
+
+    CAUTION_READING, because at 310 the verdict is NO-GO and the tailored
+    bullet is deliberately withheld -- the verdict sentence still names the
+    activity, which is the half this test can keep at any severity."""
+    text = llm._rule_based(CAUTION_READING, ADVISORIES,
+                           question="क्या मैं आज दौड़ने जा सकता हूँ?")
     assert "running" in text
     assert "Slow the pace" in text
 

@@ -8,6 +8,7 @@
 
 /* ---------------------------------------------------------------- tokens -- */
 :root {
+  color-scheme: light;
   --bg: #F2F1EE; --surface: #FBFAF8; --surface-2: #E9E7E2;
   --border: #DCD9D2; --border-s: #8F8B80;   /* 3.26:1 on --surface */
   --text: #211E19; --text-2: #57524A; --text-3: #6B665D;
@@ -19,12 +20,18 @@
   --n1: #DCE9F6; --n2: #DAEAEE; --n3: #F3E4C4; --n4: #F6DFD2; --n5: #F4D9D7; --n6: #EFD7D2;
   --gx: #6B665D; --nx: #E9E7E2;
 
-  --disp: "Anek Latin", "Segoe UI", sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* The "* Fallback" faces are Arial / Courier New with size-adjust and
+     ascent/descent overrides measured from the real font files by
+     scripts/build_fonts.py (defined in fonts.css), so text that renders
+     before a woff2 arrives occupies the same lines and nothing jumps on
+     swap. */
+  --disp: "Anek Latin", "Anek Latin Fallback", "Segoe UI", sans-serif;
+  --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #12151C; --surface: #1B1F28; --surface-2: #232834;
   --border: #2B303B; --border-s: #6B7280;   /* 3.41:1 on --surface */
   --text: #E8E6E1; --text-2: #ABA79E; --text-3: #8B877E;
@@ -88,7 +95,18 @@ a:hover { color: var(--text); }
 
 .shell { max-width: 1120px; margin: 0 auto; padding: 18px 20px 48px; }
 .mono { font-family: var(--mono); }
-.kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+/* 11px is this file's floor. The instrument register -- kickers, tags, axis
+   labels, the System columns -- had drifted to 9-10.5px, smallest on the page
+   an audience that includes seniors reads least often and squints at hardest.
+   No Latin size cliff exists like the Devanagari 12.5px one, but 11px is the
+   smallest size this design already trusts with information: `.station .bd`
+   carries the band word at 11px and is held to 4.5:1 by tests. Every raised
+   size stays normal-size text under SC 1.4.3 (the 18.66px large-text boundary
+   is nowhere near), so no contrast measurement recorded in this file moves.
+   The register keeps its character from the mono face and the em-based
+   tracking, which scales with the size, not from the missing pixels.
+   tests/test_a11y.py fences every font-size declaration at 11px. */
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
           text-transform: uppercase; color: var(--text-3); }
 h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .page-h1 { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
@@ -125,7 +143,17 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .hero-window .caveat { margin: 0; font-size: 12px; color: #F5F4F0; opacity: .65; }
 
 /* --------------------------------------------------------------- header -- */
-.hdr { position: sticky; top: 0; z-index: 10; background: var(--bg);
+/* Not sticky here. Sticky is granted only inside the (min-width: 900px) block
+   near the a11y remedies, because a stuck header covers the top of the
+   scrollport and the scroll-padding that keeps anchors clear of it is sized
+   for a ONE-ROW header. .hdr-in wraps, and it wraps early: measured in the
+   browser with the shipped fonts loaded, the row needs 804px in English with
+   a fine pointer and 844px with coarse-pointer segment padding (Hindi: 671 /
+   711). Below that, the wrapped header is taller than any constant this file
+   could name, so every anchor jump -- #main from the skip link, #persona,
+   #reading -- landed underneath it. Where the header can wrap it now scrolls
+   away instead, and nothing covers what the browser scrolls to. */
+.hdr { z-index: 10; background: var(--bg);
        border-bottom: 1px solid var(--border); }
 .hdr-in { max-width: 1120px; margin: 0 auto; padding: 12px 20px;
           display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -145,11 +173,34 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .seg [aria-current="true"] { background: var(--accent); color: var(--on-accent); }
 
 /* ----------------------------------------------------------------- grid -- */
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+/* 330px is a card's comfortable minimum, not the page's: at SC 1.4.10's 320px
+   reflow width the shell offers 288px, and a bare 330px minimum forced every
+   page 42px past the viewport. min(330px, 100%) keeps the two-column threshold
+   exactly where it was and lets the track give way when the container is the
+   narrower of the pair. tests/test_a11y.py sums track minimums at 320. */
+.grid { display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
         gap: 16px; align-items: start; }
 .grid > .wide { grid-column: 1 / -1; }
+/* Track caps, set by today.html where the narrow-card count is known at
+   render time. `.wide` spans 1/-1 and occupies every laid track, so auto-fit
+   cannot collapse a column no card fills: with the five-day outlook absent,
+   the two remaining narrow cards left a dead third track at every container
+   from 676px up. grid-duo raises the track minimum to half the row net of the
+   16px gap once that exceeds 330px, so a third track never fits; below 676px
+   the 330px minimum wins and the one-column threshold is exactly .grid's.
+   grid-solo is the open-editor no-outlook page, where the reading is the only
+   narrow card left. tests/test_a11y.py walks the duo arithmetic at 288, 676
+   and 1084px; tests/test_web.py pins which renders carry which cap. */
+.grid-duo  { grid-template-columns: repeat(auto-fit, minmax(max(min(330px, 100%), 50% - 8px), 1fr)); }
+.grid-solo { grid-template-columns: minmax(min(330px, 100%), 1fr); }
 .card { background: var(--surface); border: 1px solid var(--border);
         border-radius: 16px; padding: 16px; }
+/* The persona card until the first Apply: on a first visit the editor is the
+   page's primary task, so it swaps the hairline for the accent. Border only --
+   flat on paper, no shadow, no tint; the promotion is mostly structural (the
+   card renders full width with its form already open, from main.py). */
+.card-primary { border-color: var(--accent); }
 
 /* ------------------------------------------------------------- sky hero -- */
 .hero { position: relative; border-radius: 20px; overflow: hidden; min-height: 330px;
@@ -189,7 +240,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .chip-base { padding: 5px 12px; border-radius: 999px; background: rgba(247,243,236,.12); }
 .hero-window { position: relative; background: rgba(12,13,15,.85); color: #F5F4F0;
                padding: 12px 22px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.hero-window .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; opacity: .7; }
+.hero-window .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; opacity: .7; }
 .hero-window .val { font-family: var(--disp); font-weight: 600; font-size: 17px; }
 .stale-note { margin: 0; font-size: 13px; color: var(--text-2); background: var(--surface);
               border: 1px dashed var(--border-s); border-radius: 10px; padding: 10px 14px; }
@@ -207,7 +258,11 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 
 /* --------------------------------------------------------------- persona -- */
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.persona-line { margin: 0; font-size: 14.5px; font-weight: 400;
+/* min-width: 0, because the 260px basis exceeds the 256px a card offers at the
+   320px reflow width and `min-width: auto` would hold the item at min-content
+   instead of letting the shrink factor act. The basis still decides where the
+   pill button wraps under the sentence; only the floor moves. */
+.persona-line { margin: 0; font-size: 14.5px; font-weight: 400; min-width: 0;
                  color: var(--text-2); flex: 1 1 260px; text-wrap: pretty; }
 .persona-line strong { color: var(--text); font-weight: 600; }
 .pill-btn { border: 1px solid var(--border-s); background: none; color: var(--accent);
@@ -215,7 +270,7 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
             border-radius: 999px; cursor: pointer; text-decoration: none; }
 .fields { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
 .fields label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 130px; }
-.fields .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); }
+.fields .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--text-3); }
 select, input[type="text"] {
   padding: 8px 10px; border: 1px solid var(--border-s); border-radius: 8px;
   background: var(--surface); color: var(--text); font-family: var(--body); font-size: 13.5px;
@@ -235,15 +290,15 @@ select, input[type="text"] {
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
 .scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
 .scale-mark { position: absolute; top: 0; transform: translateX(-50%);
-              font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
+              font-family: var(--mono); font-size: 11px; font-weight: 600; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
 .scale-ends { display: flex; justify-content: space-between; font-family: var(--mono);
-              font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+              font-size: 11px; color: var(--text-3); margin-top: 4px; }
 .pollutants { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; }
 .pollutants div { display: flex; flex-direction: column; gap: 1px; }
-.pollutants .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); }
+.pollutants .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--text-3); }
 .pollutants .val { font-family: var(--mono); font-size: 16px; font-weight: 600; }
-.pollutants .unit { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.pollutants .unit { font-size: 11px; font-weight: 400; color: var(--text-3); }
 .def-slot { margin: 12px 0 0; padding: 8px 12px; background: var(--surface-2);
             border-radius: 8px; font-size: 13px; color: var(--text-2); }
 /* Promoted, and left with exactly one job: the advice on the reading card.
@@ -269,7 +324,7 @@ select, input[type="text"] {
 .q p { margin: 0; font-weight: 600; font-size: 14.5px; }
 .answer { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .answer-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
-.answer h3 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 400;
+.answer h3 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 400;
              letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .answer p:not(.caveat) { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .answer .lead { font-weight: 600; font-size: 14.5px; color: var(--text); }
@@ -283,7 +338,7 @@ select, input[type="text"] {
 .prov-body { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 9px; }
 .prov-ground { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .src-row { display: flex; gap: 9px; align-items: baseline; flex-wrap: wrap; }
-.src-tag { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px;
+.src-tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px;
            border: 1px solid var(--border-s); border-radius: 4px; color: var(--text-2); flex: none; }
 .src-row span + span { font-size: 12px; color: var(--text-3); flex: 1 1 220px; }
 .refusal { margin-top: 10px; border-radius: 12px; background: var(--surface-2); padding: 12px 16px; }
@@ -324,7 +379,7 @@ select, input[type="text"] {
        background: var(--ink); margin-right: 8px; vertical-align: baseline; }
 .station .dot { margin-right: 0; flex: none; }
 .station .nm { flex: 1; min-width: 0; }
-.station .tag { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.station .tag { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);
                width: 76px; text-align: right; }
@@ -352,7 +407,7 @@ select, input[type="text"] {
 .spark { margin-top: 10px; color: var(--accent); }
 .spark svg { display: block; width: 100%; height: auto; }
 .spark-x { display: flex; justify-content: space-between; font-family: var(--mono);
-           font-size: 9.5px; color: var(--text-3); margin-top: 4px; }
+           font-size: 11px; color: var(--text-3); margin-top: 4px; }
 
 /* ---------------------------------------------------------------- system -- */
 /* Deliberately mono-heavy and flat: this register must not sound like advice. */
@@ -369,17 +424,17 @@ select, input[type="text"] {
 .cols { margin-top: 12px; display: flex; align-items: flex-end; gap: 8px; height: 74px; }
 .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
        align-self: stretch; justify-content: flex-end; }
-.col .n { font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+.col .n { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
 .col .b { width: 100%; background: var(--g5); border-radius: 4px 4px 0 0; }
-.col .d { font-family: var(--mono); font-size: 9px; color: var(--text-3); }
+.col .d { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .attempt-group { padding: 11px 0; border-top: 1px solid var(--border); }
 .attempt-head { display: flex; align-items: baseline; gap: 10px; }
 .variant { display: flex; align-items: baseline; gap: 10px; margin-top: 6px;
            padding-left: 4px; flex-wrap: wrap; }
-.pat { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 4px;
+.pat { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px;
        background: var(--n5); color: var(--g5); flex: none; }
 .excerpt { font-size: 12.5px; color: var(--text-2); flex: 1 1 180px; min-width: 0; font-style: italic; }
-.when { font-family: var(--mono); font-size: 10px; color: var(--text-3);
+.when { font-family: var(--mono); font-size: 11px; color: var(--text-3);
         flex: none; margin-left: auto; }
 .sim-note { margin: 10px 0 0; font-size: 12px; color: var(--text-2);
             background: var(--accent-tint); border-radius: 8px; padding: 8px 12px; }
@@ -394,7 +449,15 @@ select, input[type="text"] {
 }
 
 /* ---------------------------------------------- persona, thread, guide ---- */
-.pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px; }
+/* Promoted from the 11px ghost pill it was. "Change details" is the one
+   control that turns the example persona into the reader's own, and at mono
+   11px on a transparent ground it was the least visible element on the card
+   it is the point of. 12.5px is the same step the Devanagari floor already
+   forces on it in Hindi, so the two languages now share a size; the accent
+   tint fills the ground the way the active nav segment fills, so it reads as
+   a control rather than an outline. Still flat -- tint, border, no shadow. */
+.pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px;
+                   font-size: 12.5px; background: var(--accent-tint); }
 .hint { margin: 8px 0 0; font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
 .fields { align-items: flex-end; }
 .fields label { flex: 1 1 200px; }
@@ -409,8 +472,14 @@ select, input[type="text"] {
 .thread { list-style: none; margin: 22px 0 0; padding: 0;
           display: flex; flex-direction: column; gap: 20px; }
 .thread .turn { border-top: 1px solid var(--border); padding-top: 18px; }
-.prov-count { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
+.prov-count { margin-left: auto; color: var(--text-3); font-size: 11px; }
 .prov-body > div + div { margin-top: 4px; }
+
+/* Every Guide table sits in one of these. The EPA rate table is five columns
+   of mono figures and cannot shrink below them, so without its own scroll
+   container it forced the PAGE to scroll sideways at narrow widths
+   (WCAG 1.4.10). The wrapper scrolls; the page never does. */
+.table-scroll { overflow-x: auto; }
 
 .faq { margin: 12px 0 0; display: flex; flex-direction: column; gap: 14px; }
 .faq dt { font-weight: 600; font-size: 14px; }
@@ -436,8 +505,9 @@ html[lang="hi"] {
    weights are untouched -- these rules are scoped to html[lang="hi"] and set no
    value the English page reads.
 
-   Two headings are already at 800, the top of the range base.html requests for
-   Anek Devanagari (500-800), and so cannot be raised: .verdict and .wordmark b.
+   Two headings are already at 800, the top of the range the self-hosted
+   Anek Devanagari variable face carries (fonts-hi.css declares 400-800), and
+   so cannot be raised: .verdict and .wordmark b.
    The remaining Hindi text is set in the body and mono faces, neither of which
    ships Devanagari, so it falls back to the reader's system font and gets no
    benefit from a weight named here. */
@@ -453,21 +523,39 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
           display: flex; flex-direction: column; gap: 6px; }
 .notice p { font-size: 14px; line-height: 1.55; color: var(--text); margin: 0; }
 .notice .notice-en { font-size: 12.5px; color: var(--text-2); }
+/* The Hindi first-visit path from the banner into the persona editor. A
+   sentence with a link, not a control bar: it sits directly under the banner
+   (which itself may hold no control) and disappears once a persona is applied.
+   13px: above the 12.5px Devanagari floor, and this line only ever renders
+   Devanagari. The link keeps the UA underline -- accent-on-text-2 is under the
+   3:1 that would allow colour alone to mark it. */
+.persona-path { margin: 10px 0 2px; font-size: 13px; color: var(--text-2);
+                text-wrap: pretty; }
 
 /* ------------------------------------------------------- a11y remedies ---- */
-/* The header is sticky, so anything the browser scrolls to lands underneath it:
-   the skip link's own #main, and every focus move the tab key has to scroll for.
-   scroll-padding keeps that region out of the scrollport. The value clears the
-   header at its unwrapped height, which tests/test_a11y.py computes from the
-   controls inside it; a wrapped header on a narrow viewport is taller and needs
-   a browser to measure. */
-html { scroll-padding-top: 76px; }
+/* Sticky and its clearance travel together, and only where the header holds
+   one row. 900px sits above the 844px worst case measured at the .hdr rule --
+   English labels, coarse-pointer segment padding -- so inside this block the
+   header height is the unwrapped height, which tests/test_a11y.py computes
+   from the controls inside it, and 76px of scroll-padding provably clears it.
+   Below 900px the header is static (see .hdr) and needs no clearance: an
+   anchor target lands flush at the top of an uncovered scrollport, so a
+   scroll-padding here would only push it down a blank 76px strip. */
+@media (min-width: 900px) {
+  .hdr { position: sticky; top: 0; }
+  html { scroll-padding-top: 76px; }
+}
 
 /* Skip link: the sticky header repeats six controls on every page. */
 .skip { position: absolute; left: -9999px; top: 0; z-index: 100;
         background: var(--surface); color: var(--text); padding: 10px 16px;
         border: 1px solid var(--border-s); border-radius: 0 0 8px 0; }
 .skip:focus { left: 0; }
+
+/* Offscreen aria-describedby targets (City Pulse's per-tag definitions). The
+   same offscreen mechanics as .skip, never display:none, which would empty
+   the accessible description the ids exist to provide. */
+.sr-def { position: absolute; left: -9999px; }
 
 /* .seg clips the global focus ring (outline-offset draws outside the child),
    and on the active pill the ring colour equalled its own background. Draw it
@@ -524,7 +612,7 @@ select { padding: 12px 10px; }
 }
 
 /* h2 styled as a kicker: the level carries the outline, the class carries the look. */
-h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
+h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
             letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
 
 
@@ -566,8 +654,8 @@ h2.kicker { font-family: var(--mono); font-size: 10px; font-weight: 400;
   letter-spacing: normal;
 }
 *:lang(en) {
-  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
 
 /* Vertical centring across scripts. Latin and Devanagari allocate their line

@@ -27,7 +27,11 @@ from saafsaans.services import aqi_scale, clock, i18n, normalize, risk, waqi
 from saafsaans.web import presenters as pr
 from saafsaans.web.main import app
 
-PERSONA = {"age": "Adult", "condition": "Asthma",
+# All FOUR persona fields: these tests assert the page a reader with an
+# APPLIED persona sees, and persona_applied now requires the full set --
+# without the locality the whole file would silently run in the first-visit
+# example state, where the risk comparison is withheld for its own reason.
+PERSONA = {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
            "activity": "Outdoor exercise", "theme": "light"}
 
 # High enough to land in a severity band nobody could mistake for neutral: this
