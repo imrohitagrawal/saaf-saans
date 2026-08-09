@@ -25,7 +25,11 @@
         {#- The number is a fact and survives; the band WORD is a claim about
             the air now, so it belongs to a current reading only. This is the
             same split /city makes on its tiles for the same reason. -#}
-        <span class="hero-pill">AQI {{ reading.aqi }}{% if is_current %} · {{ band_label | upper }}{% endif %}</span>
+        {#- Upper-cased in CSS, not by a filter, same reason as the place span
+            above: `| upper` baked capitals into the band word's own
+            characters, so the `:lang(hi)` reset a few lines down in app.css
+            had nothing left to cancel on a Hindi page. -#}
+        <span class="hero-pill">AQI {{ reading.aqi }}{% if is_current %} · {{ band_label }}{% endif %}</span>
         {%- endif %}
       </div>
       <div class="hero-kicker">{{ kicker }}</div>
@@ -43,7 +47,7 @@
             number and its band word would be an invented severity. The chip
             says what is actually known instead. -#}
         {% if is_current %}
-        <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) | upper }}</span>
+        <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) }}</span>
         <span class="chip-base">{{ T('ui', 'baseline_chip', 'healthy adult, same plans') }} · {{ baseline }}</span>
         {% elif has_reading %}
         <span class="chip-risk">{{ T('ui', 'risk_held', 'HELD READING — WE CANNOT SCORE YOUR RISK') }}</span>
@@ -181,7 +185,7 @@
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
       {#- Suppressed, not neutralised to "Unknown": a held reading's band is
           not unknown, it is simply not what this page is entitled to state. -#}
-      {% if is_current %}<span class="band-chip">{{ band_label | upper }}</span>{% endif %}
+      {% if is_current %}<span class="band-chip">{{ band_label }}</span>{% endif %}
       {#- A class, not an inline size: an inline declaration outranks every
           selector, so a size written here is permanently out of reach of the
           Devanagari floor in app.css and this line rendered at 11px in Hindi. -#}
