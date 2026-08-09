@@ -28,7 +28,10 @@
         <span class="hero-pill">AQI {{ reading.aqi }}{% if is_current %} · {{ band_label | upper }}{% endif %}</span>
         {%- endif %}
       </div>
-      <div class="hero-kicker">{{ kicker }}</div>
+      {#- Until a persona is applied this page is somebody else's weather
+          report: the kicker and the risk chip below both say so. The word
+          EXAMPLE is the claim; the persona card carries the way out. -#}
+      <div class="hero-kicker">{% if not persona_applied %}{{ T('ui', 'example_prefix', 'EXAMPLE —') }} {% endif %}{{ kicker }}</div>
       <h1 class="verdict">{{ verdict }}</h1>
       {#- The band advice is keyed on a band. With no reading there is no band,
           so the page gives the one instruction that does not depend on knowing
@@ -43,7 +46,13 @@
             number and its band word would be an invented severity. The chip
             says what is actually known instead. -#}
         {% if is_current %}
-        <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) | upper }}</span>
+        {#- "YOUR RISK" is a claim about the reader, and until the first Apply
+            the persona behind the score is one the reader never chose --
+            hard-coded Adult/Asthma defaults wearing the visitor's "YOU". The
+            score itself survives (it is a real computation over the real air,
+            and showing it is what demonstrates the product); only its OWNER
+            changes. -#}
+        <span class="chip-risk">{{ T('ui', 'your_risk', 'YOUR RISK') if persona_applied else T('ui', 'example_risk', 'EXAMPLE PERSONA') }} · {{ risk.score }}/100 · {{ T('ui', 'risk_band_' ~ risk.band, risk.band) | upper }}</span>
         <span class="chip-base">{{ T('ui', 'baseline_chip', 'healthy adult, same plans') }} · {{ baseline }}</span>
         {% elif has_reading %}
         <span class="chip-risk">{{ T('ui', 'risk_held', 'HELD READING — WE CANNOT SCORE YOUR RISK') }}</span>
@@ -88,9 +97,21 @@
   {% endif %}
 
   {# --- Persona. Spans full width while editing so four fields have room. --- #}
-  <section class="card {% if persona_open %}wide{% endif %}" aria-label="{{ T('ui', 'sec_persona', 'Your persona') }}" id="persona">
+  {#- card-primary until the first Apply: on a first visit this editor is the
+      page's one real task -- everything above it is an example's advice -- so
+      it takes the accent border and (via persona_open defaulting open in
+      main.py) the full-width open form. The first Apply puts a persona in the
+      query string and the card falls back to its quiet resident self. -#}
+  <section class="card {% if persona_open %}wide{% endif %}{% if not persona_applied %} card-primary{% endif %}" aria-label="{{ T('ui', 'sec_persona', 'Your persona') }}" id="persona">
     <div class="row">
+      {%- if persona_applied %}
       <p class="persona-line">{{ T('ui', 'advice_for', 'This advice is for') }} <strong>{{ persona_line }}</strong>.</p>
+      {%- else %}
+      {#- Two fragments around the <strong>, like advice_for above: Hindi
+          orders the sentence differently, so each language writes its own
+          whole clauses rather than composing from shared pieces. -#}
+      <p class="persona-line">{{ T('ui', 'example_for_before', 'This page is showing an example —') }} <strong>{{ persona_line }}</strong>{{ T('ui', 'example_for_after', '. Fill in your own details and the advice becomes yours.') }}</p>
+      {%- endif %}
       <a class="pill-btn strong" style="margin-left:auto"
          href="/?{{ q_persona_toggle }}#persona"
          aria-expanded="{{ 'true' if persona_open else 'false' }}">
@@ -162,8 +183,13 @@
         is_current, not has_reading: a HELD reading HAS an aqi, so has_reading
         let both scores through on a page whose own chip reads "HELD READING --
         WE CANNOT SCORE YOUR RISK" forty lines above. Same defect as the
-        assumed-AQI case, one freshness state over. -#}
-    {% if is_current %}
+        assumed-AQI case, one freshness state over.
+
+        And persona_applied: the sentence says "Your {score} comes from
+        asthma", which is the hero chip's "YOUR" arriving by a second route.
+        On a first visit the card's own example line directly above already
+        owns the score, so the comparison waits for a persona to compare. -#}
+    {% if is_current and persona_applied %}
     <p class="compare">{{ compare }}</p>
     {% endif %}
     <div class="drivers">

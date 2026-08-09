@@ -218,6 +218,9 @@ def pages():
                     follow_redirects=True)
         views = {
             "today": ("/", PERSONA),
+            # No persona parameter at all: the first-visit state, where the
+            # persona card renders as .card-primary with its editor open.
+            "today-first-visit": ("/", {"theme": "light"}),
             "today-persona-open": ("/", {**PERSONA, "edit": "1"}),
             "today-term-open": ("/", {**PERSONA, "term": "PM2.5"}),
             "city": ("/city", PERSONA),
@@ -955,6 +958,9 @@ def hindi_pages():
                     follow_redirects=True)
         views = {
             "today": ("/", persona),
+            # First visit in Hindi: renders .persona-path, the banner's route
+            # into the persona editor, so its Devanagari sizes get measured.
+            "today-first-visit": ("/", {"theme": "light", "lang": "hi"}),
             "today-persona-open": ("/", {**persona, "edit": "1"}),
             "today-term-open": ("/", {**persona, "term": "PM2.5"}),
             "city": ("/city", persona),

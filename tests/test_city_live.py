@@ -21,7 +21,10 @@ from fastapi.testclient import TestClient
 from saafsaans.services import i18n, normalize, waqi
 from saafsaans.web.main import app
 
-PERSONA = {"age": "Adult", "condition": "Asthma",
+# All four fields: persona_applied requires the full set, and these pages are
+# meant to be the ones an applied-persona reader sees, not the first-visit
+# example state.
+PERSONA = {"locality": "Anand Vihar", "age": "Adult", "condition": "Asthma",
            "activity": "Outdoor exercise", "theme": "light"}
 
 # A distinct, in-range PM2.5 per locality, so a tile showing another station's

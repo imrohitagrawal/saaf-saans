@@ -1737,3 +1737,154 @@ def test_the_guide_names_every_effort_level_the_way_its_own_table_does(client):
     assert levels, "no intensity rows, so this proves nothing"
     assert levels <= columns, (sorted(levels - columns),
                               "effort levels a reader cannot find a column for")
+
+
+# --- First visit: the example persona is labelled as one ---------------------
+# The persona rides only in the query string, so "no valid persona parameter"
+# IS the first-visit state -- detectable with no JavaScript and no client
+# storage. main.persona_applied is the predicate; every link a first-visit
+# page emits keeps the query string persona-free so the state survives the
+# theme toggle, the language toggle and the nav.
+
+def test_first_visit_labels_the_risk_as_an_example_not_yours(client, live_feed):
+    """Bite: reverting the hero branches in today.html turns this red -- the
+    chip read "YOUR RISK · n/100" and the kicker carried no EXAMPLE for the
+    hard-coded Adult/Asthma default the visitor never chose."""
+    body = client.get("/", params={"theme": "light"}).text
+    assert "YOUR RISK" not in body
+    assert re.search(r"EXAMPLE PERSONA · \d+/100", body)
+    assert "EXAMPLE — FOR AN ADULT WITH ASTHMA" in body
+    # The comparison sentence says "Your {score}", the same claim by a second
+    # route, so it waits for a persona.
+    assert 'class="compare"' not in body
+
+
+def test_an_applied_persona_keeps_your_risk_and_loses_the_example_label(client, live_feed):
+    """Bite: guards the other direction -- the returning visitor's page must
+    not start calling their own risk an example's."""
+    body = client.get("/", params=PERSONA).text
+    assert "YOUR RISK · " in body
+    assert "EXAMPLE PERSONA" not in body
+    assert "EXAMPLE — FOR" not in body
+    assert "card-primary" not in body
+    assert 'class="compare"' in body
+
+
+def test_first_visit_opens_the_persona_editor_as_the_primary_card(client):
+    """Bite: fails without main.py's persona_open default and today.html's
+    card-primary class -- the first-visit editor was a closed card behind an
+    11px pill."""
+    body = client.get("/", params={"theme": "light"}).text
+    assert "card-primary" in body
+    assert 'name="condition"' in body                # the form is open
+    assert "This page is showing an example" in body
+    # The first Apply returns the card to its quiet, closed, accent-less self.
+    applied = client.get("/", params=PERSONA).text
+    assert "card-primary" not in applied
+    assert 'name="condition"' not in applied
+    # The default-open editor can still be closed without applying anything.
+    closed = client.get("/", params={"theme": "light", "edit": "0"}).text
+    assert 'name="condition"' not in closed
+    assert "card-primary" in closed
+
+
+def test_a_partial_or_invalid_persona_does_not_earn_the_your_label(client, live_feed):
+    """read_persona swaps a missing or invalid value for its default, so a
+    crafted or hand-truncated link must not dress that default in YOUR.
+
+    Both halves matter. ``/?condition=nonsense``: no valid field at all.
+    ``/?age=Child``: ONE valid field while the other three default -- Asthma
+    included -- which any() accepted as applied. No site-emitted link produces
+    partial params (the form submits all four, links carry all or none), so
+    all() costs nothing legitimate. Bite: reverting persona_applied's all(...)
+    to any(...) turns the partial cases red; checking mere presence instead of
+    validity turns the nonsense case red."""
+    for params in ({"condition": "nonsense"},          # invalid value
+                   {"age": "Child"},                   # one valid, three default
+                   {"age": "Child", "condition": "COPD",
+                    "activity": "Commute"}):           # three valid, one default
+        body = client.get("/", params=params).text
+        assert "YOUR RISK" not in body, params
+        assert re.search(r"EXAMPLE PERSONA · \d+/100", body), params
+    # All four valid fields is the applied state, exactly as the form submits.
+    full = client.get("/", params=PERSONA).text
+    assert "YOUR RISK · " in full
+
+
+def test_first_visit_links_never_smuggle_the_default_persona(client):
+    """The first click -- theme, language, any nav link -- must not write
+    Adult/Asthma into the query string. Bite: fails without base_context
+    building its query strings from an empty persona pre-Apply."""
+    body = client.get("/", params={"theme": "light"}).text
+    hrefs = re.findall(r'href="(/[^"]*\?[^"]*)"', body)
+    assert hrefs, "no internal links found, so this proves nothing"
+    for href in hrefs:
+        for key in ("condition=", "age=", "activity=", "locality="):
+            assert key not in href, (key, href)
+    # ...and the same page with a persona applied carries it on every link,
+    # which is the behaviour the language-toggle test already pins.
+    applied = client.get("/", params=PERSONA).text
+    assert "condition=Asthma" in applied
+
+
+def test_asking_on_a_first_visit_keeps_the_persona_unchosen(client):
+    """Bite: fails without the _back change -- the post-ask redirect rebuilt
+    its query string from read_persona's defaults and applied them."""
+    r = client.post("/ask", data={"question": "Can I go out?"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    location = r.headers["location"]
+    assert "#ask" in location
+    for key in ("condition=", "age=", "activity=", "locality="):
+        assert key not in location, (key, location)
+
+
+def test_change_details_is_no_longer_an_11px_ghost():
+    """The one control that turns the example into the reader's own. Bite:
+    fails if .pill-btn.strong loses its promoted size or its filled ground and
+    falls back to the plain pill's transparent mono 11px."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1]
+           / "saafsaans/web/static/app.css").read_text()
+    block = re.search(r"\.pill-btn\.strong\s*\{([^}]*)\}", css).group(1)
+    assert "font-size: 12.5px" in block
+    assert "background: var(--accent-tint)" in block
+
+
+def test_the_hindi_banner_has_a_path_into_the_persona_editor():
+    """Meera's route: Hindi-first, sees अस्थमा in an example persona, and the
+    element she met first -- the unreviewed-translation banner -- must lead to
+    the editor from EVERY page it renders on. Beside the banner, not inside
+    it: the banner itself may hold no control (pinned above). Bite: fails
+    without the persona-path block in base.html."""
+    with TestClient(app) as c:
+        for path in HINDI_PAGES:
+            body = c.get(path, params={"lang": "hi"}).text
+            found = re.search(r'class="persona-path".*?href="([^"]+)"', body, re.S)
+            assert found, path
+            href = found.group(1)
+            assert href.startswith("/?"), href
+            assert "edit=1" in href and href.endswith("#persona"), href
+            # The first click of a Hindi reader must stay Hindi.
+            assert "lang=hi" in href, href
+    with TestClient(app) as c:
+        # Gone once a persona is applied: the persona card owns the editor then.
+        applied = c.get("/", params={**PERSONA, "lang": "hi"}).text
+        assert "persona-path" not in applied
+    with TestClient(app) as c:
+        # And never on an English page, whose banner does not render either.
+        english = c.get("/", params={"lang": "en"}).text
+        assert "persona-path" not in english
+
+
+def test_the_hindi_first_visit_page_labels_the_example_in_hindi(live_feed):
+    """Bite: fails if the new keys lose their HI entries -- the chip and the
+    kicker would fall back to Latin EXAMPLE strings on a Devanagari page."""
+    with TestClient(app) as c:
+        body = c.get("/", params={"lang": "hi"}).text
+    # The chip's own shape, score attached: the persona-path sentence also
+    # contains उदाहरण व्यक्ति, so a bare substring would not notice the chip
+    # falling back to Latin EXAMPLE PERSONA.
+    assert re.search(r"उदाहरण व्यक्ति · \d+/100", body)
+    assert "उदाहरण —" in body                 # the kicker prefix
+    assert "आपका ख़तरा" not in body           # never "your risk" unchosen

@@ -91,6 +91,17 @@
     <p>{{ review_banner }}</p>
     <p class="notice-en" lang="en">{{ review_banner_en }}</p>
   </aside>
+  {#- The way OUT of the example persona, directly under the banner a Hindi
+      first-visit reader meets before anything else. Outside the <aside>, not
+      inside it: the banner is a statement about the translation and carries
+      no control of any kind (tests pin that), so the path sits beside it
+      rather than in it. Gone once a persona is applied -- the persona card
+      itself is the editor's home then. q_edit lands on Today with the editor
+      open from every page this banner renders on. -#}
+  {% if not persona_applied %}
+  <p class="persona-path">{{ T('ui', 'persona_path_lead', 'The advice on this site is written for an example person right now.') }}
+    <a href="/?{{ q_edit }}#persona">{{ T('ui', 'persona_path_link', 'Set your own age, health and area ›') }}</a></p>
+  {% endif %}
   {% endif %}
   {% block content %}{% endblock %}
 </main>

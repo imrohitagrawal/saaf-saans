@@ -314,6 +314,12 @@ HI: dict = {
         # --- today.html: hero ---
         "sec_now": "आज की हवा",
         "your_risk": "आपका ख़तरा",
+        # First visit, before any persona is applied: the kicker and the risk
+        # chip both label the default persona as an example rather than
+        # claiming "आपका". Devanagari has no case, so the kicker's CSS
+        # uppercasing changes nothing here.
+        "example_prefix": "उदाहरण —",
+        "example_risk": "उदाहरण व्यक्ति",
         # Replaces the score chip when there is no reading. The score is built
         # on the air, and an assumed AQI would make the number an invented one.
         "risk_no_reading": "कोई रीडिंग नहीं — आपका ख़तरा नहीं आँका जा सकता",
@@ -362,6 +368,17 @@ HI: dict = {
         # The persona sentence follows, so this ends in a colon rather than
         # wrapping the name the way the English does.
         "advice_for": "यह सलाह इनके लिए है:",
+        # First visit: the same slot, but owning up that the persona shown is
+        # an example. Two fragments around the highlighted persona phrase,
+        # like advice_for above; the second carries the sentence's verb, which
+        # Hindi puts after the phrase.
+        "example_for_before": "यह पेज अभी एक उदाहरण दिखा रहा है —",
+        "example_for_after": "। नीचे अपनी जानकारी भरिए, तो सलाह आपकी अपनी हो जाएगी।",
+        # The path from the unreviewed-translation banner into the persona
+        # editor, rendered directly under the banner on every Hindi page until
+        # a persona is applied.
+        "persona_path_lead": "इस साइट की सलाह अभी एक उदाहरण व्यक्ति के लिए लिखी जा रही है।",
+        "persona_path_link": "अपनी उम्र, सेहत और इलाक़ा यहाँ चुनिए ›",
         "btn_done": "हो गया",
         "btn_change": "जानकारी बदलें",
         "lbl_age": "उम्र",

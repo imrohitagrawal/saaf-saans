@@ -150,6 +150,11 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .grid > .wide { grid-column: 1 / -1; }
 .card { background: var(--surface); border: 1px solid var(--border);
         border-radius: 16px; padding: 16px; }
+/* The persona card until the first Apply: on a first visit the editor is the
+   page's primary task, so it swaps the hairline for the accent. Border only --
+   flat on paper, no shadow, no tint; the promotion is mostly structural (the
+   card renders full width with its form already open, from main.py). */
+.card-primary { border-color: var(--accent); }
 
 /* ------------------------------------------------------------- sky hero -- */
 .hero { position: relative; border-radius: 20px; overflow: hidden; min-height: 330px;
@@ -394,7 +399,15 @@ select, input[type="text"] {
 }
 
 /* ---------------------------------------------- persona, thread, guide ---- */
-.pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px; }
+/* Promoted from the 11px ghost pill it was. "Change details" is the one
+   control that turns the example persona into the reader's own, and at mono
+   11px on a transparent ground it was the least visible element on the card
+   it is the point of. 12.5px is the same step the Devanagari floor already
+   forces on it in Hindi, so the two languages now share a size; the accent
+   tint fills the ground the way the active nav segment fills, so it reads as
+   a control rather than an outline. Still flat -- tint, border, no shadow. */
+.pill-btn.strong { border-color: var(--accent); font-weight: 600; padding: 6px 14px;
+                   font-size: 12.5px; background: var(--accent-tint); }
 .hint { margin: 8px 0 0; font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
 .fields { align-items: flex-end; }
 .fields label { flex: 1 1 200px; }
@@ -459,6 +472,14 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
           display: flex; flex-direction: column; gap: 6px; }
 .notice p { font-size: 14px; line-height: 1.55; color: var(--text); margin: 0; }
 .notice .notice-en { font-size: 12.5px; color: var(--text-2); }
+/* The Hindi first-visit path from the banner into the persona editor. A
+   sentence with a link, not a control bar: it sits directly under the banner
+   (which itself may hold no control) and disappears once a persona is applied.
+   13px: above the 12.5px Devanagari floor, and this line only ever renders
+   Devanagari. The link keeps the UA underline -- accent-on-text-2 is under the
+   3:1 that would allow colour alone to mark it. */
+.persona-path { margin: 10px 0 2px; font-size: 13px; color: var(--text-2);
+                text-wrap: pretty; }
 
 /* ------------------------------------------------------- a11y remedies ---- */
 /* The header is sticky, so anything the browser scrolls to lands underneath it:
