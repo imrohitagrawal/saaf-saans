@@ -1042,3 +1042,88 @@ def test_the_unaddressable_set_is_derived_from_the_tables():
     assert all(loc not in cpcb.STATION_ALIAS for loc in cpcb.UNADDRESSABLE)
     for loc in cpcb.STATION_ALIAS:
         assert loc not in cpcb.UNADDRESSABLE, loc
+
+
+# ------------------------------- a live reading must carry a NUMBER to win
+def test_a_numberless_waqi_reading_does_not_beat_a_held_cpcb_payload(feed, monkeypatch):
+    """Measured on a real CPCB outage: every Delhi tile rendered "--" while
+    cpcb.values_for was returning pm25 53 / pm10 90 on that very render. The
+    held payload was reachable the whole time; it lost one layer up.
+
+    ``_fetch_feed`` passes through a reading whose ``aqi`` is None when the feed
+    carried a headline value but no invertible particulate -- its guard is ``aqi
+    is None AND feed_aqi is None``, an ``and``, and that is deliberate so the
+    provenance panel can show WAQI's own figure. ``_choose`` then preferred such
+    a reading over a held payload purely for being non-None, trading real
+    numbers for a blank. And because it is not ``retained``, ``_cache_get`` gave
+    it the 600s TTL, so the blank outlived CPCB's recovery by ten minutes.
+    """
+    _hold_delhi(feed, monkeypatch, pm25=53, pm10=90)
+
+    class OzoneOnly:
+        """The right station, a headline AQI, and nothing to invert."""
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "data": {
+                "aqi": 412, "city": {"name": "Wazirpur, Delhi"},
+                "iaqi": {"o3": {"v": 30}},
+                "time": {"iso": FRESH_WAQI_ISO}}}
+
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(waqi.requests, "get", lambda *a, **k: OzoneOnly())
+
+    reading, status = waqi.get_aqi("Wazirpur")
+
+    assert status == "ok"
+    # The whole point: a number reaches the tile.
+    assert reading["aqi"] is not None, "the city would render -- for every tile"
+    assert reading["source"] == "cpcb" and reading["retained"] is True
+    assert (reading["pm25"], reading["pm10"]) == (53.0, 90.0)
+
+
+def test_a_live_waqi_reading_with_a_number_still_beats_a_held_payload(feed, monkeypatch):
+    """The mirror, and it is the reason the guard tests the NUMBER rather than
+    simply preferring CPCB whenever it holds something: a genuinely live WAQI
+    reading must still win, or retention quietly becomes "serve the stale
+    primary" -- the defect _choose's retained branch exists to prevent."""
+    _hold_delhi(feed, monkeypatch, pm25=53, pm10=90)
+    calls = _waqi_live(monkeypatch)
+
+    reading, status = waqi.get_aqi("Wazirpur")
+
+    assert status == "ok" and calls
+    assert reading["source"] == "waqi" and reading["retained"] is False
+    assert reading["aqi"] is not None
+
+
+def test_a_numberless_reading_is_retried_on_the_short_clock(monkeypatch):
+    """The second half. Serving the held payload fixes the render; without this
+    a numberless reading that DOES get served still earns the 600s TTL and pins
+    whatever it produced for ten minutes past the upstream's recovery."""
+    monkeypatch.setattr(config, "waqi_token", lambda: "tok")
+    monkeypatch.setattr(config, "cpcb_key", lambda: "")
+
+    class OzoneOnly:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "data": {
+                "aqi": 412, "city": {"name": "ITO, Delhi"},
+                "iaqi": {"o3": {"v": 30}},
+                "time": {"iso": FRESH_WAQI_ISO}}}
+
+    calls = []
+    monkeypatch.setattr(waqi.requests, "get",
+                        lambda *a, **k: (calls.append(1), OzoneOnly())[1])
+
+    waqi.get_aqi("ITO")
+    assert len(calls) == 1
+    with waqi._CACHE_LOCK:
+        for key, (stored_at, r, s) in list(waqi._CACHE.items()):
+            waqi._CACHE[key] = (stored_at - waqi._CACHE_TTL_FALLBACK - 1, r, s)
+    waqi.get_aqi("ITO")
+    assert len(calls) == 2, (
+        "a reading with no number was cached for the full live TTL")

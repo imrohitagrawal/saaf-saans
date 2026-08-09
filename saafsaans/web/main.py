@@ -754,6 +754,27 @@ _CITY_FETCH_WORKERS = 8
 # ceil(21/8) of them.
 _CITY_FETCH_BUDGET = 6.0
 
+# ONE pool for the process, not one per request.
+#
+# This was built inside _live_grid and shut down with wait=False, which does not
+# cancel queued work. Under a SLOW upstream -- the case that matters, and the
+# production steady state on a machine that scales to zero -- the eight workers
+# are still occupied when the budget expires and the response is sent, so N
+# concurrent /city renders meant 8N live threads, each holding its own TLS
+# session, on a 256MB shared-cpu-1x machine. Nothing bounded N: /city is not
+# rate-limited, on the reasoning that the 600s memo caps upstream CALLS. It does,
+# and calls were never the resource that runs out first -- that memo is exactly
+# what makes the warm case free and leaves the cold case unbounded.
+#
+# (With FAST tasks there is no difference: the workers finish, the per-request
+# executor is collected, and its threads are joined. Measured 7 threads either
+# way. So the invariant only shows up under a slow upstream, which is how the
+# test below is written.)
+#
+# Deliberately never shut down: it lives as long as the process.
+_CITY_POOL = ThreadPoolExecutor(max_workers=_CITY_FETCH_WORKERS,
+                                thread_name_prefix="city-fetch")
+
 
 def _live_grid(es_client) -> dict:
     """``{locality: (reading, status)}`` from the SAME source the Today page uses.
@@ -785,32 +806,32 @@ def _live_grid(es_client) -> dict:
         except Exception:
             return waqi._fallback(loc), "fallback"
 
-    pool = ThreadPoolExecutor(max_workers=_CITY_FETCH_WORKERS)
-    try:
-        futures = {loc: pool.submit(one, loc) for loc in waqi.LOCALITIES}
-        # A WALL-CLOCK budget for the whole sweep, not per call. This machine is
-        # one 256MB instance that scales to zero, so the first /city request
-        # after a wake has an empty cache and does all 21 fetches on the request
-        # thread. With waqi.TIMEOUT per call and 8 workers, an unresponsive
-        # upstream blocked the response for ceil(21/8) x TIMEOUT before a byte of
-        # HTML was written, and the 60s failure TTL made that repeat every
-        # minute. Whatever has not answered by the deadline is treated as a
-        # locality with no live reading -- which the page already renders
-        # honestly, as CACHED with an age or NO READING. The in-flight calls are
-        # not cancelled: they finish in the background and populate the cache for
-        # the next render, so the budget costs freshness once, not repeatedly.
-        deadline = time.monotonic() + _CITY_FETCH_BUDGET
-        out = {}
-        for loc, fut in futures.items():
-            remaining = max(0.0, deadline - time.monotonic())
-            try:
-                out[loc] = fut.result(timeout=remaining)
-            except Exception:
-                out[loc] = (waqi._fallback(loc), "fallback")
-        return out
-    finally:
-        # wait=False: the point of the deadline is not to wait for the stragglers.
-        pool.shutdown(wait=False)
+    futures = {loc: _CITY_POOL.submit(one, loc) for loc in waqi.LOCALITIES}
+    # A WALL-CLOCK budget for the whole sweep, not per call. This machine is one
+    # 256MB instance that scales to zero, so the first /city request after a wake
+    # has an empty cache and does all 21 fetches on the request thread. With
+    # waqi.TIMEOUT per call and 8 workers, an unresponsive upstream blocked the
+    # response for ceil(21/8) x TIMEOUT before a byte of HTML was written, and the
+    # 60s failure TTL made that repeat every minute. Whatever has not answered by
+    # the deadline is treated as a locality with no live reading -- which the page
+    # already renders honestly, as CACHED with an age or NO READING. The
+    # in-flight calls are not cancelled: they finish in the background and
+    # populate the cache for the next render, so the budget costs freshness once,
+    # not repeatedly.
+    #
+    # Nothing is shut down here now: the pool is process-wide, so shutting it
+    # down would break every later request. That is also what bounds the
+    # stragglers this budget abandons -- they queue inside a pool of eight
+    # instead of every render opening eight more.
+    deadline = time.monotonic() + _CITY_FETCH_BUDGET
+    out = {}
+    for loc, fut in futures.items():
+        remaining = max(0.0, deadline - time.monotonic())
+        try:
+            out[loc] = fut.result(timeout=remaining)
+        except Exception:
+            out[loc] = (waqi._fallback(loc), "fallback")
+    return out
 
 
 def _partial(reading) -> bool:

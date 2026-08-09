@@ -497,3 +497,49 @@ def test_a_tile_with_both_particulates_is_never_marked(monkeypatch):
     assert _partial(only10) is True
     assert neither["aqi"] is None and _partial(neither) is False
     assert _partial(None) is False
+
+
+def test_the_city_fetch_pool_is_shared_by_the_whole_process(monkeypatch):
+    """One pool, not one per request.
+
+    _live_grid built a ThreadPoolExecutor per call and shut it down with
+    wait=False, which does not cancel queued work. The invariant only shows up
+    under a SLOW upstream, and that is deliberate in this test: with fast tasks
+    the workers finish, the per-request executor is garbage collected and its
+    threads are joined, so both spellings measure the same 7 threads. Under a
+    slow one the eight workers are still occupied when the budget expires and the
+    response goes out, so N concurrent renders held 8N threads -- each with its
+    own TLS session -- on a 256MB machine. /city is not rate-limited, on the
+    reasoning that the 600s memo caps upstream CALLS; it does, and calls were
+    never the resource that ran out first.
+
+    Asserted as thread-count growth rather than as the pool object's identity, so
+    a rewrite that keeps the property passes however it spells it.
+    """
+    import threading
+    import time as _time
+
+    from saafsaans.web import main as web_main
+
+    release = threading.Event()
+
+    def slow(loc, es_client=None):
+        release.wait(10)
+        return {"aqi": None}, "fallback"
+
+    monkeypatch.setattr(web_main.waqi, "get_aqi", slow)
+    monkeypatch.setattr(web_main, "_CITY_FETCH_BUDGET", 0.05)
+
+    try:
+        before = threading.active_count()
+        for _ in range(4):
+            web_main._live_grid(None)      # each returns on the budget, workers stuck
+        peak = threading.active_count()
+    finally:
+        release.set()
+        _time.sleep(0.2)
+
+    # Four renders against a hung upstream. A shared pool is capped at eight
+    # workers however many renders pile up; a per-request pool adds a fresh eight
+    # each time, so the count climbs past any fixed bound.
+    assert peak - before <= web_main._CITY_FETCH_WORKERS, (before, peak)

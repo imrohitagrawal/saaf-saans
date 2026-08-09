@@ -48,7 +48,15 @@ def _cache_get(locality: str):
     # here for 600s made that fast retry invisible to the request path, so the
     # page went on saying the source was failing for ten minutes after it had
     # recovered. Freshness of the FETCH, not the status word, picks the TTL.
-    fresh = status == "ok" and not (reading or {}).get("retained")
+    #
+    # A reading with no NUMBER does not earn the long TTL either, whatever its
+    # status word says. A headline-only WAQI reading is served under "ok" and is
+    # not retained, so it used to take the full 600s -- pinning a page that shows
+    # "--" for ten minutes past the upstream's recovery. Same reasoning as
+    # retention: the TTL follows what we actually got, not what we called it.
+    fresh = (status == "ok"
+             and not (reading or {}).get("retained")
+             and (reading or {}).get("aqi") is not None)
     ttl = _CACHE_TTL if fresh else _CACHE_TTL_FALLBACK
     if time.monotonic() - stored_at >= ttl:
         return None
@@ -455,8 +463,22 @@ def _choose(cpcb_reading, waqi_reading):
     # so there is no fresh 24-hour mean to protect: the choice is between a
     # live measurement and an old one, and live wins. Still never merged --
     # whichever is returned is returned whole.
+    #
+    # "A live measurement" means one carrying a NUMBER. _fetch_feed returns a
+    # reading whose aqi is None when the feed had a headline value but no
+    # invertible particulate -- the guard there is `aqi is None AND feed_aqi is
+    # None`, an `and`, so headline-only readings pass through on purpose, for the
+    # provenance panel. Preferring one of those over a held payload traded real
+    # numbers for a blank: measured on a CPCB outage, every Delhi tile rendered
+    # "--" while cpcb.values_for was returning pm25 53 / pm10 90 on that very
+    # render. And because such a reading is not `retained`, _cache_get handed it
+    # the 600s TTL, so the blank outlived CPCB's recovery by up to ten minutes --
+    # the same defect the retained-TTL branch was written to remove, arriving
+    # through a different door.
     if cpcb_reading["retained"]:
-        return waqi_reading if waqi_reading is not None else cpcb_reading
+        return (waqi_reading
+                if waqi_reading is not None and waqi_reading["aqi"] is not None
+                else cpcb_reading)
     if not _wants_second_opinion(cpcb_reading):
         return cpcb_reading
     # One particulate at CPCB, both at WAQI: take WAQI's reading WHOLE.
