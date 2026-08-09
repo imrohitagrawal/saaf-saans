@@ -210,6 +210,19 @@
     {% if is_current and persona_applied %}
     <p class="compare">{{ compare }}</p>
     {% endif %}
+    {#- The drivers rank what built the score, and on a held page there is no
+        score: the first chip printed "AQI 369 (Very Poor)" -- the band word,
+        from the shared band_label group -- forty lines under a hero stating
+        that no band, no colour and no risk score are worked out from this
+        reading, and the caveat and methodology link beside them explained a
+        number the page had just refused to show. The Guide promises the
+        opposite in words.
+
+        `is_current or not has_reading`, the same guard the hero window takes,
+        not `is_current` alone: with no reading at all the first chip names the
+        ABSENCE ("No reading -- treated as unhealthy") instead of a figure, so
+        the block has always been honest in that state. -#}
+    {% if is_current or not has_reading %}
     <div class="drivers">
       {% for d in risk.drivers %}<span class="driver">{{ d }}</span>{% endfor %}
     </div>
@@ -217,6 +230,7 @@
        reader is told which, here, not only in the repository's documentation. #}
     <p class="caveat">{{ risk_notice }}
       <a href="/guide?{{ q }}#risk">{{ T('ui', 'link_score', 'See how the score is worked out ›') }}</a></p>
+    {% endif %}
   </section>
 
   {# --- Reading ------------------------------------------------------------ #}

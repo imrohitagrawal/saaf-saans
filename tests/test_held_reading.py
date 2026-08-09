@@ -364,6 +364,63 @@ def test_the_same_reading_live_prints_its_risk_comparison(monkeypatch, lang):
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_held_reading_lists_no_score_drivers(monkeypatch, lang):
+    """The drivers explain a score, and their first chip is "AQI 369 (Very
+    Poor)" -- the band word, printed forty lines under a hero saying no band is
+    worked out from this reading. The caveat and the methodology link beside
+    them describe the same withheld score.
+
+    Asserted as the ABSENCE OF THE BLOCK as well as the absence of band words
+    in it, for the reason the band-chip assertion above documents: a chip built
+    from the neutralised category would print "Unknown", which is not a band
+    word, so the word check alone would stay green over a claim the reading has
+    not earned.
+    """
+    _feed_values(monkeypatch, pm25=PM25, pm10=PM10, retained=True)
+    body = _today(lang)
+    assert _named_bands(body, lang, "driver") == set(), lang
+    assert 'class="drivers"' not in body, lang
+    assert i18n.t(lang, "ui", "link_score",
+                  "See how the score is worked out ›") not in body, lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_same_reading_live_lists_its_score_drivers(monkeypatch, lang):
+    """The mirror: all three chips, the band word among them, and the link."""
+    _feed_values(monkeypatch, pm25=PM25, pm10=PM10, retained=False)
+    body = _today(lang)
+    label = normalize.aqi_category(AQI)[0]
+    assert _named_bands(body, lang, "driver") == {
+        i18n.t(lang, "band_label", label, label).upper()}, lang
+    assert len(re.findall(r'<span class="driver">', body)) == 3, lang
+    assert i18n.t(lang, "ui", "link_score",
+                  "See how the score is worked out ›") in body, lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_a_page_with_no_reading_at_all_still_lists_its_drivers(monkeypatch, lang):
+    """The third state's mirror, and the reason the guard is not `is_current`
+    alone: with no reading the first chip names the ABSENCE ("No reading —
+    treated as unhealthy") rather than a figure, so the block has always been
+    honest there and must stay."""
+    def get_aqi(locality, es_client=None):
+        return waqi._fallback(locality), "fallback"
+
+    monkeypatch.setattr(waqi, "get_aqi", get_aqi)
+    from saafsaans.web import main as web_main
+    monkeypatch.setattr(web_main, "waqi", waqi)
+    body = _today(lang)
+    assert 'class="drivers"' in body, lang
+    # No band-word assertion here: the Hindi no-reading chip reads "कोई रीडिंग
+    # नहीं — हवा ख़राब मानकर चलें", and ख़राब is character-for-character the band
+    # label for Poor. It names a severity the app is CHOOSING to assume and
+    # says so in the same breath -- test_severity_needs_a_measurement exempts
+    # this exact sentence from its sweep for the same reason.
+    assert i18n.t(lang, "driver", "no_reading",
+                  "No reading — treated as unhealthy") in html.unescape(body), lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
 def test_a_held_reading_makes_no_who_comparison(monkeypatch, lang):
     """Every surviving branch of who_line is present tense about the air, and
     the PM10-only branch says a station "is not reporting them right now" --
