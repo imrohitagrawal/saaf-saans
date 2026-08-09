@@ -12,13 +12,17 @@ from .es import INDEX_READINGS, INDEX_TELEMETRY, INDEX_SECURITY
 
 
 def _empty_kpis():
+    # ``None`` -- not 0.0 -- for the latencies and the rates. A count of 0 is
+    # observed; a median of 0.0 s over nothing timed, or a 0.0% miss rate over
+    # no feed read classified, is a measured statistic the caller never made.
+    # The renderer must be able to tell the two apart and print no figure.
     return {
         "total": 0,
         "by_event": {},
-        "latency_p50": 0.0,
-        "latency_p95": 0.0,
-        "waqi_fallback_rate": 0.0,
-        "llm_fallback_rate": 0.0,
+        "latency_p50": None,
+        "latency_p95": None,
+        "waqi_fallback_rate": None,
+        "llm_fallback_rate": None,
         "total_tokens": 0,
         "by_locality": [],
     }
@@ -60,10 +64,10 @@ def telemetry_kpis(client) -> dict:
         # call: 'skipped' (blocked) and 'error' events never reached the model.
         llm_attempts = llm_counts.get("ok", 0) + llm_counts.get("llm_fallback", 0)
         waqi_fallback_rate = (
-            round(waqi_counts.get("fallback", 0) / waqi_total, 4) if waqi_total else 0.0
+            round(waqi_counts.get("fallback", 0) / waqi_total, 4) if waqi_total else None
         )
         llm_fallback_rate = (
-            round(llm_counts.get("llm_fallback", 0) / llm_attempts, 4) if llm_attempts else 0.0
+            round(llm_counts.get("llm_fallback", 0) / llm_attempts, 4) if llm_attempts else None
         )
 
         pcts = aggs.get("latency", {}).get("values", {}) or {}
@@ -78,8 +82,8 @@ def telemetry_kpis(client) -> dict:
         return {
             "total": total,
             "by_event": by_event,
-            "latency_p50": round(float(p50), 1) if p50 is not None else 0.0,
-            "latency_p95": round(float(p95), 1) if p95 is not None else 0.0,
+            "latency_p50": round(float(p50), 1) if p50 is not None else None,
+            "latency_p95": round(float(p95), 1) if p95 is not None else None,
             "waqi_fallback_rate": waqi_fallback_rate,
             "llm_fallback_rate": llm_fallback_rate,
             "total_tokens": int(aggs.get("total_tokens", {}).get("value") or 0),
@@ -90,7 +94,9 @@ def telemetry_kpis(client) -> dict:
 
 
 def _empty_security():
-    return {"total_blocked": 0, "by_pattern": [], "block_rate": 0.0}
+    # ``block_rate`` is None for the same reason the telemetry rates are: with
+    # no attempt classified there is no share of them that was stopped.
+    return {"total_blocked": 0, "by_pattern": [], "block_rate": None}
 
 
 def security_stats(client) -> dict:
@@ -131,7 +137,7 @@ def security_stats(client) -> dict:
         blocked = action_counts.get("blocked", 0)
         # Total events = sum of pattern buckets (every event carries a pattern).
         total = sum(b["count"] for b in by_pattern) or action_total
-        block_rate = round(blocked / action_total, 4) if action_total else 0.0
+        block_rate = round(blocked / action_total, 4) if action_total else None
 
         return {
             "total_blocked": blocked if action_total else total,

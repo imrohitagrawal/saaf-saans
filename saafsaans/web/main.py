@@ -1159,6 +1159,20 @@ def city(request: Request):
     return _render(request, "city.html", ctx, session_id(request), theme, lang)
 
 
+def _kpi_stat(value, factor: float, spec: str, suffix: str) -> str:
+    """A KPI tile value, or City Pulse's no-figure mark when None was measured.
+
+    ``metrics`` returns None -- not 0.0 -- for a percentile over nothing timed
+    and for a rate over an empty denominator. Formatting those printed
+    "0.0 s median response" and "0.0% feed misses" one card above the page's
+    own "No telemetry yet", so the view asserted a measured statistic and the
+    absence of any measurement at once. No observations, no figure and no unit.
+    """
+    if value is None:
+        return "--"
+    return f"{value * factor:{spec}}{suffix}"
+
+
 # --- System ----------------------------------------------------------------
 @app.get("/system")
 def system(request: Request):
@@ -1198,11 +1212,11 @@ def system(request: Request):
                  "l": i18n.t(lang, "ui", "sys_kpi_answered", "questions answered")},
                 {"v": k.get("total", 0),
                  "l": i18n.t(lang, "ui", "sys_kpi_events", "events logged")},
-                {"v": f'{k.get("latency_p50", 0) / 1000:.1f} s',
+                {"v": _kpi_stat(k.get("latency_p50"), 0.001, ".1f", " s"),
                  "l": i18n.t(lang, "ui", "sys_kpi_p50", "median response")},
-                {"v": f'{k.get("latency_p95", 0) / 1000:.1f} s',
+                {"v": _kpi_stat(k.get("latency_p95"), 0.001, ".1f", " s"),
                  "l": i18n.t(lang, "ui", "sys_kpi_p95", "p95 response")},
-                {"v": f'{k.get("waqi_fallback_rate", 0) * 100:.1f}%',
+                {"v": _kpi_stat(k.get("waqi_fallback_rate"), 100, ".1f", "%"),
                  # NOT "feed misses -> cached". A feed miss routes to waqi._fallback,
                  # which returns a reading with every numeric field None: nothing
                  # is cached and nothing is served. The old label told an operator
@@ -1211,7 +1225,7 @@ def system(request: Request):
                  # city.html's CACHED, which means something else again.
                  "l": i18n.t(lang, "ui", "sys_kpi_feed_fallback",
                              "feed misses → no reading")},
-                {"v": f'{k.get("llm_fallback_rate", 0) * 100:.1f}%',
+                {"v": _kpi_stat(k.get("llm_fallback_rate"), 100, ".1f", "%"),
                  "l": i18n.t(lang, "ui", "sys_kpi_rule_fallback", "rule-based fallbacks")},
                 {"v": f'{k.get("total_tokens", 0) / 1000:.1f}k',
                  "l": i18n.t(lang, "ui", "sys_kpi_tokens", "tokens spent")},
@@ -1238,7 +1252,7 @@ def system(request: Request):
             "sec_kpis": [
                 {"v": last_7,
                  "l": i18n.t(lang, "ui", "sys_kpi_blocked_7d", "blocked, last 7 days")},
-                {"v": f'{stats.get("block_rate", 0) * 100:.0f}%',
+                {"v": _kpi_stat(stats.get("block_rate"), 100, ".0f", "%"),
                  "l": i18n.t(lang, "ui", "sys_kpi_premodel", "stopped pre-model")},
                 {"v": len(stats.get("by_pattern") or []),
                  "l": i18n.t(lang, "ui", "sys_kpi_patterns", "distinct patterns")},
