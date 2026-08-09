@@ -157,7 +157,9 @@ Six band inks (g1–g6) with paired tints (n1–n6), Good → Severe: clear-sky 
 (#2F6FB5, #3F7180), dust ochres (#8A5A0E, #9C4519), smog maroons (#8A2A26,
 #58150E). Light theme darkens with severity; the dark-theme ramp (#5A8CBA →
 #FFC3B2) brightens with it — in both, luminance is monotone, so severity tracks
-contrast-against-background and survives every colour-vision deficiency. The
+contrast-against-background and survives every colour-vision deficiency. Each
+tint moves in the same direction as its ink, so the chip background is a scale
+too, not decoration behind one. The
 unknown band (gx/nx) is Ink 3 on Surface Recessed: no reading, no colour claim.
 Each band also owns a sky pair (--sky1/--sky2), a sun tint, and a haze opacity
 for the hero, in both themes.
@@ -168,8 +170,9 @@ and a position on the labelled scale. Colour is reinforcement, never the message
 
 **The Monotone Severity Rule.** Any new severity colour must keep luminance
 monotone with severity in both themes, measured against the surface it sits on.
-The dark ramp was re-valued once because g2 sat brighter than g3–g5; that defect
-class is banned.
+It binds the tints as much as the inks. The dark ramp was re-valued once because
+g2 sat brighter than g3–g5, and its tints a second time because n6 sat lighter
+than n5; that defect class is banned.
 
 ## Typography
 

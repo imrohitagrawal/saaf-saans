@@ -57,7 +57,15 @@
      floor, and no further: its luminance is 0.245 against g2's 0.271, so the
      ramp still climbs with severity. */
   --g1: #5A8CBA; --g2: #5C97A4; --g3: #C68F3E; --g4: #E08A55; --g5: #F0958A; --g6: #FFC3B2;
-  --n1: #1C2938; --n2: #1B2C31; --n3: #322815; --n4: #362216; --n5: #351D1B; --n6: #3A1F18;
+  /* The tints carry the same rule as the inks above and were left behind when
+     the inks were re-valued: n3-n6 wandered (0.0225, 0.0199, 0.0171, 0.0195 in
+     relative luminance), so Severe sat lighter than Very Poor. Re-scaled along
+     their own hue families; luminance now climbs 0.0212 / 0.0226 / 0.0265 /
+     0.0304 / 0.0350 / 0.0401, and contrast against --surface (1B1F28) climbs
+     with it: 1.12 / 1.14 / 1.20 / 1.26 / 1.34 / 1.41 : 1. The band word takes
+     --text on these: 11.83 down to 9.35:1; a .caveat.on-tint takes --text-2:
+     6.15 down to 4.86:1, still over the 4.5 floor at the darkest end. */
+  --n1: #1C2938; --n2: #1B2C31; --n3: #362C17; --n4: #442B1C; --n5: #4E2B28; --n6: #552E23;
   --gx: #8B877E; --nx: #232834;
   /* Measured against --surface-2 (232834, the lower-contrast of the two bar
      backdrops in this theme -- surface-2 reads lighter than surface here,
