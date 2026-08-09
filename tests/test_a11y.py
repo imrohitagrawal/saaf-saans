@@ -347,6 +347,60 @@ def test_clipping_containers_holding_controls_pull_the_focus_ring_inside(sheet, 
             "ring drawn outside the child is cropped by the clip")
 
 
+# --- 2b. Scroll ports are reachable by keyboard -----------------------------
+def _ids(root):
+    return {node["attrs"]["id"] for node in _walk(root) if "id" in node["attrs"]}
+
+
+def _named(node, ids):
+    """An accessible name a browser can actually resolve, or None."""
+    if node["attrs"].get("aria-label", "").strip():
+        return node["attrs"]["aria-label"].strip()
+    target = node["attrs"].get("aria-labelledby", "").split()
+    if target and all(t in ids for t in target):
+        return " ".join(target)
+    return None
+
+
+def test_scroll_ports_without_a_focusable_child_are_reachable_by_keyboard(sheet, pages):
+    """A box that scrolls its own overflow is functionality under SC 2.1.1, and
+    WebKit -- the engine of the phone this site is read on -- does not put a
+    scroller in the tab order the way Chrome and Firefox now do. Measured on
+    /guide: the five-column EPA rate table reports scrollWidth 296 against a
+    clientWidth of 254 at the 320px reflow width and 294 at 360px, so content
+    genuinely sits off-screen. Without a focusable descendant to land on, only
+    an explicit tabindex reaches it, and an unnamed region announces nothing.
+    """
+    scrollers = []
+    for selector, decls in sheet["top"]:
+        if decls.get("overflow-x") in ("auto", "scroll") or decls.get("overflow") in ("auto", "scroll"):
+            for part in selector.split(","):
+                part = part.strip()
+                assert re.fullmatch(r"\.[A-Za-z0-9_-]+", part), (
+                    f"overflow scrolling on {part!r}, which this audit cannot resolve "
+                    "to elements -- extend the test rather than skipping it")
+                scrollers.append(part[1:])
+    assert scrollers, "no scroll containers found -- the parser is broken"
+
+    checked = 0
+    for name, root in pages.items():
+        ids = _ids(root)
+        for node in _walk(root):
+            for css_class in _classes(node) & set(scrollers):
+                if any(_is_focusable(kid) for kid in _walk(node)):
+                    continue
+                checked += 1
+                assert node["attrs"].get("tabindex") == "0", (
+                    f"{name}: .{css_class} scrolls its own overflow and holds nothing "
+                    "focusable, so WebKit gives the keyboard no way into it; it needs "
+                    'tabindex="0"')
+                assert _named(node, ids), (
+                    f"{name}: .{css_class} is a keyboard-reachable scroll region with no "
+                    "resolvable accessible name -- it announces as an unnamed region")
+    assert checked, ("no scroll container without a focusable child was rendered -- the "
+                     "markup scan found nothing, so this test proved nothing")
+
+
 # --- 3. Touch targets on coarse pointers ------------------------------------
 # Each interactive control, as the chain of selectors that decides its box, in
 # ascending specificity. The chain is the cascade this stylesheet actually
