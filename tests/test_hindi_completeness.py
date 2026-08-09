@@ -73,6 +73,10 @@ ALLOWED = {
     # transliterating them would destroy the thing they are for. The footer
     # lists them; the provenance panel tags each advisory with one.
     "EPA", "GINA", "GOLD", "AHA", "ACOG", "ICMR", "NAAQS",
+    # Same as the row above, added with the source-tag glossary (see
+    # normalize.GLOSSARY / i18n.HI["glossary"]): these three had no Hindi
+    # sentence naming them before, so nothing had exercised them here yet.
+    "AIIMS", "ACSM", "Lancet",
     # A shell command in the City Pulse empty state. Commands are not prose.
     # Only the two tokens that are not also ordinary English: the command is
     # removed from the text before scanning (see _stray_latin), because

@@ -245,8 +245,11 @@
       </div>
     </div>
 
-    {# One shared slot: opening a term closes any other. #}
-    {% if term and term in glossary %}
+    {# One shared slot: opening a term closes any other. Narrowed to the three
+       reading-card terms on purpose -- a source-tag term (see the provenance
+       panel below) renders its own def-slot next to the pill that opened it,
+       which may be well below this card once the panel is scrolled into view. #}
+    {% if term in ('AQI', 'PM2.5', 'PM10') %}
     <p class="def-slot">{{ T('glossary', term, glossary[term]) }}</p>
     {% endif %}
 
@@ -429,9 +432,12 @@
                     <div class="kicker">{{ kicker }}</div>
                     {% for s in group %}
                     <div class="src-row">
-                      <span class="src-tag">{{ s.source }}</span>
+                      <span class="src-tag"><a class="term" href="/?{{ q_term_source(s.source) }}#turn-{{ t.id }}" aria-expanded="{{ 'true' if term == s.source else 'false' }}">{{ s.source }}</a></span>
                       <span>{{ advisory_text(s) }}</span>
                     </div>
+                    {% if term == s.source %}
+                    <p class="def-slot">{{ T('glossary', term, glossary[term]) }}</p>
+                    {% endif %}
                     {% endfor %}
                     {% endif %}
                   {% endfor %}

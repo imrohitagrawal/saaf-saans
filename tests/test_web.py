@@ -137,6 +137,20 @@ def test_provenance_panel_lists_its_sources(client, live_feed):
     assert "Measured at the time" in opened and "Published guidance used" in opened
 
 
+def test_source_tag_opens_its_own_glossary_definition(client, live_feed):
+    """The citation slug is a term like AQI or PM2.5, not inert text.
+
+    Red for two independent reasons today: the pill has no <a> at all, and
+    GINA-guidance is rejected by TERMS so the query param never resolves to a
+    term, so no def-slot renders regardless of the markup around the pill.
+    """
+    client.post("/ask", params=PERSONA, data={"question": "Can I cycle to work?"})
+    opened = client.get("/", params={**PERSONA, "prov": "0", "term": "GINA-guidance"}).text
+    assert '<a class="term" href="/?' in opened and '>GINA-guidance</a>' in opened
+    assert opened.count('class="def-slot"') == 1
+    assert "Global Initiative for Asthma" in opened
+
+
 def test_ask_redirects_so_a_refresh_cannot_resubmit(client):
     r = client.post("/ask", params=PERSONA, data={"question": "Is it safe outside?"},
                     follow_redirects=False)
@@ -422,9 +436,15 @@ def test_provenance_label_states_what_it_contains(client, monkeypatch,
 # --- Guide ------------------------------------------------------------------
 def test_guide_explains_every_term_condition_and_band():
     from saafsaans.services import normalize
+    from saafsaans.web.main import SOURCE_TERMS
     with TestClient(app) as c:
         body = c.get("/guide", params=PERSONA).text
+    # The eleven citation-source entries are excluded on purpose: their
+    # definition opens beside the pill that names them in the provenance
+    # panel, not in this page's flat A-Z list (see main.py's guide() route).
     for term in normalize.GLOSSARY:
+        if term in SOURCE_TERMS:
+            continue
         assert term in body
     for condition in normalize.CONDITION_HELP:
         assert condition in body
