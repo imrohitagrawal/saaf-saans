@@ -121,7 +121,7 @@
       main.py) the full-width open form. The first Apply puts a persona in the
       query string and the card falls back to its quiet resident self. -#}
   <section class="card {% if persona_open %}wide{% endif %}{% if not persona_applied %} card-primary{% endif %}" aria-label="{{ T('ui', 'sec_persona', 'Your persona') }}" id="persona">
-    <div class="row">
+    <div class="row persona-head">
       {%- if persona_applied %}
       <p class="persona-line">{{ T('ui', 'advice_for', 'This advice is for') }} <strong>{{ persona_line }}</strong>.</p>
       {%- else %}
@@ -130,7 +130,7 @@
           whole clauses rather than composing from shared pieces. -#}
       <p class="persona-line">{{ T('ui', 'example_for_before', 'This page is showing an example —') }} <strong>{{ persona_line }}</strong>{{ T('ui', 'example_for_after', '. Fill in your own details and the advice becomes yours.') }}</p>
       {%- endif %}
-      <a class="pill-btn strong" style="margin-left:auto"
+      <a class="pill-btn strong"
          href="/?{{ q_persona_toggle }}#persona"
          aria-expanded="{{ 'true' if persona_open else 'false' }}">
         {{ T('ui', 'btn_done', 'Done') if persona_open else T('ui', 'btn_change', 'Change details') }}
@@ -221,7 +221,7 @@
 
   {# --- Reading ------------------------------------------------------------ #}
   <section class="card band-{{ band }}" id="reading" aria-label="{{ T('ui', 'sec_reading', 'The reading') }}">
-    <div class="row" style="align-items:baseline;gap:12px">
+    <div class="row reading-head">
       <span class="aqi-num">{{ reading.aqi if reading.aqi is not none else '--' }}</span>
       {#- Suppressed, not neutralised to "Unknown": a held reading's band is
           not unknown, it is simply not what this page is entitled to state. -#}
@@ -263,9 +263,9 @@
       <div class="scale-mark" style="left:{{ scale_pos }}%" aria-hidden="true">{{ reading.aqi }} ▾</div>
       {% endif %}
       <div class="scale" aria-hidden="true">
-        <span style="width:10%;background:var(--g1)"></span><span style="width:10%;background:var(--g2)"></span>
-        <span style="width:20%;background:var(--g3)"></span><span style="width:20%;background:var(--g4)"></span>
-        <span style="width:20%;background:var(--g5)"></span><span style="width:20%;background:var(--g6)"></span>
+        <span class="band-g1"></span><span class="band-g2"></span>
+        <span class="band-g3"></span><span class="band-g4"></span>
+        <span class="band-g5"></span><span class="band-g6"></span>
       </div>
       <div class="scale-ends" aria-hidden="true"><span>{{ T('ui', 'scale_low', '0 good') }}</span><span>200</span><span>{{ T('ui', 'scale_high', 'severe 500') }}</span></div>
     </div>
@@ -331,7 +331,7 @@
     <div class="bars">
       {% for row in outlook %}
       <div class="bar-row">
-        <span {% if row.is_today %}style="font-weight:600"{% endif %}>{{ row.label }}</span>
+        <span class="{% if row.is_today %}is-today{% endif %}">{{ row.label }}</span>
         <span class="v">{{ row.avg }}</span>
         <span class="track"><span class="fill" style="width:{{ pct(row.avg, 220) }}"></span></span>
       </div>
@@ -343,7 +343,7 @@
 
   {# --- Ask. Full history, newest first, so a decision can be retraced. ---- #}
   <section class="card wide" aria-label="{{ T('ui', 'sec_ask', 'Ask SaafSaans') }}" id="ask">
-    <div class="row" style="align-items:baseline;gap:10px">
+    <div class="row ask-head">
       {#- A new key, not the old ask_heading: the owner asked for the product
           name in Devanagari here ("साफ़ साँस से पूछिए"), and Hindi puts the name
           before the verb where English puts it after, so the string cannot be

@@ -13,11 +13,9 @@
 <h1 class="page-h1">{{ T('ui', 'nav_system', 'System') }}</h1>
 <p class="page-sub">{{ T('ui', 'sys_sub', 'The app audits itself — grounded, degraded-honest, and guarded. Watch it here.') }}</p>
 
-<div class="seg" role="group" aria-label="{{ T('ui', 'sys_view_label', 'System view') }}" style="margin-top:14px;max-width:420px">
-  <a href="/system?{{ q_obs }}" aria-current="{{ 'true' if view == 'observability' else 'false' }}"
-     style="flex:1;text-align:center">{{ T('ui', 'sys_view_obs', 'Observability') }}</a>
-  <a href="/system?{{ q_sec }}" aria-current="{{ 'true' if view == 'security' else 'false' }}"
-     style="flex:1;text-align:center">{{ T('ui', 'sys_view_sec', 'Security') }}</a>
+<div class="seg seg-tabs" role="group" aria-label="{{ T('ui', 'sys_view_label', 'System view') }}">
+  <a href="/system?{{ q_obs }}" aria-current="{{ 'true' if view == 'observability' else 'false' }}">{{ T('ui', 'sys_view_obs', 'Observability') }}</a>
+  <a href="/system?{{ q_sec }}" aria-current="{{ 'true' if view == 'security' else 'false' }}">{{ T('ui', 'sys_view_sec', 'Security') }}</a>
 </div>
 
 {% if view == 'observability' %}
@@ -27,7 +25,7 @@
     {% endfor %}
   </div>
 
-  <div class="grid" style="margin-top:14px">
+  <div class="grid grid-top">
     <section class="card">
       <h2 class="kicker">{{ T('ui', 'sys_h_events', 'Events by type') }}</h2>
       {% if ev_rows %}
@@ -82,7 +80,7 @@
     {% endfor %}
   </div>
 
-  <div class="grid" style="margin-top:14px">
+  <div class="grid grid-top">
     <section class="card">
       <h2 class="kicker">{{ T('ui', 'sys_h_blocked_7d', 'Blocked · last 7 days') }}</h2>
       {% if days %}
@@ -104,7 +102,7 @@
       <div class="row">
         <h2 class="kicker">{{ T('ui', 'sys_h_attempts', 'Recent blocked attempts') }}</h2>
         {# A real POST against the live guard — not a canned animation. #}
-        <form method="post" action="/system/simulate?{{ q }}" style="margin-left:auto">
+        <form class="sim-form" method="post" action="/system/simulate?{{ q }}">
           <button class="pill-btn" type="submit">▸ {{ T('ui', 'sys_btn_simulate', 'Run red-team simulation') }}</button>
         </form>
       </div>
@@ -127,7 +125,7 @@
       {% endif %}
 
       {% if attempts %}
-        <div style="margin-top:8px;display:flex;flex-direction:column">
+        <div class="attempts-list">
           {% for g in attempts %}
           <div class="attempt-group">
             <div class="attempt-head">

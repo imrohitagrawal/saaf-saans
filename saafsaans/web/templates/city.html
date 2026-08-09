@@ -11,7 +11,7 @@
     without making a ragged list the price. -#}
 {%- set any_band = rows | selectattr('band') | list -%}
 <div>
-  <h2 class="kicker" style="margin:0 4px 6px">{{ title }}</h2>
+  <h2 class="kicker group-kicker">{{ title }}</h2>
   <div class="station-list{{ '' if any_band else ' no-bands' }}">
     {% for s in rows %}
     {#- Which offscreen definitions this row's tags need. On the row's <a>,
@@ -85,7 +85,7 @@
   <span id="tag-def-partial">{{ T('ui', 'tag_partial_def', 'Worked out from only part of what goes into the number, so not directly comparable with the other stations.') }}</span>
 </p>
 
-<div class="grid" style="margin-top:14px">
+<div class="grid grid-top">
   <section class="card" aria-label="{{ T('ui', 'sec_trend', '24 hour trend') }}">
     {#- Sizes belong in the stylesheet, not here. An inline declaration outranks
         every selector, so the 11px this header used to carry was out of reach of

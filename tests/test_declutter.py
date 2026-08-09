@@ -410,6 +410,27 @@ def test_the_stale_note_is_not_demoted():
         assert "caveat" not in re.search(r'class="(stale-note[^"]*)"', today[lang]).group(1)
 
 
+def test_neutral_chart_fills_do_not_borrow_a_severity_ink():
+    """The outlook's progress-bar fill and the System bar-chart columns carry no
+    severity meaning of their own, but sat on --g3 (dust ochre) and --g5 (smog
+    maroon) -- two of the six Delhi-Sky severity inks -- so a reader who had
+    learned those hues from the band chips would meet them again here meaning
+    nothing. A dedicated --chart token, defined in both themes, replaces both."""
+    css = CSS_PATH.read_text()
+    root = re.search(r":root\s*\{([^}]*)\}", css, re.S)
+    dark = re.search(r'\[data-theme="dark"\]\s*\{([^}]*)\}', css, re.S)
+    assert root and "--chart:" in root.group(1), "--chart is not defined in :root"
+    assert dark and "--chart:" in dark.group(1), \
+        "--chart is not defined in the [data-theme=\"dark\"] block"
+
+    rules, _ = _rules(css)
+    decls = {selector: d for selector, d, _order in rules}
+    assert decls.get(".fill", {}).get("background") == "var(--chart)", \
+        "the outlook fill still borrows the dust-ochre severity ink (--g3)"
+    assert decls.get(".col .b", {}).get("background") == "var(--chart)", \
+        "the System bar-chart columns still borrow the smog-maroon severity ink (--g5)"
+
+
 # --- Elements the sweep left without a rule ---------------------------------
 def test_every_class_the_no_reading_state_emits_is_styled():
     """The no-reading state is the SHIPPED state -- no WAQI token in production

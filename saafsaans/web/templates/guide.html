@@ -5,7 +5,7 @@
 <h1 class="page-h1">{{ T('ui', 'nav_guide', 'Guide') }}</h1>
 <p class="page-sub">{{ T('guide', 'sub', 'Every number and term on this site, in plain language.') }}</p>
 
-<div class="grid" style="margin-top:14px">
+<div class="grid grid-top">
 
   <section class="card">
     <h2 class="kicker">{{ T('guide', 'h_numbers', 'The numbers') }}</h2>
@@ -43,9 +43,9 @@
       <tbody>
       {% for row in bands %}
       <tr class="band-{{ row.slug }}">
-        <td><span class="dot" style="background:var(--ink)" aria-hidden="true"></span>{{ row.label }}</td>
+        <td><span class="dot" aria-hidden="true"></span>{{ row.label }}</td>
         <td class="mono">{{ row.range }}</td>
-        <td style="font-family:var(--body);color:var(--text-2)">{{ row.meaning }}</td>
+        <td class="band-meaning">{{ row.meaning }}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -100,7 +100,7 @@
     <p class="hint">{{ T('guide', 'scale_2', 'The two scales are far apart. 60 µg/m³ of PM2.5 is 100 "Satisfactory" on India\'s scale and about 154 "Unhealthy" on the US one. So a reading that came through the WAQI feed is converted: its US index values are turned back into concentrations, and the Indian figure is worked out from those. A reading read from CPCB directly arrives as concentrations already and is never put through that conversion. Either way the number you see here is the kind of number you see everywhere else in Delhi.') }}</p>
     <p class="hint">{{ T('guide', 'scale_3', "What that number is not. It is worked out from particulate matter only — PM2.5 and PM10, and sometimes from just one of those two, which the reading on the Today page says beside itself. India's official method uses up to eight pollutants and needs at least three, so on a day when a gas like ozone is the worst thing in the air, the official figure would be higher than ours. Under an answer that carries a reading, the provenance panel names which of the two sources it came from, and shows WAQI\'s own figure when — and only when — the reading came through WAQI.") }}</p>
 
-    <h3 class="kicker" id="who" style="margin-top:20px">{{ T('guide', 'h_who', 'The World Health Organization comparison') }}</h3>
+    <h3 class="kicker" id="who">{{ T('guide', 'h_who', 'The World Health Organization comparison') }}</h3>
     {#- The figure keeps its own place in the sentence, so neither half of the
         translation can be edited into disagreeing with the number. -#}
     <p class="hint">{{ T('guide', 'who_1_before', "The Organization's guideline for PM2.5 is") }}
@@ -124,7 +124,7 @@
     <p class="hint">{{ T('guide', 'risk_intro', "The score adds three things together and stops at 100: a starting figure for how bad the air is, how much air you will breathe in while doing what you have planned, and how much harder this air is on your body than on an average adult's.") }}</p>
 
     <h3 class="kicker" style="margin-top:18px">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
-    <div class="table-scroll" style="margin-top:8px">
+    <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_score', 'Score') }}</th><th scope="col">{{ T('guide', 'th_called', 'What it is called') }}</th></tr></thead>
       <tbody>
@@ -138,17 +138,17 @@
     </table>
     </div>
 
-    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_researched', 'The part that comes from published research') }}</h3>
+    <h3 class="kicker">{{ T('guide', 'h_researched', 'The part that comes from published research') }}</h3>
     <p class="hint">{{ T('guide', 'researched_intro', 'Breathing harder means breathing in more of the same air. How much more is measured, and we use those measurements rather than guessing. The figures below are litres of air per minute (shown as cubic metres per minute, the unit the source uses), for the three age groups this site offers.') }}</p>
     {#- Five columns of mono figures: the widest table on the site, and the one
         the page-level overflow was measured on. -#}
-    <div class="table-scroll" style="margin-top:8px">
+    <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_age', 'Age group') }}</th><th scope="col">{{ T('guide', 'th_rest', 'At rest') }}</th><th scope="col">{{ T('guide', 'th_light', 'Light') }}</th><th scope="col">{{ T('guide', 'th_moderate', 'Moderate') }}</th><th scope="col">{{ T('guide', 'th_hard', 'Hard') }}</th></tr></thead>
       <tbody>
       {% for row in epa_rows %}
       <tr>
-        <td>{{ row.label }} <span class="mono" style="color:var(--text-3)">{{ row.band }}</span></td>
+        <td>{{ row.label }} <span class="mono age-band">{{ row.band }}</span></td>
         {% for rate in row.rates %}
         <td class="mono">{{ "%.4f" | format(rate) }}</td>
         {% endfor %}
@@ -164,9 +164,9 @@
       {% for row in intensity_rows %}<span
         class="mono">{{ row.activity }} = {{ row.level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
 
-    <h3 class="kicker" style="margin-top:20px">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
+    <h3 class="kicker">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
     <p class="hint">{{ T('guide', 'judgement_body', 'There is no single published number for how much worse polluted air is for a person with asthma, or COPD, or a heart condition. Rather than invent one that would look authoritative, we say plainly that the figures below are our ordering of who is most affected — the order is well supported, the exact sizes are not. The same applies to the extra weight given to children and older people, which is there for reasons that are real but do not reduce to a number: developing lungs, more air breathed per kilogram of body weight, less reserve to draw on.') }}</p>
-    <div class="table-scroll" style="margin-top:8px">
+    <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_factor', 'Factor') }}</th><th scope="col">{{ T('guide', 'th_points', 'Points added') }}</th></tr></thead>
       <tbody>
