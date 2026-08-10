@@ -11,3 +11,7 @@ pytest
 # woff2 faces to check their glyph tables. brotli is what decompresses woff2.
 fonttools
 brotli
+# Drives a headless Chrome over the DevTools protocol, which is the only way to
+# assert a computed style: Devanagari is unicameral, so no HTML-content check can
+# see a text-transform or letter-spacing that reached it through the cascade.
+websocket-client

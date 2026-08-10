@@ -4,9 +4,10 @@ Written 2026-08-10, immediately after Gate 0 (deploy) completed and was verified
 
 This file is the contract between a **main orchestrator** session and the
 **sub-orchestrators** it spawns, one per gate. It is tracked by git on purpose:
-`PRODUCT.md` and `.claude/` are untracked and do **not** exist inside an isolated
-worktree, so anything a subagent must know has to live here or be pasted into its
-prompt verbatim.
+`.claude/` and `.impeccable/` are untracked and do **not** exist inside an isolated
+worktree, so anything under them must be read by absolute path or pasted into a
+subagent's prompt verbatim. `PRODUCT.md` and `DESIGN.md` **are** tracked and will be
+present in every worktree — read them both in full before touching anything.
 
 ---
 
@@ -57,6 +58,8 @@ writes serialize, or use `isolation: "worktree"` across genuinely disjoint files
 
 ## 2. Orchestration protocol (every sub-orchestrator follows this)
 
+0. **Read first, in full:** `PRODUCT.md`, `DESIGN.md`, and this file. All three are
+   tracked and present in a worktree.
 1. **Sync check.** `git fetch origin`, confirm `master == origin/master`, confirm a
    clean tree (only `.claude/`, `.impeccable/`, `PRODUCT.md` untracked), run the full
    suite and record the baseline count. If master moved, merge/rebase cleanly and
@@ -78,6 +81,22 @@ writes serialize, or use `isolation: "worktree"` across genuinely disjoint files
 9. **Merge** into master, rerun the full suite **on master**, then push.
    Never `git push --force`. Never `git branch -D` (safe delete only).
 10. **Hand back** to the main orchestrator with the gate's exit evidence.
+
+### How to report a stop
+
+When a gate hits a checkpoint that belongs to the owner, do not guess and do not
+stall silently. Report exactly four things, in this order, in plain language:
+
+1. **Where things stand now** — the current behaviour, measured, not described.
+2. **What is being asked of the owner** — the decision, stated as a choice between
+   named options, not as an open question.
+3. **What changes after each option** — what the product does differently, and what it
+   costs, for each choice.
+4. **A concrete example** — one specific reader, one specific moment, showing what
+   each option would mean for them.
+
+Then give a recommendation in a few bullets. A stop that does not do all five is not
+a stop, it is an interruption.
 
 **Budget note:** a prior autonomous run hit a weekly usage limit mid-flight. Every
 workflow must be resumable — prefer one gate per run, and record progress here as it
@@ -124,6 +143,9 @@ completes so a fresh session can pick up without re-deriving anything.
 - `.env` and `.venv` are gitignored and absent from worktrees; copy `.env` in if needed.
 - Views: `/` Today, `/city` City Pulse, `/system` System, `/guide` Guide. `?lang=hi` for Hindi.
 - Deploy is **manual** — there is no CI workflow. `fly deploy` from the repo root.
+- `requirements.txt` carries three test-only dependencies with their reasons:
+  `fonttools`/`brotli` (read the shipped woff2 glyph tables) and `websocket-client`
+  (drive headless Chrome over the DevTools protocol for computed-style assertions).
 
 ---
 
@@ -163,14 +185,61 @@ assumption, never measured. The app records **no** device or viewport data anywh
 who open links on a laptop, so the desktop two-column view may well be the majority
 first impression.
 
+**THE OWNER DECISION AT THIS GATE — resolve before building**
+
+*Where things stand now.* The app records nothing about the device: no user-agent, no
+viewport, no device field anywhere in `metrics.py`, `es.py` or `main.py` (verified).
+`PRODUCT.md` says "they check on a phone"; that has never been measured. It also names
+evaluators — judges, recruiters, peers — who open links on a laptop. So we do not know
+whether the one-column phone layout or the two-column desktop layout is the majority
+experience, and every layout argument is currently opinion against opinion.
+
+*What is being asked of you.* Choose the measurement method. Three options:
+
+- **Option A — CSS media-query probe (no JavaScript).** The stylesheet declares a
+  background image per width band; the browser fetches only the one whose media query
+  matches, so the server learns the real viewport band from which URL was requested.
+  Real viewport, no user-agent parsing, no fingerprinting, zero JS. Costs one extra
+  small request per page load, and needs `Cache-Control: no-store` on the probe or
+  repeat visits stop reporting.
+- **Option B — coarse user-agent class (no JavaScript).** Parse the UA server-side into
+  phone / tablet / desktop, store only the bucket, discard the string. No extra
+  request. But it answers a *different question*: device class, not viewport. A desktop
+  browser at a 500px window counts as desktop; a tablet is a coin flip.
+- **Option C — a JavaScript beacon.** Exact viewport, one tiny script. Requires
+  relaxing the zero-JavaScript rule, which `PRODUCT.md` records as **open, not
+  decided** — so this is a legitimate choice, but it is a product-level one and it is
+  yours alone.
+
+*What changes after each.* With **A**, layout decisions become evidence-based and the
+zero-JS rule survives intact; the System view can honestly say "viewport bands, by page
+load." With **B**, you get a cheaper, coarser answer and must label it "device class,
+not viewport" forever. With **C**, you get the most precise data and the product loses
+the constraint that currently makes it unusual.
+
+*A concrete example.* A recruiter opens the link on a MacBook and drags the window to
+half the screen — about 700px wide. **A** records "medium" and tells you the truth: the
+two-column layout is what they saw. **B** records "desktop" and you would keep
+optimising a 1120px layout they never looked at. **C** records 700px exactly, and costs
+you the zero-JS claim.
+
+**Recommendation**
+
+- **Take Option A.** It answers the question actually asked (viewport, not device),
+  keeps the zero-JS rule, and needs no new dependency.
+- **Do not take C for this.** Spending the product's most distinctive constraint on an
+  analytics detail is a bad trade; if zero-JS is ever relaxed, it should be for a
+  reader-facing gain, not a metric.
+- **B is the fallback** if the extra request proves unacceptable — but write "device
+  class, not viewport" on the System view and never let it be quoted as a viewport
+  figure.
+- **Whichever you pick, count page loads and say so.** Without cookies or identifiers
+  this cannot count people, and the System view must not imply otherwise.
+
 **Action items**
 
-1. Record a **coarse device-class bucket** per request. A small fixed set of buckets
-   (e.g. narrow / medium / wide), derived server-side.
-2. **Zero-JS constraint applies.** There is no viewport width on the server. Resolve
-   this honestly in the plan phase — the options are a CSS-driven signal, a coarse
-   user-agent class, or accepting a proxy — and state plainly in the UI/System view
-   which one was chosen and what it can and cannot tell us.
+1. Record a **coarse viewport/device bucket** per request — a small fixed set of bands
+   (e.g. narrow / medium / wide), resolved by the chosen method above.
 3. **Privacy floor, non-negotiable:** no raw user-agent string stored, no IP, no
    fingerprinting, no per-user identifier. A counter per bucket, nothing more.
 4. Surface the breakdown on the **System** view, in the proof register (mono, flat),
