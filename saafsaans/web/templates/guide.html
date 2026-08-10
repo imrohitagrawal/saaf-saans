@@ -29,15 +29,21 @@
   </section>
 
   <section class="card wide">
-    <h2 class="kicker">{{ T('guide', 'h_bands', 'The CPCB air-quality bands') }}</h2>
+    <h2 class="kicker" id="h-bands">{{ T('guide', 'h_bands', 'The CPCB air-quality bands') }}</h2>
     <p class="hint">{{ T('guide', 'bands_intro', "India's national scale runs 0–500. The band decides the colour of the sky above and what the advice says.") }}</p>
     {#- Every table on this page sits in its own .table-scroll: the widest of
         them cannot shrink below its columns, and without a container of its
         own it forced the whole page sideways at narrow widths (WCAG 1.4.10).
         The header row is a real thead with scope="col", so a screen reader
         announces the column a cell belongs to instead of a bare value
-        (WCAG 1.3.1). The wrapper takes the table's old top margin. -#}
-    <div class="table-scroll">
+        (WCAG 1.3.1). The wrapper takes the table's old top margin.
+
+        A scroll port holding no link, button or field is unreachable by
+        keyboard in WebKit, which -- unlike Chrome and Firefox -- does not put
+        a scroller in the tab order on its own (WCAG 2.1.1). tabindex="0" puts
+        it there; aria-labelledby borrows the heading the table already sits
+        under, so four regions do not all announce as "region". -#}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="h-bands">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_band', 'Band') }}</th><th scope="col">AQI</th><th scope="col">{{ T('guide', 'th_means', 'What it means for you') }}</th></tr></thead>
       <tbody>
@@ -123,8 +129,8 @@
 
     <p class="hint">{{ T('guide', 'risk_intro', "The score adds three things together and stops at 100: a starting figure for how bad the air is, how much air you will breathe in while doing what you have planned, and how much harder this air is on your body than on an average adult's.") }}</p>
 
-    <h3 class="kicker">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
-    <div class="table-scroll">
+    <h3 class="kicker" id="h-risk-words">{{ T('guide', 'h_risk_words', 'What the words on the score mean') }}</h3>
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="h-risk-words">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_score', 'Score') }}</th><th scope="col">{{ T('guide', 'th_called', 'What it is called') }}</th></tr></thead>
       <tbody>
@@ -138,11 +144,13 @@
     </table>
     </div>
 
-    <h3 class="kicker">{{ T('guide', 'h_researched', 'The part that comes from published research') }}</h3>
+    <h3 class="kicker" id="h-researched">{{ T('guide', 'h_researched', 'The part that comes from published research') }}</h3>
     <p class="hint">{{ T('guide', 'researched_intro', 'Breathing harder means breathing in more of the same air. How much more is measured, and we use those measurements rather than guessing. The figures below are litres of air per minute (shown as cubic metres per minute, the unit the source uses), for the three age groups this site offers.') }}</p>
     {#- Five columns of mono figures: the widest table on the site, and the one
-        the page-level overflow was measured on. -#}
-    <div class="table-scroll">
+        the page-level overflow was measured on: 296px of columns against a
+        254px wrapper at the 320px reflow width, so this is the one that
+        genuinely has content off-screen to scroll to. -#}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="h-researched">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_age', 'Age group') }}</th><th scope="col">{{ T('guide', 'th_rest', 'At rest') }}</th><th scope="col">{{ T('guide', 'th_light', 'Light') }}</th><th scope="col">{{ T('guide', 'th_moderate', 'Moderate') }}</th><th scope="col">{{ T('guide', 'th_hard', 'Hard') }}</th></tr></thead>
       <tbody>
@@ -164,9 +172,9 @@
       {% for row in intensity_rows %}<span
         class="mono">{{ row.activity }} = {{ row.level }}</span>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
 
-    <h3 class="kicker">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
+    <h3 class="kicker" id="h-judgement">{{ T('guide', 'h_judgement', 'The part that is our own judgement') }}</h3>
     <p class="hint">{{ T('guide', 'judgement_body', 'There is no single published number for how much worse polluted air is for a person with asthma, or COPD, or a heart condition. Rather than invent one that would look authoritative, we say plainly that the figures below are our ordering of who is most affected — the order is well supported, the exact sizes are not. The same applies to the extra weight given to children and older people, which is there for reasons that are real but do not reduce to a number: developing lungs, more air breathed per kilogram of body weight, less reserve to draw on.') }}</p>
-    <div class="table-scroll">
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="h-judgement">
     <table>
       <thead><tr><th scope="col">{{ T('guide', 'th_factor', 'Factor') }}</th><th scope="col">{{ T('guide', 'th_points', 'Points added') }}</th></tr></thead>
       <tbody>
