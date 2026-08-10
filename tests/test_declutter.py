@@ -625,3 +625,38 @@ def test_the_baseline_head_rows_still_outrank_the_row_they_sit_on(today):
     # the heads declared nothing and `.row` happened to agree.
     base, _selectors = _class_cascade(rules, {"row"})
     assert base["align-items"] == "center", base
+
+
+def test_only_one_qualification_style_exists():
+    """`.hint` was a second copy of `.caveat` -- same 8px top margin, same
+    12.5px, same --text-3, differing only in the line-height it did not set --
+    and the two were used for the SAME sentence: the risk notice rendered under
+    `.caveat` on `/` and under `.hint` on `/guide`, so one string was set two
+    ways in one app.
+
+    Both halves are asserted. The first is absence: no stylesheet rule and no
+    template names `hint` as a class, including the `:lang(hi)` floor list that
+    would otherwise keep a dead selector alive. The second is the partner that
+    stops absence proving nothing -- the risk notice must render on both pages,
+    in both languages, and carry `.caveat` on each.
+    """
+    css = CSS_PATH.read_text()
+    assert not re.search(r"(?<![\w-])\.hint(?![\w-])", css), \
+        ".hint is back in the stylesheet; .caveat is the one qualification style"
+    for path in sorted(TEMPLATES.glob("*.html")):
+        assert not re.search(r'class="[^"]*\bhint\b[^"]*"', path.read_text()), \
+            f"{path.name} still marks a qualification with .hint"
+
+    from saafsaans.services import risk
+    with TestClient(app) as client:
+        for lang in ("en", "hi"):
+            notice = i18n.t(lang, "ui", "risk_notice", risk.HEURISTIC_NOTICE)
+            opening = notice[:40]
+            assert opening.strip(), f"{lang}: no risk notice to look for"
+            for route in ("/", "/guide"):
+                page = client.get(route, params={**PERSONA, "lang": lang}).text
+                found = re.findall(r'<p class="([^"]*)">\s*' + re.escape(opening), page)
+                assert found, f"{lang} {route}: the risk notice does not render"
+                for classes in found:
+                    assert classes.split() == ["caveat"], \
+                        f"{lang} {route}: the risk notice is set in {classes!r}"
