@@ -1183,13 +1183,26 @@ def system(request: Request):
     client = get_client()
     view = "security" if request.query_params.get("view") == "security" else "observability"
 
+    # The empty states must name the real cause. With nothing recording, asking
+    # questions on Today can never populate this view, so telling a reader to go
+    # and ask one is a wrong remedy for a misdiagnosed fault.
+    #
+    # The predicate is the index ANSWERING, not a client object existing:
+    # ELASTIC_URL set against an endpoint that is down builds a client, and
+    # keying off that printed "logged below" above an empty log.
+    #
+    # The ping alone is not the predicate either. It is bounded at two seconds
+    # inside a page render while the queries below carry the client's own ten,
+    # so a cold connection can fail the ping and still return rows -- and rows
+    # on the page are proof the index answered. Each branch therefore lets its
+    # own data override; the ping is only how "no index" is told from "empty
+    # index", which no query result can distinguish.
+    answers = es.index_answers(client)
+
     ctx = base_context(request, persona, theme, lang, "system")
     ctx.update({
         "view": view,
-        # The empty states must name the real cause. With no index configured,
-        # asking questions on Today can never populate this view, so telling a
-        # reader to go and ask one is a wrong remedy for a misdiagnosed fault.
-        "has_index": get_client() is not None,
+        "has_index": answers,
         "q_obs": _qs(persona if ctx["persona_applied"] else {}, theme, lang,
                      view="observability"),
         "q_sec": _qs(persona if ctx["persona_applied"] else {}, theme, lang,
@@ -1207,6 +1220,7 @@ def system(request: Request):
         # `total` counts every logged event, including blocked prompts and
         # errors. Only completed answers belong under "questions answered".
         answered = (by_event or {}).get("chat_completed", 0)
+        ctx["has_index"] = answers or bool(by_event or loc_rows or k.get("total"))
         ctx.update({
             "kpis": [
                 {"v": answered,
@@ -1249,6 +1263,11 @@ def system(request: Request):
         # security_stats aggregates the whole index, so the KPI has to come from
         # the same seven-day buckets the chart uses or the label is a lie.
         last_7 = sum(d["count"] for d in daily)
+        # Every blocked prompt the index returned, before the display filter
+        # below narrows it: a row nobody may be shown still proves the index
+        # answered, which is all this predicate asks.
+        events = metrics.recent_security_events(client, limit=40)
+        ctx["has_index"] = answers or bool(daily or stats.get("by_pattern") or events)
         ctx.update({
             "sec_kpis": [
                 {"v": last_7,
@@ -1272,7 +1291,7 @@ def system(request: Request):
             # attempts are ours to display, and a visitor may see their own.
             "attempts": pr.group_attempts(
                 [{**a, "when": _fmt_time(a["ts"])}
-                 for a in metrics.recent_security_events(client, limit=40)
+                 for a in events
                  if a.get("session_hash") in _displayable_sessions(request)])[:6],
         })
     return _render(request, "system.html", ctx, session_id(request), theme, lang)

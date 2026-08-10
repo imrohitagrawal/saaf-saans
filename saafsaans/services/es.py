@@ -14,6 +14,8 @@ Retrieval is ranked, not merely filtered by AQI band: an advisory written for a
 different persona is excluded rather than returned with a score of zero. See
 ``rank_advisories``.
 """
+import threading
+import time
 from datetime import datetime, timezone
 
 from . import config
@@ -68,6 +70,55 @@ def get_client():
                              request_timeout=10)
     except Exception:
         return None
+
+
+# --- Reachability ---------------------------------------------------------
+# Configuration is not an answer. ELASTIC_URL pointing at a port nothing
+# listens on constructs a client that never fails until something queries it,
+# so a caller reading "is there an index" off the client object alone gets
+# True from a dead endpoint -- which is how the System view claimed blocked
+# prompts were "logged below" directly above an empty log.
+#
+# Split TTLs mirror waqi's: a reachable index is re-checked rarely, an
+# unreachable one recovers within a minute.
+_ANSWER_TTL = 300
+_ANSWER_TTL_FAILURE = 60
+# Not the client's own request_timeout=10: this runs inside a page render, and
+# a hung endpoint must not hold the System view for ten seconds.
+_ANSWER_TIMEOUT = 2
+_ANSWERED = None  # (checked_at, ok)
+_ANSWER_LOCK = threading.Lock()
+
+
+def index_answers(client) -> bool:
+    """Whether the index answered a ping inside the timeout.
+
+    Never raises and never blocks past ``_ANSWER_TIMEOUT``: any failure is an
+    index that did not answer, which is the deterministic fallback every other
+    external call here takes.
+    """
+    global _ANSWERED
+    if client is None:
+        return False
+    with _ANSWER_LOCK:
+        cached = _ANSWERED
+    if cached is not None:
+        ttl = _ANSWER_TTL if cached[1] else _ANSWER_TTL_FAILURE
+        if time.monotonic() - cached[0] < ttl:
+            return cached[1]
+    try:
+        ok = bool(client.options(request_timeout=_ANSWER_TIMEOUT).ping())
+    except Exception:
+        ok = False
+    with _ANSWER_LOCK:
+        _ANSWERED = (time.monotonic(), ok)
+    return ok
+
+
+def answer_cache_clear() -> None:
+    global _ANSWERED
+    with _ANSWER_LOCK:
+        _ANSWERED = None
 
 
 # --- Indexing / logging (fire-and-forget) ---------------------------------

@@ -639,26 +639,39 @@ HI: dict = {
         # where the command begins.
         "sys_empty_telemetry": "अभी तक कोई टेलीमेट्री नहीं है। ‘आज’ पर कोई सवाल पूछिए, या "
                                "पुराना डेटा भरने के लिए यह चलाइए:",
+        # "जवाब नहीं दे रहा", not "सेट नहीं है": a configured endpoint that is
+        # down records exactly as much as no endpoint at all, and the page must
+        # not name a cause it has not checked.
         "sys_empty_no_index": "यह हिस्सा एक डेटाबेस इंडेक्स से डेटा पढ़ता है, और अभी "
-                              "कोई इंडेक्स सेट नहीं है, इसलिए कुछ भी दर्ज नहीं हो रहा। "
+                              "कोई इंडेक्स जवाब नहीं दे रहा, इसलिए कुछ भी दर्ज नहीं हो रहा। "
                               "ऐप इसके बिना भी चलता है; बस ये पैनल नहीं चलते।",
         "sys_h_localities": "इलाक़े के हिसाब से रिक्वेस्ट",
         "sys_empty_localities": "अभी तक इलाक़े का कोई डेटा नहीं है।",
         # --- security ---
         "sys_h_blocked_7d": "रोकी गईं · पिछले 7 दिन",
         "sys_empty_blocked_7d": "पिछले 7 दिनों में रोकी गई कोई कोशिश दर्ज नहीं है।",
+        # The KPI beside this chart reads 0 in both states. This one is the
+        # unrecorded zero, not the measured one.
+        "sys_empty_blocked_7d_no_index": "यह नापा हुआ शून्य नहीं है: कोई डेटाबेस इंडेक्स "
+                                         "जवाब नहीं दे रहा, इसलिए रोकी गई कोशिशें दर्ज "
+                                         "नहीं होतीं।",
         "sys_h_attempts": "हाल में रोकी गई कोशिशें",
         "sys_btn_simulate": "रेड-टीम सिमुलेशन चलाइए",
         # The attack count is printed between these two.
         "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
         "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
                               "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # The index answers but nothing it returned is listed. This variant
+        # stops at the block itself and makes no claim about the log; the
+        # empty state below it says why the list is empty.
+        "sys_sim_note_after_unlisted": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक "
+                                       "पहुँचने से पहले रोक दी गईं।",
         # The no-index variant. It must not claim anything was logged: with no
         # database index the guard still blocks, but nothing is recorded, and
         # the empty state below says so.
         "sys_sim_note_after_no_index": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक "
                                        "पहुँचने से पहले रोक दी गईं। कोई डेटाबेस इंडेक्स "
-                                       "कॉन्फ़िगर नहीं है, इसलिए इनमें से कुछ भी नीचे दर्ज "
+                                       "जवाब नहीं दे रहा, इसलिए इनमें से कुछ भी नीचे दर्ज "
                                        "नहीं हुआ।",
         # Follows the count of blocked prompts in one pattern group.
         "sys_blocked_premodel": "बार रोकी गईं · मॉडल से पहले",
@@ -671,6 +684,18 @@ HI: dict = {
                                "दिखाई जाती हैं।",
         "sys_empty_attempts": "अभी तक कुछ रोका नहीं गया है। ऊपर सिमुलेशन चलाइए, या ‘आज’ से "
                               "कोई इंजेक्शन कोशिश भेजिए — दोनों ही सूरत में वह यहाँ दर्ज होगी।",
+        # Shown after a run, where "अभी तक कुछ रोका नहीं गया है" would
+        # contradict the note above it and the remedy it offers is the run
+        # that produced this screen.
+        "sys_empty_attempts_after_sim": "दिखाने को कुछ नहीं: इंडेक्स जवाब दे रहा है, पर "
+                                        "इस पेज पर दिखाई जा सकने वाली कोई रोकी गई "
+                                        "प्रॉम्प्ट उसने नहीं लौटाई।",
+        # The no-index variant drops both remedies above: with nothing
+        # answering, neither the simulation nor a question from Today is
+        # recorded anywhere, so offering them would be a wrong remedy.
+        "sys_empty_attempts_no_index": "यहाँ कुछ भी दर्ज नहीं हो रहा: कोई डेटाबेस इंडेक्स "
+                                       "जवाब नहीं दे रहा। गार्ड इन प्रॉम्प्ट को फिर भी "
+                                       "रोकता है — बस यह सूची नहीं चलती।",
     },
     # The Guide's own prose. Keys are the strings guide.html asks for, in page
     # order: ``h_*`` headings, ``th_*`` table headers, ``q_*``/``a_*`` FAQ pairs
