@@ -756,12 +756,22 @@ h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
 *:lang(hi) {
   --body: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
   --mono: "Anek Devanagari", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
-  letter-spacing: normal;
 }
 *:lang(en) {
   --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
+
+/* The tracking reset needs specificity, not a place in the file. On the block
+   above it is (0,1,0), which loses to `.fields .lbl`, `.hero-window .lbl` and
+   `.pollutants .lbl` at (0,2,0) and to `h2.kicker` and `.answer h3` at (0,1,1):
+   the field labels, the hero's what-if-you-must label and the kicker on City
+   Pulse, System and Guide all kept .08-.12em of Latin tracking on Devanagari,
+   and the rules that tie at (0,1,0) were winning on source order alone. The
+   repeated `:lang(hi)` raises this to (0,2,1) -- above every tracking rule in
+   the sheet -- and narrows nothing: it still follows the computed language, so
+   the Devanagari wordmark inside an English page is covered too. */
+html *:lang(hi):lang(hi) { letter-spacing: normal; }
 
 /* Vertical centring across scripts. Latin and Devanagari allocate their line
    boxes differently -- at the same font-size and line-height, Anek's box is
