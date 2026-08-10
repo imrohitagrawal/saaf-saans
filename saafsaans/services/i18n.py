@@ -661,6 +661,11 @@ HI: dict = {
         "sys_sim_note_before": "सिमुलेशन ने गार्ड पर",
         "sys_sim_note_after": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक पहुँचने से "
                               "पहले रोक दी गईं, नीचे दर्ज हैं।",
+        # The index answers but nothing it returned is listed. This variant
+        # stops at the block itself and makes no claim about the log; the
+        # empty state below it says why the list is empty.
+        "sys_sim_note_after_unlisted": "जानी-पहचानी हमलावर प्रॉम्प्ट चलाईं — सभी मॉडल तक "
+                                       "पहुँचने से पहले रोक दी गईं।",
         # The no-index variant. It must not claim anything was logged: with no
         # database index the guard still blocks, but nothing is recorded, and
         # the empty state below says so.
@@ -679,6 +684,12 @@ HI: dict = {
                                "दिखाई जाती हैं।",
         "sys_empty_attempts": "अभी तक कुछ रोका नहीं गया है। ऊपर सिमुलेशन चलाइए, या ‘आज’ से "
                               "कोई इंजेक्शन कोशिश भेजिए — दोनों ही सूरत में वह यहाँ दर्ज होगी।",
+        # Shown after a run, where "अभी तक कुछ रोका नहीं गया है" would
+        # contradict the note above it and the remedy it offers is the run
+        # that produced this screen.
+        "sys_empty_attempts_after_sim": "दिखाने को कुछ नहीं: इंडेक्स जवाब दे रहा है, पर "
+                                        "इस पेज पर दिखाई जा सकने वाली कोई रोकी गई "
+                                        "प्रॉम्प्ट उसने नहीं लौटाई।",
         # The no-index variant drops both remedies above: with nothing
         # answering, neither the simulation nor a question from Today is
         # recorded anywhere, so offering them would be a wrong remedy.
