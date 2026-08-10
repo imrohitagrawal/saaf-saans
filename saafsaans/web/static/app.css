@@ -440,7 +440,8 @@ select, input[type="text"] {
 .group-kicker { margin: 0 4px 6px; }
 .station-list { display: flex; flex-direction: column; background: var(--surface);
                 border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-.station { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px;
+.station { display: flex; flex-wrap: wrap; justify-content: flex-end;
+           align-items: center; gap: 10px; min-height: 46px; padding: 0 14px;
            border: none; border-top: 1px solid var(--border); background: none;
            color: var(--text); font-family: var(--body); font-size: 14px; cursor: pointer;
            text-align: left; width: 100%; text-decoration: none; }
@@ -458,7 +459,18 @@ select, input[type="text"] {
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
        background: var(--ink); margin-right: 8px; vertical-align: baseline; }
 .station .dot { margin-right: 0; flex: none; }
-.station .nm { flex: 1; min-width: 0; }
+/* min-content, not 0. The name is the only item on the row that yields, and
+   every other width is fixed -- so at 320px `min-width: 0` handed "Ghaziabad"
+   a 50.2px box for a 66.4px word and the last glyphs printed through the tag
+   beside them. At its own min-content the name instead pushes `.meta` onto a
+   second flex line, which the row wraps to. */
+.station .nm { flex: 1; min-width: min-content; }
+/* One item, so the row breaks between the name and the mono cells rather than
+   between the cells: `.bd` alone on a second line left a 76px empty box under
+   every row that has no band word to print. `justify-content: flex-end` only
+   reaches a line with free space, which is the wrapped one -- on a single-line
+   row the name has already grown into all of it. */
+.station .meta { display: flex; align-items: center; gap: 10px; }
 .station .tag { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .station .n { font-family: var(--mono); font-weight: 600; }
 .station .bd { font-family: var(--mono); font-size: 11px; color: var(--ink);

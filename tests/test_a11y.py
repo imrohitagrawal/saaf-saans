@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from saafsaans.services import i18n
 from saafsaans.web.main import app
 
 CSS_PATH = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
@@ -675,6 +676,178 @@ def test_flex_items_sized_past_their_container_are_allowed_to_shrink(sheet, page
             problems.append(f"{selector}: basis {basis.group(3)}px exceeds the "
                             f"{budget:.0f}px available and cannot shrink to fit")
     assert not problems, "flex items that cannot shrink at 320px:\n  " + "\n  ".join(problems)
+
+
+# IBM Plex Mono sets every glyph on the same 600/1000em advance, so the width
+# of a mono string is len * 0.6 * font-size exactly. Checked against Chromium
+# at 320px, where the `NO READING` tag measures 66.0px at 11px and the `--`
+# figure 16.8px at 14px.
+MONO_ADVANCE = 0.6
+# The widest min-content any shipped station name reaches: "Jahangirpuri",
+# 78.8px in .station's 14px IBM Plex Sans, measured in Chromium at 320px. A
+# proportional face carries no arithmetic the stylesheet can be read for, so
+# this one width is measured; every other width on the row is computed.
+STATION_NAME_MIN_CONTENT = 78.8
+
+
+def _mono_width(sheet, css_class, text):
+    """A mono cell's width at 320px, from its own font-size or .station's."""
+    size = (_px(_decls(sheet["top"], f".station .{css_class}").get("font-size", ""))
+            or _px(_decls(sheet["top"], ".station").get("font-size", "")))
+    return len(text) * MONO_ADVANCE * size
+
+
+def _widest_cached_tag():
+    """The longest tag string city.html can print: CACHED, the age, and OLD.
+
+    59 MIN and 47 H are the exact upper edges of `_age_label`'s first two
+    branches; the third is open-ended, so a two-digit day count stands in.
+    """
+    def t(key, default):
+        return i18n.t("en", "ui", key, default)
+    age = max([f"59 {t('age_unit_min', 'MIN')}", f"47 {t('age_unit_hours', 'H')}",
+               f"99 {t('age_unit_days', 'D')}"], key=len)
+    return f"{t('tag_cached', 'CACHED')} · {age} {t('tag_old', 'OLD')}"
+
+
+def _name_floor(sheet):
+    """What `.station .nm` declares as its own smallest box, in px.
+
+    Read, never assumed: this is the declaration the row's whole geometry turns
+    on. A flex item's hypothetical size -- the width a wrapping container packs
+    lines with -- is its basis clamped by `min-width`, and `.nm`'s basis is 0.
+    So `min-content` is what both keeps the name on a line of its own and stops
+    it shrinking below its glyphs; `0` (or no declaration, which `flex` bases
+    turn into 0 too) makes both numbers 0.
+    """
+    declared = _decls(sheet["top"], ".station .nm").get("min-width", "").strip()
+    if declared == "min-content":
+        return STATION_NAME_MIN_CONTENT
+    return _px(declared) or 0.0
+
+
+def _row_items(sheet, node, no_bands, name_floor, tag_text=None, figure=None, seq=None):
+    """Each top-level flex item of a station row, in source order: how wide it
+    is, whether it is the name, and which mono cells it carries.
+
+    A `.meta` wrapper makes its contents one item, which is what decides both
+    whether the name shares a flex line with them and whether a break can fall
+    between two mono cells instead of before all of them.
+    """
+    seq = [0] if seq is None else seq
+    items = []
+    for kid in node["kids"]:
+        classes = _classes(kid)
+        seq[0] += 1
+        if "dot" in classes:
+            width = _px(_decls(sheet["top"], ".dot").get("width", "")) or 0.0
+            items.append({"width": width, "name": False, "mono": frozenset()})
+        elif "nm" in classes:
+            items.append({"width": name_floor, "name": True, "mono": frozenset()})
+        elif "tag" in classes:
+            items.append({"width": _mono_width(sheet, "tag", tag_text or kid["text"].strip()),
+                          "name": False, "mono": frozenset({f"tag{seq[0]}"})})
+        elif "n" in classes:
+            items.append({"width": _mono_width(sheet, "n", figure or kid["text"].strip()),
+                          "name": False, "mono": frozenset({"n"})})
+        elif "bd" in classes:
+            width = (0.0 if no_bands
+                     else _px(_decls(sheet["top"], ".station .bd").get("width", "")) or 0.0)
+            items.append({"width": width, "name": False, "mono": frozenset({"bd"})})
+        elif "meta" in classes:
+            inner = _row_items(sheet, kid, no_bands, name_floor, tag_text, figure, seq)
+            gap = _px(_decls(sheet["top"], ".station .meta").get("gap", "")) or 0.0
+            items.append({"width": sum(i["width"] for i in inner) + gap * max(len(inner) - 1, 0),
+                          "name": any(i["name"] for i in inner),
+                          "mono": frozenset().union(*[i["mono"] for i in inner] or [frozenset()])})
+    return items
+
+
+def _flex_lines(items, gap, available, wraps):
+    """Greedy line breaking, the way a wrapping flex container fills lines."""
+    if not wraps:
+        return [items]
+    lines, current, filled = [], [], 0.0
+    for item in items:
+        if current and filled + gap + item["width"] > available:
+            lines.append(current)
+            current, filled = [], 0.0
+        filled += (gap if current else 0.0) + item["width"]
+        current.append(item)
+    return lines + ([current] if current else [])
+
+
+def test_a_station_row_never_prints_its_name_over_the_next_cell(sheet, pages):
+    """Every cell on a station row but the name holds a width the name cannot
+    take back: the dot, the mono tag, the mono figure, and `.bd`'s reserved
+    column. `.nm` is the only item that yields, and `min-width: 0` let it yield
+    past its own min-content -- at 320px the name then printed its last glyphs
+    through the tag beside it, which is content lost at exactly the width SC
+    1.4.10 names. So the width the name is actually left with -- its declared
+    minimum, or whatever the packed line has over after the fixed cells on it,
+    whichever is larger -- must still be its own min-content.
+
+    Two further things must hold for that box to be reachable: no flex line may
+    need more than the shell offers at 320, and the mono cells must all land on
+    one line, or the row breaks in the middle of them and leaves `.bd` printing
+    into the row beneath.
+
+    The worst case is not what the mock feed happens to render. A held reading
+    prints the longest tag the app has (`CACHED · 59 MIN OLD`) beside a
+    three-digit figure, and PRODUCT.md's deployed configuration has WAQI live,
+    so some row earns a band word and `.bd`'s 76px column is reserved on every
+    row -- including the ones tagged NO READING. Each row is measured in all
+    four combinations.
+
+    Three separate changes turn this red, one for each property: reverting
+    `.station .nm`'s `min-width` to 0 leaves the name a 52.2px box for a 78.8px
+    word; removing `flex-wrap: wrap` from `.station` asks one line for 354.4px
+    of 260px; unwrapping the `.meta` group in city.html breaks the row between
+    `.n` and `.bd`.
+    """
+    available = (_budget(sheet, pages, "station")
+                 - _horizontal_padding(sheet, "station"))
+    gap = _px(_decls(sheet["top"], ".station").get("gap", "")) or 0.0
+    wraps = _decls(sheet["top"], ".station").get("flex-wrap") == "wrap"
+    name_floor = _name_floor(sheet)
+
+    problems, rows = [], 0
+    for name, root in pages.items():
+        for node in _walk(root):
+            if "station" not in _classes(node) or node["tag"] != "a":
+                continue
+            rows += 1
+            label = node["kids"][1]["text"].strip() if len(node["kids"]) > 1 else "?"
+            rendered_no_bands = any("no-bands" in _classes(a) for a in _ancestors(node))
+            for tag_case, (tag_text, figure) in {"as rendered": (None, None),
+                                                 "held": (_widest_cached_tag(), "999")}.items():
+                for no_bands in {rendered_no_bands, False}:
+                    case = f"{tag_case}, {'no band column' if no_bands else 'band column'}"
+                    where = f"{name} {label!r} ({case})"
+                    items = _row_items(sheet, node, no_bands, name_floor, tag_text, figure)
+                    lines = _flex_lines(items, gap, available, wraps)
+                    for line in lines:
+                        needed = sum(i["width"] for i in line) + gap * max(len(line) - 1, 0)
+                        if needed > available:
+                            problems.append(f"{where}: a flex line needs {needed:.1f}px, "
+                                            f"{available:.1f}px available at {VIEWPORT}px")
+                        if not any(i["name"] for i in line):
+                            continue
+                        others = (sum(i["width"] for i in line if not i["name"])
+                                  + gap * max(len(line) - 1, 0))
+                        box = max(name_floor, available - others)
+                        if box < STATION_NAME_MIN_CONTENT:
+                            problems.append(
+                                f"{where}: the name is left {box:.1f}px for a "
+                                f"{STATION_NAME_MIN_CONTENT:.1f}px word")
+                    carrying = [i for line in lines for i in line if i["mono"]]
+                    split = sum(1 for line in lines if any(i["mono"] for i in line))
+                    if carrying and split > 1:
+                        problems.append(f"{where}: the mono cells break across "
+                                        f"{split} lines instead of travelling as one")
+    assert rows, "no station rows rendered -- this test measured nothing"
+    assert not problems, ("station rows squeezed past their name at "
+                          f"{VIEWPORT}px:\n  " + "\n  ".join(sorted(set(problems))))
 
 
 def test_no_inline_style_undercuts_the_touch_target_floor():
