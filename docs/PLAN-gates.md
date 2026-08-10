@@ -98,6 +98,15 @@ stall silently. Report exactly four things, in this order, in plain language:
 Then give a recommendation in a few bullets. A stop that does not do all five is not
 a stop, it is an interruption.
 
+**Owner checkpoints (the only places a run stops for a human):**
+
+1. ~~Gate 0.5 method~~ — **decided 2026-08-10: Option A.** No stop here.
+2. **Gate 1b, before the copy merges.** New sentences advise people with asthma, COPD
+   and pregnancies, in two languages, one of which nobody has verified. R1 is the
+   highest-damage risk in this plan and a human reading the strings is the only
+   mitigation a test cannot provide.
+3. **Promotion.** A gate may deploy; it never promotes. That is the owner's action.
+
 **Budget note:** a prior autonomous run hit a weekly usage limit mid-flight. Every
 workflow must be resumable — prefer one gate per run, and record progress here as it
 completes so a fresh session can pick up without re-deriving anything.
@@ -185,7 +194,9 @@ assumption, never measured. The app records **no** device or viewport data anywh
 who open links on a laptop, so the desktop two-column view may well be the majority
 first impression.
 
-**THE OWNER DECISION AT THIS GATE — resolve before building**
+**THE OWNER DECISION AT THIS GATE — DECIDED 2026-08-10: Option A.**
+The owner chose the CSS media-query probe. Do not re-open this; build Option A. The
+alternatives and the reasoning are kept below because a later reader will ask why.
 
 *Where things stand now.* The app records nothing about the device: no user-agent, no
 viewport, no device field anywhere in `metrics.py`, `es.py` or `main.py` (verified).
@@ -223,7 +234,7 @@ two-column layout is what they saw. **B** records "desktop" and you would keep
 optimising a 1120px layout they never looked at. **C** records 700px exactly, and costs
 you the zero-JS claim.
 
-**Recommendation**
+**Recommendation — accepted by the owner on 2026-08-10**
 
 - **Take Option A.** It answers the question actually asked (viewport, not device),
   keeps the zero-JS rule, and needs no new dependency.
@@ -238,8 +249,18 @@ you the zero-JS claim.
 
 **Action items**
 
-1. Record a **coarse viewport/device bucket** per request — a small fixed set of bands
-   (e.g. narrow / medium / wide), resolved by the chosen method above.
+1. Record a **coarse viewport bucket** per request via the **CSS media-query probe**:
+   the stylesheet declares a background image per width band, the browser fetches only
+   the band whose media query matches, and the server counts the request. Pick the
+   bands from the breakpoints the layout already uses, so the data answers questions
+   the stylesheet actually asks.
+2. Serve the probe with `Cache-Control: no-store`, or repeat visits stop reporting and
+   the counts silently under-read returning readers. A test must pin this header.
+3. The probe must never become a tracker: no cookie, no identifier, no IP, no raw
+   user-agent. A counter per band, nothing else — and a test that bites if any of them
+   reach storage.
+4. The System view states plainly that these are **page loads, not people**, and that
+   the figure is a viewport band rather than a device.
 3. **Privacy floor, non-negotiable:** no raw user-agent string stored, no IP, no
    fingerprinting, no per-user identifier. A counter per bucket, nothing more.
 4. Surface the breakdown on the **System** view, in the proof register (mono, flat),
