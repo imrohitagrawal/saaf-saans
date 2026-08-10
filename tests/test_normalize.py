@@ -133,6 +133,38 @@ def test_dark_severity_ramp_is_monotonic_in_luminance():
     assert dark == sorted(dark), "dark ramp must brighten with severity"
 
 
+def test_severity_tint_ramp_is_monotonic_in_luminance():
+    """The tints n1-n6 are the second half of the same severity vocabulary --
+    they paint the band chip's background -- so the Monotone Severity Rule binds
+    them exactly as it binds the inks. The light tints descended cleanly while
+    the dark ones went up, down, down, down, up: n6 (Severe) sat lighter than
+    n5, and n2 (Satisfactory) lighter than n3 through n6.
+    """
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css").read_text()
+
+    def lum(h):
+        h = h.lstrip("#")
+        chans = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(chans[0]) + 0.7152 * f(chans[1]) + 0.0722 * f(chans[2])
+
+    def ramp(block):
+        chunk = text.split(block, 1)[1]
+        return [lum(re.search(rf"--n{n}: (#[0-9A-Fa-f]{{6}})", chunk).group(1))
+                for n in range(1, 7)]
+
+    light, dark = ramp(":root {"), ramp('[data-theme="dark"] {')
+    # Strictly, not merely weakly: two neighbouring bands sharing a luminance is
+    # a scale with a flat step in it.
+    assert all(a > b for a, b in zip(light, light[1:])), \
+        f"light tints must darken with severity: {light}"
+    assert all(a < b for a, b in zip(dark, dark[1:])), \
+        f"dark tints must brighten with severity: {dark}"
+
+
 def test_band_chip_word_and_control_borders_meet_contrast():
     """The band word must be readable on every band, and a control's only visual
     boundary must clear 3:1 -- both were failing before this test existed."""
