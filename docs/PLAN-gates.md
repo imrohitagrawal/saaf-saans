@@ -27,8 +27,8 @@ present in every worktree — read them both in full before touching anything.
 ```
 --- BEFORE PROMOTION -------------------------------------------------
 Gate 0    deploy + verify                                DONE 2026-08-10
-Gate 0.5  viewport telemetry                             ~1 day    <- next
-Gate 1a   the window must be true at the hour it is read ~1-2 days
+Gate 0.5  viewport telemetry                             DONE 2026-08-10
+Gate 1a   the window must be true at the hour it is read ~1-2 days  <- next
 Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days
 Gate 1c   card alignment                                 ~2 hours
 Gate 1d   deploy + verify the whole batch                ~1 hour
@@ -179,7 +179,7 @@ self-hosted font effort. Merged is not shipped.
 
 ---
 
-### Gate 0.5 — Viewport telemetry (the "deeper fix") — **NEXT**
+### Gate 0.5 — Viewport telemetry (the "deeper fix") — **DONE 2026-08-10**
 
 **Goal:** stop guessing whether users are on a phone or a desktop. Every layout
 decision after this one should be answered by data, not by assumption.
@@ -270,9 +270,36 @@ you the zero-JS claim.
 
 **Exit criteria**
 
-- [ ] Full suite green on master, count recorded.
+- [x] Full suite green on master, count recorded — **1365** (from 1341).
 - [ ] Deployed, and the System view shows a non-zero bucket count from real traffic.
-- [ ] A test proves no raw user-agent or IP is persisted — and it bites when mutated.
+      **DEFERRED to Gate 1d**, by lines 47–50 above: this telemetry ships with the Gate 1
+      batch, so there is nothing to deploy on its own. Nothing else in Gate 0.5 depends on
+      it. This deferral was directed by the main orchestrator; it is recorded here rather
+      than decided here, and Gate 1d must not close without it.
+- [x] A test proves no raw user-agent or IP is persisted — and it bites when mutated.
+      `tests/test_viewport_probe.py::test_the_probe_never_writes_an_identifier` sends a
+      user-agent, an `X-Forwarded-For` and a `sid` cookie and asserts none of them, nor the
+      session hash derived from the cookie, reaches the document. It freezes
+      `es.VIEWPORT_FIELDS == {"@timestamp", "band"}`, so any added field is a visible edit.
+      Verified RED by widening that set.
+
+**Done 2026-08-10.** Built, reviewed and merged. Not deployed — see the deferral above.
+
+What shipped, and what it costs:
+
+- Bands are `app.css`'s own breakpoints: `0–560px`, `561–899px`, `900px+`.
+- Measured in Chrome 151 over CDP before any code was written, and pinned by
+  `tests/test_viewport_browser.py`: exactly one probe per page load at every width
+  including both boundaries, and `no-store` does make a repeat navigation report again.
+- **Known under-counting, measured:** a back/forward navigation reports nothing — the
+  back-forward cache restores the document and no request is made. `no-store` fixes
+  repeat *navigations*, not *back* navigations.
+- **Known over-counting, measured:** resizing across a boundary counts twice.
+- Automated traffic (crawlers, link unfurlers, prerender) is counted the same as people
+  and cannot be separated without reading the user-agent, which action item 3 forbids.
+  The System view says so. **The first numbers must not be read as human traffic** — R6.
+- The count is a floor, not a total: past 1200 loads in five minutes from one address the
+  page is served normally and the load is not counted.
 
 ---
 
@@ -410,6 +437,14 @@ timing one:
     "school run")` silently returns the sedentary fallback because the keys are
     underscored (`school_run`). A silent fallback would understate a child's intake.
 
+#### 1d note carried from Gate 0.5
+
+Run `python saafsaans/setup_indices.py` against production as part of that deploy. It now
+creates a fifth index, `viewport-bands`, mapping `band` as a keyword. Skipping it is not
+fatal — `metrics.viewport_bands` retries on `band.keyword` so an auto-created index still
+reads — but the mapping that is meant is the one the script writes. Then confirm the
+System view shows a non-zero band count, which is Gate 0.5's deferred exit criterion.
+
 #### 1c. The uneven cards (~2 hours)
 
 **Measured** (Chrome 151 headless, persona applied): the row is full — no dead track
@@ -417,6 +452,10 @@ timing one:
 reading card's **360px**: a **51px** ragged foot, narrowing to 13px at 900px. Cause is
 `align-items: start` on `.grid` (`app.css:208`), which is deliberate and correct —
 stretching would inflate a card with meaningless empty padding.
+
+**Note from Gate 0.5:** the System observability grid now holds **three** cards, not two
+(the viewport breakdown joined events and localities). Same `.grid` rule, so it forms three
+tracks from about 1030px and a 2+1 row below that. Card-alignment work inherits it.
 
 **Action items**
 
@@ -642,6 +681,22 @@ space before the separator after the PM2.5 unit, which compounds in Hindi.
 
 **Typography:** System KPI labels are set in the body face on the page defined by its
 mono register.
+
+**From Gate 0.5:** the System view now shows a `.caveat` (the Quiet Caveat Rule's one
+qualification style) in the viewport card, while two sibling cards on the same page still
+use `.caption`. The new card follows DESIGN.md; the two older ones were left alone rather
+than restyled inside a telemetry gate. Converting them is a two-line change and closes the
+`.caption` item above. · **No retention policy on any index.** `viewport-bands` grows by
+one document per page load for ever, and the other four have no ILM policy either. It is
+the first index that grows per page load rather than per deliberate action, so it is the
+first place the absence has a privacy cost as well as a storage one: the panel says only a
+band and a time are kept and cannot answer "for how long". An ILM delete phase created in
+`setup_indices.py`, with the number named in the caveat, is the fix. · The probe's write is
+synchronous on the request path (bounded at 1s); moving it to a background task would stop
+a degraded Elasticsearch occupying a threadpool slot per page load. · A `viewport-bands`
+document carries a timestamp, so it could in principle be joined by time to an
+`app-telemetry` document that carries a session hash; rounding the probe's timestamp to
+the minute or hour would remove that without costing the breakdown anything.
 
 **Copy / states:** a whitespace-only question is accepted and answered with full health
 instructions · an answer with no retrieved guidance shows no sources block and no

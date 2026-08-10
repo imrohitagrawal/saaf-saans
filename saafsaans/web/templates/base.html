@@ -132,7 +132,11 @@
     it would run edge to edge. Reused rather than restated so the two cannot
     drift, and so the 560px padding override applies here too. -#}
 <footer class="foot shell">
-    {{ T('ui', 'footer', 'Your age, condition and plans stay in this session — never logged. Telemetry keeps a hashed session id and the area you picked, so the System view can show requests by area.') }}
+    {#- The width-band clause is APPENDED, never woven in: tests/test_privacy.py
+        pins the locality sentence as a substring, and this footer is the site's
+        account of what is written down, so a newly stored value that appeared
+        nowhere in it would make every page's claim incomplete. -#}
+    {{ T('ui', 'footer', 'Your age, condition and plans stay in this session — never logged. Telemetry keeps a hashed session id and the area you picked, so the System view can show requests by area. It also counts the width band your browser reports, with nothing attached to it.') }}
     {# Primary source first, and the host named as markup rather than inside
        the translated string: a domain is an address, not copy. This is the
        only source list that appears on EVERY page. The comment markers here

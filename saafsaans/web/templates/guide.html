@@ -90,7 +90,7 @@
       </div>
       <div>
         <dt>{{ T('guide', 'q_privacy', 'What happens to what I type?') }}</dt>
-        <dd>{{ T('guide', 'a_privacy', 'Your age, health condition and plans stay in the page address and your session — those are never written to a database. The area you pick is the one exception and is stored deliberately, so the System view can show which areas get requests; it is never stored alongside your health condition. Questions are checked for prompt-injection before reaching the model. Logs keep a one-way hashed session id and status fields; the security log keeps at most a 120-character snippet of a blocked prompt.') }}</dd>
+        <dd>{{ T('guide', 'a_privacy', 'Your age, health condition and plans stay in the page address and your session — those are never written to a database. The area you pick is the one part of your persona that is stored deliberately, so the System view can show which areas get requests; it is never stored alongside your health condition. Questions are checked for prompt-injection before reaching the model. Logs keep a one-way hashed session id and status fields; the security log keeps at most a 120-character snippet of a blocked prompt. Separately, each page load counts the width band your browser reports — a band and a time, with no session id and nothing else attached.') }}</dd>
       </div>
       <div>
         <dt>{{ T('guide', 'q_medical', 'Is this medical advice?') }}</dt>

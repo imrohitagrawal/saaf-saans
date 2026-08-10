@@ -1,12 +1,19 @@
-"""A fixed-window rate limiter for the two endpoints that do work on demand.
+"""A fixed-window rate limiter for the endpoints that do work on demand.
 
-`POST /ask` and `POST /system/simulate` are unauthenticated by design -- there
-are no accounts, and asking for one to read air-quality advice would defeat the
-point. But both do real work per request: `/ask` writes telemetry, may write a
-security event, and calls a language model when a key is configured; `/simulate`
-writes a document per attack in the demo set. Unthrottled, one script can drive
-unbounded Elasticsearch writes and unbounded third-party spend, on one 256MB
-machine that scales to zero.
+`POST /ask`, `POST /system/simulate` and `GET /probe/{band}.gif` are
+unauthenticated by design -- there are no accounts, and asking for one to read
+air-quality advice would defeat the point. But each does real work per request:
+`/ask` writes telemetry, may write a security event, and calls a language model
+when a key is configured; `/simulate` writes a document per attack in the demo
+set; the viewport probe writes one document per page load and is deliberately
+uncacheable, so nothing between the browser and this process absorbs a flood.
+Unthrottled, one script can drive unbounded Elasticsearch writes and unbounded
+third-party spend, on one 256MB machine that scales to zero.
+
+The probe differs from the other two in what a trip COSTS. A throttled question
+is a person told to wait; a throttled probe is a page load that silently never
+reaches the count, so the limit is set where only automation reaches it and the
+System view says the figure is a floor (sys_viewport_caveat).
 
 Deliberately in-process and deliberately simple:
 
@@ -34,8 +41,27 @@ ASK_LIMIT = 20          # questions per window, per IP
 ASK_WINDOW = 300        # five minutes
 SIMULATE_LIMIT = 5      # red-team demo firings per window, per IP
 SIMULATE_WINDOW = 300
+# Deliberately three orders above ASK_LIMIT, and the difference is not
+# generosity. A question is one act by one person, so 20 can only be reached by
+# a loop. The viewport probe fires once per PAGE LOAD behind an address, plus
+# once more when a window is resized across a band boundary -- and a college or
+# office NAT puts a whole building on one address. A limit sized like ASK_LIMIT
+# would stop counting a busy shared address and quietly corrupt the measurement
+# it exists to protect, which is worse than the flood it would prevent. 4/s
+# sustained is still only reachable by automation.
+PROBE_LIMIT = 1200      # viewport probes per window, per IP
+PROBE_WINDOW = 300
 
 _BUCKETS = {}
+# The probe keeps its OWN table, and the reason is the overflow policy below.
+# `/ask` and `/simulate` insert a bucket only when somebody deliberately posts;
+# reaching 10,000 distinct addresses inside one window was unreachable. The
+# viewport probe inserts one per address per PAGE LOAD, so a crawl or an
+# aggregator link can now fill the table -- and the overflow path clears it
+# WHOLESALE, which would reset the `ask:` counters that guard model spend,
+# mid-window, silently. Separate tables mean a flood of page loads can only
+# ever forgive other page loads.
+_PROBE_BUCKETS = {}
 _LOCK = threading.Lock()
 # A bucket per IP would grow without bound under a spray of forged
 # X-Forwarded-For headers -- a memory leak reachable from the internet, on a
@@ -49,26 +75,31 @@ def _now():
     return time.monotonic()
 
 
-def check(key: str, limit: int, window: int):
+def check(key: str, limit: int, window: int, buckets=None):
     """Record a hit for ``key`` and return ``(allowed, retry_after_seconds)``.
 
     ``retry_after`` is 0 when allowed, and otherwise the whole seconds until
     the current window ends.
+
+    ``buckets`` selects the table. A caller whose traffic is driven by page
+    loads rather than by deliberate posts passes its own, so that filling it
+    cannot spill the overflow reset onto the counters guarding model spend.
     """
+    table = _BUCKETS if buckets is None else buckets
     now = _now()
     with _LOCK:
-        if len(_BUCKETS) >= _MAX_BUCKETS:
-            for stale in [k for k, (start, _) in _BUCKETS.items()
+        if len(table) >= _MAX_BUCKETS:
+            for stale in [k for k, (start, _) in table.items()
                           if now - start >= window]:
-                del _BUCKETS[stale]
-            if len(_BUCKETS) >= _MAX_BUCKETS:
-                _BUCKETS.clear()
+                del table[stale]
+            if len(table) >= _MAX_BUCKETS:
+                table.clear()
 
-        start, count = _BUCKETS.get(key, (now, 0))
+        start, count = table.get(key, (now, 0))
         if now - start >= window:
             start, count = now, 0
         count += 1
-        _BUCKETS[key] = (start, count)
+        table[key] = (start, count)
 
     if count > limit:
         return False, max(1, int(window - (now - start)))
@@ -106,6 +137,7 @@ def client_key(request) -> str:
 
 
 def reset():
-    """Drop every bucket. For tests."""
+    """Drop every bucket, in both tables. For tests."""
     with _LOCK:
         _BUCKETS.clear()
+        _PROBE_BUCKETS.clear()

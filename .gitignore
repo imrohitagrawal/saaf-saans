@@ -15,3 +15,10 @@ venv/
 # Agent worktrees created by docs/fix-workflow.js. Transient, and each is
 # a git checkout of its own -- committing them embeds repos inside this one.
 .claude/worktrees/
+
+# Agent tooling, vendored per-machine and not part of the product. Untracked by
+# intent -- a `git add -A` once swept 151 files and 71,000 lines of it into a
+# feature branch, burying a 350-line change at 200:1. Ignored so that cannot
+# happen again rather than remembered.
+.claude/
+.impeccable/

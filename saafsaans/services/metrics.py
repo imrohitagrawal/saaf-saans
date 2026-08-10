@@ -8,7 +8,7 @@ mapping is missing — a blank chart is always preferable to a stack trace.
 All queries are size=0 aggregations (es-py 9.x kwargs style: ``aggs=...``,
 ``query=...``, ``size=0``). Index names come from :mod:`saafsaans.services.es`.
 """
-from .es import INDEX_READINGS, INDEX_TELEMETRY, INDEX_SECURITY
+from .es import INDEX_READINGS, INDEX_TELEMETRY, INDEX_SECURITY, INDEX_VIEWPORT
 
 
 def _empty_kpis():
@@ -91,6 +91,67 @@ def telemetry_kpis(client) -> dict:
         }
     except Exception:
         return _empty_kpis()
+
+
+# Two seconds per attempt, not the client's own ten. This runs inside a /system
+# render and can issue two queries, so an unbounded pair is a twenty-second
+# page -- the same argument es.index_answers makes for its own ping.
+_VIEWPORT_TIMEOUT = 2
+
+
+def viewport_bands(client):
+    """Page-load counts per viewport band, or ``None`` if nothing answered.
+
+    ``[]`` and ``None`` are different facts and the caller must be able to tell
+    them apart. ``[]`` is an index that answered and holds no rows yet.
+    ``None`` is an index that could not be read at all -- absent, mis-mapped,
+    unauthorised, or slower than the bound below.
+
+    Collapsing the two is not a theoretical worry. The page-wide ``has_index``
+    is a CLUSTER ping plus other indices' rows, so on a deployment whose
+    app-telemetry is healthy while ``viewport-bands`` is missing, an empty list
+    renders as "no page loads counted yet" over traffic that was counted and is
+    simply unreadable -- an unmeasured zero wearing the clothes of a measured
+    one, which is the defect class this module returns ``None`` rather than
+    ``0.0`` everywhere else to avoid.
+
+    Two field names are tried, and the ORDER is load-bearing. An index created
+    by setup_indices.py maps ``band`` as a keyword and has no ``band.keyword``
+    subfield, so the plain name must come first. An index Elasticsearch
+    auto-created on the first write -- which is what a deployment that never
+    re-ran the setup script has -- maps it dynamically as text with a
+    ``.keyword`` subfield, and a terms aggregation on the text field raises
+    because fielddata is disabled. Without the retry that raise is caught, the
+    caller gets nothing, and the System view prints "no page loads counted yet"
+    over traffic that was in fact counted: an unmeasured zero wearing the
+    clothes of a measured one, which is the defect class this file already
+    returns None rather than 0.0 to avoid.
+
+    That the auto-created field raises rather than returning empty is read from
+    Elasticsearch's documented dynamic-mapping and fielddata behaviour, not
+    measured here -- the suite is hermetic and no cluster is reachable. It is
+    confirmed against the real index when this ships.
+    """
+    if client is None:
+        return None
+    for field in ("band", "band.keyword"):
+        try:
+            resp = client.options(request_timeout=_VIEWPORT_TIMEOUT).search(
+                index=INDEX_VIEWPORT,
+                size=0,
+                aggs={"by_band": {"terms": {"field": field, "size": 10}}},
+            )
+        except Exception:
+            continue
+        # Parsed OUTSIDE the try: a malformed bucket is a bad response, not a
+        # mapping problem, and retrying the other field would hide it behind a
+        # second query against a field that was never the issue.
+        aggs = resp.get("aggregations")
+        if aggs is None:
+            continue
+        buckets = aggs.get("by_band", {}).get("buckets", [])
+        return [{"band": b["key"], "count": b["doc_count"]} for b in buckets]
+    return None
 
 
 def _empty_security():

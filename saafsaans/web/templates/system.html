@@ -73,6 +73,51 @@
         <p class="empty">{{ T('ui', 'sys_empty_localities', 'No locality data yet.') }}</p>
       {% endif %}
     </section>
+
+    {# How this page knows the width without JavaScript: app.css declares one
+       background image per width band and the browser fetches only the band
+       whose media query matches. The labels are the pixel ranges themselves --
+       the ranges are the measurement, they read the same in both languages,
+       and they are built from the stylesheet's own breakpoints so they cannot
+       drift from it.
+
+       .caveat, not .caption: DESIGN.md's Quiet Caveat Rule names one style for
+       every qualification, and this one has to carry the limits of the method.
+       The two .caption uses elsewhere on this page predate that and are
+       recorded in PLAN-gates Appendix B. #}
+    {# `wide`, so this spans the row instead of becoming a third track.
+       Measured: as a plain third card the grid's auto-fit forms three tracks
+       from about 1030px, which narrows "Events by type" and "Requests by
+       locality" from 532px to 349px -- a 34% change to two cards this work
+       does not otherwise touch -- and between 716px and 1061px it sits alone
+       beside a same-size hole, the dead track `.grid-duo` exists to avoid.
+       Full width costs nothing here: three bars and a caveat, and the caveat
+       is the longest thing in the card. #}
+    <section class="card wide">
+      <h2 class="kicker">{{ T('ui', 'sys_h_viewport', 'Page loads by browser width') }}</h2>
+      {% if vp_rows %}
+        <div class="bars">
+          {% for r in vp_rows %}
+          <div class="sysbar">
+            <span class="l">{{ r.l }}</span>
+            <span class="track"><span class="fill {{ pos(r.w) }}"></span></span>
+            <span class="v">{{ r.v }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="caveat">{{ T('ui', 'sys_viewport_caveat', 'Page loads, not people: only a width band and a time are written down — no cookie, no address, no identifier. It is the width of the browser window, not the kind of device. Read it as a floor, never a total: a load only counts if the browser fetches the stylesheet image, so anything that blocks images, a page restored by the back button, and most automated visitors are missing, while a resized window and a page preview can each count twice.') }}</p>
+      {% elif vp_rows is none %}
+        {#- Branched on THIS index, not on the page-wide has_index. The two
+            states read identically as a zero and are different facts: nobody
+            has loaded a page, or this index could not be read. has_index is a
+            cluster ping plus other indices' rows, so it says True while
+            viewport-bands is missing or mis-mapped -- which would print the
+            measured-zero copy over traffic that was counted. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_viewport_no_index', 'Not a measured zero: this index is not answering, so browser widths are not being recorded.') }}</p>
+      {% else %}
+        <p class="empty">{{ T('ui', 'sys_empty_viewport', 'No page loads counted yet.') }}</p>
+      {% endif %}
+    </section>
   </div>
 
 {% else %}

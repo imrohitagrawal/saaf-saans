@@ -1,4 +1,4 @@
-"""One-shot: create the four indices (if missing) and seed advisories.
+"""One-shot: create the five indices (if missing) and seed advisories.
 
 Run: ``python setup_indices.py`` (or ``python saafsaans/setup_indices.py``).
 Idempotent — existing indices are left in place. Requires Elastic credentials;
@@ -45,6 +45,13 @@ MAPPINGS = {
         "event_type": {"type": "keyword"}, "pattern_matched": {"type": "keyword"},
         "prompt_excerpt": {"type": "text"}, "action_taken": {"type": "keyword"},
         "user_hash": {"type": "keyword"}}}},
+    # Two fields, and the mapping says so as loudly as es.VIEWPORT_FIELDS does.
+    # ``band`` must be a keyword: left to dynamic mapping it becomes text with a
+    # .keyword subfield, and a terms aggregation on text raises. metrics.
+    # viewport_bands retries on the subfield so an index nobody re-seeded still
+    # reads, but this is the shape that is meant.
+    es.INDEX_VIEWPORT: {"mappings": {"properties": {
+        "@timestamp": {"type": "date"}, "band": {"type": "keyword"}}}},
 }
 
 

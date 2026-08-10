@@ -1569,12 +1569,14 @@ def test_the_band_dot_stays_above_the_non_text_floor_in_both_themes(sheet):
 # Each block carries the obligation named here, and the set is exact: a new
 # `@media` block fails this test until somebody writes down what holds inside it.
 MEDIA_OBLIGATIONS = {
-    "(max-width: 560px)": "narrower padding only; sizes unchanged, so section 6 applies",
+    "(max-width: 560px)": "narrower padding, and the viewport probe's narrow band; "
+                          "no sizes change, so section 6 applies",
     "(pointer: fine)": "shrinks a target back to the designed density (section 3)",
     "(pointer: coarse)": "raises padding; never lowers it below the top-level value",
     "(prefers-reduced-motion: reduce)": "kills motion and declares nothing else",
     "(min-width: 900px)": "grants the header sticky, with the scroll-padding "
-                          "that clears it, only where it cannot wrap (section 9)",
+                          "that clears it, only where it cannot wrap (section 9), "
+                          "and the viewport probe's wide band",
 }
 
 

@@ -153,9 +153,10 @@ def _rules(css):
     """[(selector, {property: value}, source_index)] for the top level only.
 
     At-rule bodies are dropped rather than mis-parsed. `@media (pointer: fine)`
-    and `(max-width: 560px)` set padding and shell width, neither of which is
-    ranked here; if a future at-rule sets one of RANKED this test would not see
-    it, so the exclusion is asserted rather than assumed.
+    and `(max-width: 560px)` set padding and shell width, and the two width
+    blocks also re-point the viewport probe's `background-image` -- none of
+    which is ranked here; if a future at-rule sets one of RANKED this test
+    would not see it, so the exclusion is asserted rather than assumed.
     """
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
     out, at_rule_bodies, i = [], "", 0

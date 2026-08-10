@@ -216,6 +216,11 @@ def test_the_system_bars_and_day_columns_carry_their_own_geometry(monkeypatch):
         "by_event": {"chat_completed": 20, "page_view": 10, "chat_blocked": 5},
         "by_locality": [{"locality": "Anand Vihar", "count": 20},
                         {"locality": "Dwarka", "count": 5}]})
+    # The viewport panel is a third `.fill` list on this page. Stubbed empty ON
+    # PURPOSE: the list below is exact, and without this the test would pass
+    # only because the default client happens to make that panel empty -- a
+    # reason no reader of the assertion could see.
+    monkeypatch.setattr(metrics, "viewport_bands", lambda c: [])
     with TestClient(app) as client:
         body = client.get("/system").text
 

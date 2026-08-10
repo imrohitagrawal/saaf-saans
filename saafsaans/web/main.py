@@ -26,7 +26,7 @@ from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -1174,6 +1174,52 @@ def _kpi_stat(value, factor: float, spec: str, suffix: str) -> str:
     return f"{value * factor:{spec}}{suffix}"
 
 
+def _band_label(band: str) -> str:
+    """The width range a band covers, in figures.
+
+    Not a translated word. The range IS the measurement, it is the same in both
+    languages, and building it from VIEWPORT_BREAKPOINTS means a breakpoint
+    that moves in app.css cannot leave this page stating the old number in one
+    language and the new one in the other. Figures also carry no Latin run for
+    the Hindi scan to catch.
+
+    Written with an en-dash and a plus rather than the arithmetic ≤ and ≥.
+    Measured with fontTools against the six shipped woff2 files: U+2264 and
+    U+2265 are in NONE of them, and sit outside the unicode-range fonts.css
+    declares, so both would have been drawn by a system fallback face -- wrong
+    metrics and wrong weight, in the one register on the site that is defined
+    by its mono. U+2013 and U+002B are present in every face.
+    """
+    narrow, wide = VIEWPORT_BREAKPOINTS
+    return {"narrow": f"0–{narrow}px",
+            "mid": f"{narrow + 1}–{wide - 1}px",
+            "wide": f"{wide}px+"}[band]
+
+
+def _viewport_rows(bands):
+    """Band counts as bar rows, ordered narrow to wide.
+
+    The order is the width axis, not the ranking: this list is a scale, and
+    sorting it by count would reshuffle the axis every time traffic moved.
+
+    Once anything has been counted, every band is shown -- including a zero,
+    which beside non-zero neighbours is a measured zero and worth printing. A
+    band the route cannot write is ignored: it validates against this same
+    tuple, so an unknown key can only be residue from another writer.
+    """
+    if bands is None:
+        # Passed through, not flattened to []: the template must be able to say
+        # "not recorded" rather than "none counted".
+        return None
+    counts = {row.get("band"): row.get("count", 0) for row in bands}
+    if not any(band in counts for band in VIEWPORT_BANDS):
+        return []
+    largest = max(counts.get(band, 0) for band in VIEWPORT_BANDS)
+    return [{"l": _band_label(band), "v": counts.get(band, 0),
+             "w": pr.pct(counts.get(band, 0), largest)}
+            for band in VIEWPORT_BANDS]
+
+
 # --- System ----------------------------------------------------------------
 @app.get("/system")
 def system(request: Request):
@@ -1220,7 +1266,9 @@ def system(request: Request):
         # `total` counts every logged event, including blocked prompts and
         # errors. Only completed answers belong under "questions answered".
         answered = (by_event or {}).get("chat_completed", 0)
-        ctx["has_index"] = answers or bool(by_event or loc_rows or k.get("total"))
+        vp_rows = _viewport_rows(metrics.viewport_bands(client))
+        ctx["has_index"] = answers or bool(by_event or loc_rows or k.get("total")
+                                           or vp_rows)
         ctx.update({
             "kpis": [
                 {"v": answered,
@@ -1255,6 +1303,7 @@ def system(request: Request):
             "loc_rows": [{"l": i18n.place(lang, r["locality"]), "v": r["count"],
                           "w": pr.pct(r["count"], loc_max)}
                          for r in loc_rows[:6]],
+            "vp_rows": vp_rows,
         })
     else:
         stats = metrics.security_stats(client)
@@ -1486,6 +1535,58 @@ def favicon():
     return FileResponse(BASE / "static" / "favicon.ico",
                         media_type="image/x-icon",
                         headers={"Cache-Control": "public, max-age=86400"})
+
+
+# --- Viewport probe --------------------------------------------------------
+# How this app learns the reader's viewport with no JavaScript: app.css declares
+# one background image per width band, the browser fetches only the band whose
+# media query matches, and this route counts the request. Measured in Chrome 151
+# over CDP before it was written -- one request per page load at 320/560/561/
+# 899/900/1200/1600 CSS px, the correct band at each, including both boundaries.
+#
+# The band names and the two breakpoints are the stylesheet's own, so the data
+# answers the questions app.css actually asks rather than a set invented here.
+# tests/test_viewport_probe.py pins the two files to each other.
+VIEWPORT_BANDS = ("narrow", "mid", "wide")
+VIEWPORT_BREAKPOINTS = (560, 900)
+# 1x1 transparent GIF, 43 bytes -- the smallest thing a browser will accept as
+# an image. It paints nothing, so the pseudo-element carrying it is invisible.
+_PROBE_GIF = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!"
+              b"\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00"
+              b"\x00\x02\x02D\x01\x00;")
+# no-store is what makes a returning reader report again: under /static's
+# year-long immutable policy a browser would fetch this once and never again,
+# and the counts would under-read exactly the people who came back.
+# nosniff is the only one of _SECURITY_HEADERS that means anything on an image
+# -- the rest govern how a DOCUMENT loads subresources.
+_PROBE_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+
+
+@app.get("/probe/{band}.gif", include_in_schema=False)
+def viewport_probe(request: Request, band: str):
+    """Count one page load in a width band. Never identifies anybody.
+
+    Only the band and the time are written (es.VIEWPORT_FIELDS is two fields
+    wide and that is the guarantee). No cookie is SET, though the browser does
+    send the ones it already has and nothing here reads them. Nothing is read
+    from the request but the limiter's bucket key, and the address that key is
+    derived from is never written anywhere -- it sits in the in-process table
+    until that key is next touched or the table is pruned at its cap, not for
+    exactly one window, and it is gone on restart.
+
+    Over the limit the image is still served, so throttling can never reach a
+    reader's page; only the recording stops. That makes the count a floor
+    rather than a total, which sys_viewport_caveat says on the page.
+    """
+    if band not in VIEWPORT_BANDS:
+        return Response(status_code=404)
+    allowed, _ = ratelimit.check(f"probe:{ratelimit.client_key(request)}",
+                                 ratelimit.PROBE_LIMIT, ratelimit.PROBE_WINDOW,
+                                 buckets=ratelimit._PROBE_BUCKETS)
+    if allowed:
+        es.log_viewport(get_client(), band)
+    return Response(content=_PROBE_GIF, media_type="image/gif",
+                    headers=_PROBE_HEADERS)
 
 
 @app.get("/health")
