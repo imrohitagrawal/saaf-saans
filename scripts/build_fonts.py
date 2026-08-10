@@ -80,6 +80,12 @@ FALLBACKS = {
     "IBM Plex Sans": ("Arial", "IBM Plex Sans Fallback"),
     "IBM Plex Mono": ("Courier New", "IBM Plex Mono Fallback"),
 }
+# /static is served immutable for a year and font files carry no ?v=, so a face
+# whose rendering changes has to arrive under a new name or returning readers
+# keep the old one. Generated name -> shipped name.
+RENAMED = {"anek-devanagari-400-800.latin.woff2":
+           "anek-devanagari-400-800.latin.r2.woff2"}
+
 LOCAL_FONT_PATHS = {
     "Arial": "/System/Library/Fonts/Supplemental/Arial.ttf",
     "Courier New": "/System/Library/Fonts/Supplemental/Courier New.ttf",
@@ -113,6 +119,27 @@ def subset(raw: Path, out: Path, unicodes: str) -> None:
     from fontTools import subset as ftsubset
     ftsubset.main([str(raw), f"--unicodes={unicodes}", "--flavor=woff2",
                    "--layout-features=*", f"--output-file={out}"])
+
+
+def unmark_middot(out: Path) -> None:
+    """Take U+00B7 out of GDEF glyph class 3 (mark).
+
+    Upstream Anek Devanagari files periodcentered alongside the real accents
+    -- grave, acute, dieresis, cedilla -- which do belong there. HarfBuzz
+    zeroes a mark's advance, so the separator that carries every meta line on
+    the site rendered on top of the word after it on Hindi pages, where this
+    face carries the Latin punctuation too. Measured 2026-08-10: advance 0.00px
+    against 3.75px in every other loaded face. No other upstream file here
+    classifies it.
+    """
+    from fontTools.ttLib import TTFont
+    font = TTFont(str(out))
+    dot = font.getBestCmap().get(0x00B7)
+    gdef = font.get("GDEF")
+    if dot is None or gdef is None or gdef.table.GlyphClassDef is None:
+        return
+    if gdef.table.GlyphClassDef.classDefs.pop(dot, None) is not None:
+        font.save(str(out))
 
 
 def metrics(path: Path) -> dict:
@@ -170,9 +197,11 @@ def main() -> int:
             wtag = weight.replace(" ", "-")
             name = (f"{stem}-{wtag}.woff2" if len(subsets) == 1
                     else f"{stem}-{wtag}.{m['subset']}.woff2")
+            name = RENAMED.get(name, name)
             raw = FONTS / f"raw-{name}"
             raw.write_bytes(fetch(m["url"]))
             subset(raw, FONTS / name, m["range"].replace(" ", ""))
+            unmark_middot(FONTS / name)
             raw.unlink()
             block = face(family, weight, name, m["subset"], m["range"].strip())
             (hindi_css if family == "Anek Devanagari" else latin_css).append(block)
