@@ -239,3 +239,27 @@ def test_the_system_bars_and_day_columns_carry_their_own_geometry(monkeypatch):
             continue
         assert abs(steps[cls] - n / max(counts) * 100) <= STEP_TOLERANCE, (n, cls)
     assert len({b for b in bars if b != "b-nil"}) == 5, bars
+
+
+def test_the_caret_label_holds_one_line_at_the_top_of_the_scale():
+    """`left` reaching the caret is what makes wrapping possible: an absolutely
+    positioned box with `left` and no `right` shrinks to fit the space that
+    remains to its container's edge, and near the top of the bar there is less
+    of that than the label's 33.03px. Measured in Chrome 151 on the reading
+    card, fonts loaded:
+
+        AQI 420 -> p84  17.05px tall at 1200px and at 320px
+        AQI 440 -> p88  17.05px at 1200px, 34.09px at 320px
+        AQI 500 -> p100 34.09px at both, box collapsed to 19.81px
+
+    Two lines drop the pointer below the digits it belongs to, so the caret no
+    longer marks a position -- the half of Never-Colour-Alone this whole
+    surface exists to carry, lost exactly on the Severe+ readings Delhi prints
+    every November."""
+    assert _declares(".scale-mark", "white-space") == "nowrap", (
+        "the caret label wraps once left: pushes it near the end of the bar")
+    # nowrap alone would hang a full label width past a p100 position; the
+    # centring is what keeps its right edge inside the card (296.91px measured
+    # against a 304px card edge at the 320px reflow width).
+    assert _declares(".scale-mark", "transform") == "translateX(-50%)", (
+        "the caret is no longer centred on the position it marks")
