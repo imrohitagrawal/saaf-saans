@@ -270,7 +270,8 @@ you the zero-JS claim.
 
 **Exit criteria**
 
-- [x] Full suite green on master, count recorded — **1365** (from 1341).
+- [x] Full suite green on master, count recorded — **1372** (from 1341), including
+      the browser guard, which runs only where Chrome exists.
 - [ ] Deployed, and the System view shows a non-zero bucket count from real traffic.
       **DEFERRED to Gate 1d**, by lines 47–50 above: this telemetry ships with the Gate 1
       batch, so there is nothing to deploy on its own. Nothing else in Gate 0.5 depends on
