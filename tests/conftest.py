@@ -13,6 +13,8 @@ return, and a test asserting the shape of an answer could pass or fail for
 reasons no commit caused. Clearing all five credentials makes the app take its
 offline paths, which is what these tests are for.
 """
+from datetime import datetime
+
 import pytest
 
 from tests._netguard import NetworkUsedInTests
@@ -153,6 +155,32 @@ LIVE_READING = {
     "forecast": None,
     "obs_time": "2026-07-21T10:00:00+05:30",
 }
+
+
+@pytest.fixture
+def at_ist(monkeypatch):
+    """Freeze "now" at a given IST hour, for the whole app.
+
+    Time is an input dimension, like language and viewport. The suite had 1341
+    tests and none of them ever asked what the page says at five in the
+    afternoon, so `best_window` shipped naming a window six hours in the past.
+    One of them, `test_the_season_is_decided_in_india_not_on_the_server`, had
+    the clock in its hands at 01:30 and asked only which month it was.
+
+    Patching `clock.now_ist` is enough for every reader: `clock.today_ist`
+    reaches `now_ist` through the module attribute, and `forecast` and
+    `presenters` both call `clock.<name>` rather than binding the function at
+    import. 2026-08-10 is a non-winter date; pass `month=12` for the inversion
+    season.
+    """
+    from saafsaans.services import clock
+
+    def _freeze(hour, minute=0, year=2026, month=8, day=10):
+        frozen = datetime(year, month, day, hour, minute, tzinfo=clock.IST)
+        monkeypatch.setattr(clock, "now_ist", lambda: frozen)
+        return frozen
+
+    return _freeze
 
 
 @pytest.fixture
