@@ -10,10 +10,18 @@ from saafsaans.services import metrics
 
 
 class FakeESClient:
-    """Returns a fixed response for every .search call."""
+    """Returns a fixed response for every .search call.
+
+    ``options`` is part of the surface a real elasticsearch-py client presents,
+    and the aggregations that bound their own request timeout go through it. A
+    double without it makes a bounded query look like an unreachable cluster.
+    """
     def __init__(self, response):
         self._response = response
         self.calls = []
+
+    def options(self, **kwargs):
+        return self
 
     def search(self, index, **body):
         self.calls.append({"index": index, **body})
@@ -311,3 +319,82 @@ def test_security_daily_returns_calendar_day_buckets():
 
 def test_security_daily_empty_on_no_client():
     assert metrics.security_daily(None) == []
+
+
+# --- viewport_bands -------------------------------------------------------
+def test_viewport_bands_parses_the_mapped_shape():
+    resp = {"aggregations": {"by_band": {"buckets": [
+        {"key": "wide", "doc_count": 9},
+        {"key": "narrow", "doc_count": 4},
+    ]}}}
+    client = FakeESClient(resp)
+    assert metrics.viewport_bands(client) == [
+        {"band": "wide", "count": 9}, {"band": "narrow", "count": 4}]
+    assert client.calls[0]["aggs"]["by_band"]["terms"]["field"] == "band"
+
+
+class _KeywordOnlyClient:
+    """Answers a terms agg on ``band.keyword`` and raises on ``band``.
+
+    The shape Elasticsearch produces when the index was auto-created rather
+    than mapped by setup_indices.py: dynamic mapping makes ``band`` a text
+    field, an aggregation on which raises because fielddata is disabled.
+    """
+
+    def __init__(self):
+        self.fields = []
+
+    def options(self, **kwargs):
+        return self
+
+    def search(self, index, **body):
+        field = body["aggs"]["by_band"]["terms"]["field"]
+        self.fields.append(field)
+        if field == "band":
+            raise RuntimeError("Fielddata is disabled on text fields by default")
+        return {"aggregations": {"by_band": {"buckets": [
+            {"key": "mid", "doc_count": 2}]}}}
+
+
+def test_viewport_bands_still_reads_an_auto_created_index():
+    """Nobody re-runs setup_indices.py against a live deployment, so the first
+    probe write auto-creates the index with a dynamic mapping. Without the
+    retry the aggregation raises, the panel shows "no page loads counted yet",
+    and traffic that WAS counted reads as a measured zero.
+    """
+    client = _KeywordOnlyClient()
+    assert metrics.viewport_bands(client) == [{"band": "mid", "count": 2}]
+    # Order matters: an explicitly mapped keyword field has no .keyword
+    # subfield, so the subfield can only ever be the fallback.
+    assert client.fields == ["band", "band.keyword"]
+
+
+def test_viewport_bands_bounds_every_attempt():
+    """Two chained attempts at the client's own ten-second timeout would be a
+    twenty-second /system render -- the hazard es.index_answers already caps."""
+    class _Timed(_KeywordOnlyClient):
+        def __init__(self):
+            super().__init__()
+            self.timeouts = []
+
+        def options(self, **kwargs):
+            self.timeouts.append(kwargs.get("request_timeout"))
+            return self
+
+    client = _Timed()
+    metrics.viewport_bands(client)
+    assert client.timeouts == [2, 2], client.timeouts
+
+
+def test_viewport_bands_tells_an_unreadable_index_from_an_empty_one():
+    """``None`` and ``[]`` are different facts and the System view renders
+    them differently: "this index is not answering" against "no page loads
+    counted yet". Collapsing either into the other prints a measured zero over
+    an index that was never read."""
+    assert metrics.viewport_bands(None) is None
+    assert metrics.viewport_bands(BoomClient()) is None
+
+    # The partner: an index that answers with no buckets is an EMPTY list, not
+    # None, so the two branches are reachable and distinguishable.
+    answered = FakeESClient({"aggregations": {"by_band": {"buckets": []}}})
+    assert metrics.viewport_bands(answered) == []

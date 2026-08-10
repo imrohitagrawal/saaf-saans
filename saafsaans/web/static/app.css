@@ -555,10 +555,31 @@ select, input[type="text"] {
 
 .foot { margin-top: 24px; font-size: 11px; color: var(--text-3); text-wrap: pretty; }
 
+/* Viewport probe. The browser fetches exactly one of these three URLs per page
+   load, so the server learns the real viewport band with no JavaScript, no
+   cookie and no user-agent parsing. The cascade is the whole mechanism: all
+   three rules have identical specificity (media queries add none), so source
+   order decides and only the winning declaration is ever requested. This one
+   must stay ABOVE the 560px block for that to hold.
+
+   The bands ARE this file's own two width breakpoints -- 560 and 900 -- so the
+   data answers the questions this stylesheet asks rather than a set invented
+   for the metric. main.py holds the same two numbers and a test pins them equal.
+
+   It cannot ride on `body`: the rule above sets the `background` SHORTHAND,
+   which resets background-image. A pseudo-element also keeps it out of the DOM
+   entirely -- nothing to name, nothing for a screen reader, no markup change.
+   1x1 and transparent, fixed so it is out of flow and cannot widen the 320px
+   reflow budget, and pointer-events:none so it never takes a tap. */
+body::after { content: ""; position: fixed; top: 0; left: 0; width: 1px;
+              height: 1px; pointer-events: none; background-repeat: no-repeat;
+              background-image: url("/probe/mid.gif"); }
+
 @media (max-width: 560px) {
   .shell { padding: 14px 16px 40px; }
   .hero-body { padding: 18px; }
   .hero-window { padding: 10px 18px; }
+  body::after { background-image: url("/probe/narrow.gif"); }
 }
 
 /* ---------------------------------------------- persona, thread, guide ---- */
@@ -668,6 +689,7 @@ html[lang="hi"] .hero-window .val { font-weight: 700; }
 @media (min-width: 900px) {
   .hdr { position: sticky; top: 0; }
   html { scroll-padding-top: 76px; }
+  body::after { background-image: url("/probe/wide.gif"); }
 }
 
 /* Skip link: the sticky header repeats six controls on every page. */

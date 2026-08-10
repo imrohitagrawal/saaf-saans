@@ -25,6 +25,7 @@ INDEX_ADVISORIES = "health-advisories"
 INDEX_READINGS = "aqi-readings"
 INDEX_TELEMETRY = "app-telemetry"
 INDEX_SECURITY = "security-events"
+INDEX_VIEWPORT = "viewport-bands"
 
 # Field sets a document is allowed to contain. Used as a privacy backstop so a
 # stray persona value can never be written to an index.
@@ -44,6 +45,14 @@ TELEMETRY_FIELDS = {"@timestamp", "session_hash", "event", "latency_ms", "waqi_s
                     "user_hash"}
 SECURITY_FIELDS = {"@timestamp", "session_hash", "event_type", "pattern_matched",
                    "prompt_excerpt", "action_taken", "user_hash"}
+# The viewport probe counts page loads by browser width and must never become a
+# tracker. This set is two fields wide and that is the whole guarantee: unlike
+# TELEMETRY_FIELDS and SECURITY_FIELDS, no identity value of any kind is
+# permitted here, so a session hash, an address or a user-agent cannot reach
+# this index even if a future call site passes one. It is asserted for EQUALITY
+# in tests/test_viewport_probe.py rather than screened for suspicious names, so
+# widening it is a visible edit rather than a plausible-looking addition.
+VIEWPORT_FIELDS = {"@timestamp", "band"}
 
 
 def now_iso() -> str:
@@ -122,11 +131,19 @@ def answer_cache_clear() -> None:
 
 
 # --- Indexing / logging (fire-and-forget) ---------------------------------
-def _safe_index(client, index: str, doc: dict, allowed: set):
-    """Index ``doc`` keeping only allowed fields. Never raises."""
+def _safe_index(client, index: str, doc: dict, allowed: set, timeout=None):
+    """Index ``doc`` keeping only allowed fields. Never raises.
+
+    ``timeout`` overrides the client's own ``request_timeout`` for this one
+    write. The None check runs before it is applied, so a caller may pass a
+    timeout with a None client -- which is every deployment without Elastic
+    credentials -- without this becoming the one write helper here that raises.
+    """
     if client is None:
         return
     try:
+        if timeout is not None:
+            client = client.options(request_timeout=timeout)
         clean = {k: v for k, v in doc.items() if k in allowed}
         client.index(index=index, document=clean)
     except Exception:
@@ -154,6 +171,18 @@ def log_telemetry(client, doc: dict) -> None:
 
 def log_security(client, doc: dict) -> None:
     _safe_index(client, INDEX_SECURITY, doc, SECURITY_FIELDS)
+
+
+# One second, not the client's own ten. ``log_telemetry`` fires once per posted
+# question; this fires once per PAGE LOAD, and the argument at _ANSWER_TIMEOUT
+# above applies with more force: a stalled endpoint must not park a page's
+# subresource request in the worker pool of a 256 MB machine.
+_VIEWPORT_TIMEOUT = 1
+
+
+def log_viewport(client, band: str) -> None:
+    _safe_index(client, INDEX_VIEWPORT, {"@timestamp": now_iso(), "band": band},
+                VIEWPORT_FIELDS, timeout=_VIEWPORT_TIMEOUT)
 
 
 # --- Advisory search ------------------------------------------------------

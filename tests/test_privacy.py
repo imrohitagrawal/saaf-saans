@@ -176,7 +176,11 @@ def test_the_pages_name_locality_as_the_logged_exception():
         footer = " ".join(client.get("/").text.replace("&#39;", "'").split())
         assert "hashed session id and the area you picked" in footer
         guide = " ".join(client.get("/guide").text.replace("&#39;", "'").split())
-        assert "is the one exception and is stored deliberately" in guide
+        # "the one part of your persona", not "the one exception": a viewport
+        # band is stored too, and a sentence claiming a single exception while
+        # the page names a second one is the shape of claim this test exists
+        # to prevent. The persona scope is what the assertion is about.
+        assert "the one part of your persona that is stored deliberately" in guide
 
 
 def test_the_security_view_does_not_publish_other_visitors_typed_text():
