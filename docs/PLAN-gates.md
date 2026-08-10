@@ -170,15 +170,78 @@ first impression.
 
 ---
 
-### Gate 1 — The advice rewrite + card alignment
+### Gate 1 — The window must be true, then the advice, then the cards
 
 **Goal:** stop being another app that says "don't go out." Give a reader a lever they
-did not know they had, and make the desktop first impression clean.
+did not know they had — and make sure the lever is not pointing at a time that has
+already passed.
 
 **Why this outranks real defects:** a reader who bounces at a prohibition never reaches
-the bug. This is the single highest value-per-hour work in the backlog.
+the bug. And the copy rewrite *leans on* the window, so the window must be true first.
 
-#### 1a. Rewrite the prohibition-first copy (~1 day)
+#### 1a. The window must be true at the hour it is read — **do this first**
+
+**Verified defect (2026-08-10, 17:52 IST).** `forecast.best_window()` reads
+`clock.today_ist().month` for the season and **never reads the hour**. Measured at
+17:52 IST, every driver returns a window already in the past:
+
+| Driver | Returned window | Status at 17:52 |
+|---|---|---|
+| PM2.5 (non-winter) | "Late morning (about 9 AM–12 PM)" | 6 hours gone |
+| Ozone | "Early morning (about 6–9 AM)" | 9 hours gone |
+| Traffic gases | "Midday (about 11 AM–3 PM)" | 3 hours gone |
+
+It renders in the hero's anchored bar under the label **"IF YOU MUST GO OUT"**, so at
+5pm the single most actionable element on the page is guaranteed wrong. This is the
+one claim a reader can verify instantly against their own clock, which is exactly why
+it costs more trust than a subtler error would.
+
+**The required behaviour (owner's spec, 2026-08-10):**
+
+1. **Always answer for today first.** A reader opening the app now wants the best time
+   in the **remaining hours of today**, not a general daily pattern.
+2. **Never leave them without a today answer.** If the genuinely better window is
+   tomorrow, say so *and* still name the **least-risk remaining option today**.
+3. **State the risk at the time you suggest.** If the least-risk remaining hour is
+   still Poor, say that plainly alongside the lever (shorter, slower, N95) — do not
+   present a least-bad hour as if it were a good one.
+4. **Always name which day you mean.** Never print a bare clock time once today's
+   window has passed.
+5. **Preserve the honest branches.** The AQI > 300 "no safe window" and the no-reading
+   branch must not regress into naming a friendly hour — but under rule 2 they should
+   still offer the least-risk remaining option and its lever.
+
+**Implementation notes**
+
+- The diurnal shape per pollutant already encodes what is needed; the work is to
+  **intersect that shape with "now → end of day"** and rank the remaining hours, rather
+  than returning a fixed label. No hourly station feed is required.
+- `best_window()` already accepts a `forecast` argument it does not use — that is the
+  hook for the tomorrow case.
+- Constraint (g) still binds: this stays a rule of thumb. The existing
+  `window.general_note` ("a general pattern, not an hourly station forecast") must
+  survive, and no modelled figure may be presented as measured.
+- Both languages, per constraint (h).
+
+**Testing — the gap this exposed, and the rule that comes out of it**
+
+The suite has 1341 tests and 16 on this module, and none caught it. One of them,
+`test_the_season_is_decided_in_india_not_on_the_server`, **freezes the clock at
+2026-11-01 01:30 IST and asserts only that the month reached `_is_winter`** — it had
+the clock in its hands and never asked what the window says at 01:30. The tests were
+written from the implementation, so they inherited its assumption that the window is
+time-independent.
+
+**Standing rule from here on: time is an input dimension, like language and viewport.**
+
+- Add a clock-freezing fixture and assert page coherence at **06:00, 12:00, 17:00 and
+  23:00 IST**, in both languages.
+- Bite-proof: with the fixture at 17:00, the pre-fix code must turn the test RED.
+- Apply the same discipline to any future audit — the nine-lens audit of 2026-08-10
+  varied language, theme and six viewport widths, but only ever rendered a single
+  instant. That is why it missed this.
+
+#### 1b. Rewrite the prohibition-first copy (~1 day)
 
 The current strings, verified in `saafsaans/services/i18n.py`:
 
@@ -203,7 +266,7 @@ person with a school run holding nothing.
 5. Tests: assert each band's advice contains an actionable clause, in both languages,
    and that no band's advice is prohibition-only.
 
-#### 1b. The uneven cards (~2 hours)
+#### 1c. The uneven cards (~2 hours)
 
 **Measured** (Chrome 151 headless, persona applied): the row is full — no dead track
 — `532px 532px` at 1120–1600px. The persona card is **309px** tall against the
@@ -222,6 +285,9 @@ stretching would inflate a card with meaningless empty padding.
 
 **Exit criteria**
 
+- [ ] At 06:00, 12:00, 17:00 and 23:00 IST the named window is never in the past, always
+      carries its day, and always offers a today option with its risk stated.
+- [ ] The clock-freezing fixture exists and bites: the pre-fix code goes RED at 17:00.
 - [ ] No `band_advice` or `headline` string is prohibition-only, in either language.
 - [ ] `window_none` names a least-bad hour and a lever.
 - [ ] Every new sentence checked against the evidence checklist; the check is recorded.
