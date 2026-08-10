@@ -64,10 +64,32 @@ def test_telemetry_kpis_shape_and_numbers():
 def test_telemetry_kpis_none_client_empty_shape():
     out = metrics.telemetry_kpis(None)
     assert out == {
-        "total": 0, "by_event": {}, "latency_p50": 0.0, "latency_p95": 0.0,
-        "waqi_fallback_rate": 0.0, "llm_fallback_rate": 0.0,
+        "total": 0, "by_event": {}, "latency_p50": None, "latency_p95": None,
+        "waqi_fallback_rate": None, "llm_fallback_rate": None,
         "total_tokens": 0, "by_locality": [],
     }
+
+
+def test_telemetry_kpis_unmeasured_statistics_are_none_not_zero():
+    """An empty index times nothing and reads nothing, so there is no median
+    and no fallback rate. Collapsing them to 0.0 states a measured statistic:
+    "0.0 s median response", "0.0% feed misses". Counts stay 0 -- zero events
+    logged is observed, not manufactured."""
+    resp = {"aggregations": {
+        "by_event": {"buckets": []},
+        "by_locality": {"buckets": []},
+        "latency": {"values": {"50.0": None, "95.0": None}},
+        "total_tokens": {"value": 0.0},
+        "by_waqi": {"buckets": []},
+        "by_llm": {"buckets": []},
+    }}
+    out = metrics.telemetry_kpis(FakeESClient(resp))
+    assert out["latency_p50"] is None
+    assert out["latency_p95"] is None
+    assert out["waqi_fallback_rate"] is None
+    assert out["llm_fallback_rate"] is None
+    assert out["total"] == 0
+    assert out["total_tokens"] == 0
 
 
 def test_telemetry_kpis_exception_empty_shape():
@@ -101,7 +123,16 @@ def test_security_stats_shape_and_numbers():
 
 def test_security_stats_none_client_empty_shape():
     out = metrics.security_stats(None)
-    assert out == {"total_blocked": 0, "by_pattern": [], "block_rate": 0.0}
+    assert out == {"total_blocked": 0, "by_pattern": [], "block_rate": None}
+
+
+def test_security_stats_block_rate_is_none_with_no_events():
+    """No attempt was classified, so no share of them was stopped pre-model."""
+    resp = {"aggregations": {"by_pattern": {"buckets": []},
+                             "by_action": {"buckets": []}}}
+    out = metrics.security_stats(FakeESClient(resp))
+    assert out["block_rate"] is None
+    assert out["total_blocked"] == 0
 
 
 def test_security_stats_exception_empty_shape():

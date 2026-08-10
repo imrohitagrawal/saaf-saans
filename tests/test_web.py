@@ -930,6 +930,52 @@ def test_questions_answered_excludes_blocked_and_errored_turns():
         metrics.telemetry_kpis = real
 
 
+def test_system_kpis_do_not_manufacture_statistics_from_an_empty_index():
+    """The page printed "0.0 s median response" and "0.0% feed misses" beside
+    its own empty state, one card below. Nothing was timed and no feed read was
+    classified, so the tiles must hold the no-figure placeholder City Pulse
+    already uses. The counters stay: 0 questions answered is observed.
+    Reverting metrics.telemetry_kpis to the 0.0 collapse turns this red."""
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "observability"}).text
+    assert '<div class="v">0.0 s</div>' not in body
+    assert '<div class="v">0.0%</div>' not in body
+    assert body.count('<div class="v">--</div>') == 4   # p50, p95, feed, rule
+    # The honest zeros are still printed, so the placeholder is not blanket.
+    assert '<div class="v">0</div>' in body
+    # The empty state the manufactured numbers contradicted is on the page.
+    assert "nothing is being recorded" in body
+
+
+def test_system_security_block_rate_is_blank_with_no_attempts():
+    """"0% stopped pre-model" sat beside "No blocked attempts recorded"."""
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "security"}).text
+    assert '<div class="v">0%</div>' not in body
+    assert '<div class="v">--</div>' in body
+    assert "No blocked attempts recorded in the last 7 days." in body
+
+
+def test_system_kpis_still_print_measured_statistics(monkeypatch):
+    """The partner check: with real aggregates the figures must still render,
+    so the placeholder cannot be hiding a working measurement."""
+    import saafsaans.web.main as main
+    from saafsaans.services import metrics
+    monkeypatch.setattr(main, "_client", object())
+    monkeypatch.setattr(metrics, "telemetry_kpis", lambda c: {
+        "total": 10, "by_event": {"chat_completed": 6},
+        "latency_p50": 800.0, "latency_p95": 5200.0,
+        "waqi_fallback_rate": 0.2, "llm_fallback_rate": 0.1,
+        "total_tokens": 4200, "by_locality": []})
+    with TestClient(app) as c:
+        body = c.get("/system", params={**PERSONA, "view": "observability"}).text
+    assert '<div class="v">0.8 s</div>' in body
+    assert '<div class="v">5.2 s</div>' in body
+    assert '<div class="v">20.0%</div>' in body
+    assert '<div class="v">10.0%</div>' in body
+    assert '<div class="v">--</div>' not in body
+
+
 def test_simulation_note_reports_the_real_attack_count():
     """The note used to hardcode 3 regardless of what attack_demo holds."""
     from saafsaans.attack_demo import ATTACKS
