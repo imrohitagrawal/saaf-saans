@@ -24,13 +24,29 @@ prompt verbatim.
 ### Gate order (strictly sequential — never parallel)
 
 ```
-Gate 0   deploy + verify                        DONE 2026-08-10
-Gate 0.5 viewport telemetry (the "deeper fix")  ← next
-Gate 1   advice copy + card alignment
-Gate 2   correctness debt (3 groups)
-Gate 3   counterfactual line + test guards
-Gate 4   decided by real usage, not in advance
+--- BEFORE PROMOTION -------------------------------------------------
+Gate 0    deploy + verify                                DONE 2026-08-10
+Gate 0.5  viewport telemetry                             ~1 day    <- next
+Gate 1a   the window must be true at the hour it is read ~1-2 days
+Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days
+Gate 1c   card alignment                                 ~2 hours
+Gate 1d   deploy + verify the whole batch                ~1 hour
+          >>> PROMOTE HERE <<<
+--- AFTER PROMOTION --------------------------------------------------
+Gate 2    correctness debt (3 groups)                    ~2-3 days
+Gate 3    test guards that bite                          ~1-2 days
+Gate 4    decided by real usage, not in advance          unscheduled
 ```
+
+**"Go live" means PROMOTE.** The app has been deployed at
+`saafsaans.stackclimb.com` for months and now runs master. Nothing below is
+blocked on infrastructure; the gates are what should be true before you send
+anyone to it.
+
+**On telemetry timing:** Gate 0.5 collects almost nothing before promotion,
+because there is almost no traffic before promotion. Its value is being *in
+place when traffic arrives* — which is exactly why it is built first and
+deployed with the Gate 1 batch, not after.
 
 **Why sequential:** every gate touches `app.css`, `tests/test_a11y.py`,
 `tests/test_web.py`, or `i18n.py`. Parallel gates would collide in the shared working
@@ -241,7 +257,7 @@ time-independent.
   varied language, theme and six viewport widths, but only ever rendered a single
   instant. That is why it missed this.
 
-#### 1b. Rewrite the prohibition-first copy (~1 day)
+#### 1b. Copy: orientation, advice, and the one honest number (~1.5 days)
 
 The current strings, verified in `saafsaans/services/i18n.py`:
 
@@ -265,6 +281,44 @@ person with a school run holding nothing.
 4. Every sentence passes constraint (g)'s checklist before it ships.
 5. Tests: assert each band's advice contains an actionable clause, in both languages,
    and that no band's advice is prohibition-only.
+
+**First-visit orientation — DECIDED 2026-08-10.** Measured on the live first-visit
+page, a new reader meets, in this order: the wordmark; `AQI 335 · Very Poor`;
+`EXAMPLE — FOR AN ADULT WITH ASTHMA`; **"Don't go out unless you must — this air is
+dangerous for you."**; `91/100 · Extreme` beside `healthy adult, same plans · 79`;
+the window; and only *seventh*, "This page is showing an example… fill in your own
+details."
+
+- "What am I supposed to do" IS answered — the form is open, the example is labelled,
+  the instruction is explicit. **Do not touch that onboarding work.**
+- "What is this?" is answered **nowhere**. No sentence on the page states the product's
+  purpose. "clean breath" is a translation, not a description.
+- "How is it useful to me?" is absent. The differentiator — *every other app says how
+  bad the air is; this says how bad it is for you* — lives only in PRODUCT.md.
+- The first substantive sentence is an alarming verdict about a stranger.
+- **The most important thing on the page is unlabelled:** `91` beside `79` IS the
+  product — the personal delta — rendered as two bare numbers with no sentence saying
+  what the gap means.
+
+Action items:
+6. Add **one line above the hero** stating what the app does and why it differs. Not a
+   tour, not a modal (zero JS anyway).
+7. Add a **short label to the 91-vs-79 comparison** naming what the gap is.
+8. Consider moving the "this is an example" orientation **above** the alarming verdict.
+
+**The one honest number — DECIDED 2026-08-10.** Ship the **activity** ratio, not the
+timing one:
+
+9. `risk.inhalation_ratio()` is a real EPA Table 6-2 lookup already live in the code:
+   adult outdoor exercise **11.9x** sedentary, school run **6.19x**, commute **2.86x**.
+   Comparing two activities is a ratio of two real table values — **no concentration,
+   no forecast, no new data source**. Use it to give the reader a lever with a number:
+   "running takes in about four times the air that walking does."
+10. The **timing** number ("7pm saves you 84 ug") is deferred to Gate 4 — see the risk
+    register. It cannot be computed honestly today.
+11. Check that no caller passes a spaced activity string: `inhalation_ratio("child",
+    "school run")` silently returns the sedentary fallback because the keys are
+    underscored (`school_run`). A silent fallback would understate a child's intake.
 
 #### 1c. The uneven cards (~2 hours)
 
@@ -377,24 +431,25 @@ test that separates "measured zero" from "not measured".
 
 ---
 
-### Gate 3 — The counterfactual + guards that bite
+### Gate 3 — Guards that bite
 
-**Goal:** ship the one screen no competitor has, and make the test suite trustworthy.
+**Goal:** make the test suite trustworthy. (The counterfactual that used to live here is
+deferred — see 3a.)
 
-#### 3a. The counterfactual line (~2 days)
+#### 3a. The timing counterfactual — **DEFERRED to Gate 4, decided 2026-08-10**
 
-The product already computes the comparison "her vs a healthy adult". Add its sibling:
-**her now vs her at the better hour** — same person, two choices, one number of
-difference. This is a second call into functions that already run
-(`risk.inhalation_ratio`, `risk.dose_points`, `forecast.best_window`).
+The intended feature was "her now vs her at the better hour". It cannot ship honestly
+today: **there is no hourly data in this application.** The forecast block is
+`forecast["daily"]["pm25"]` — `{day, avg, min, max}`, daily only. A per-hour ug figure
+would be a modelled diurnal curve layered on a daily average — modelled on top of
+modelled — and constraint (g) forbids presenting a modelled figure as measured (D4).
 
-**Hard constraint:** this is a *modelled* figure, and the evidence file forbids
-presenting a modelled figure as measured (D4). It must ship worded as an estimate with
-its basis shown. That is a design constraint on the feature, not a footnote.
+It is a **data problem, not a code problem**. Making it defensible needs a real hourly
+concentration source (OpenAQ v3 serves raw ug/m3, live plus archive). That is a new
+integration, an API key, caching and failure modes: roughly a week, and a change to the
+data layer. Treat it as its own decision about the data layer, not a UI feature.
 
-Open decision for the plan phase: **compute in µg, but speak in time and activity.**
-µg is honest and falsifiable yet abstract; "about three hours of walking" is intuitive
-but derived. Decide deliberately and record the decision.
+The honest number that ships instead is the **activity** ratio, in Gate 1b.
 
 #### 3b. Guards that cannot bite (11 items)
 
@@ -418,7 +473,6 @@ but derived. Decide deliberately and record the decision.
 **Exit criteria**
 
 - [ ] Each of the 11 guards demonstrably goes RED under a stated mutation.
-- [ ] The counterfactual ships worded as an estimate with its basis visible.
 - [ ] Full suite green on master; count recorded.
 
 ---
@@ -443,6 +497,25 @@ something to say.
   content-hash the font URLs; skip gzip for woff2; fix `build_fonts.py`'s docstring,
   which now contradicts `requirements.txt`.
 - **Design-system tidy** (8 items) and **a11y/copy one-offs** (11 items) — Appendix B.
+
+---
+
+## 5. Risk register
+
+Ranked by expected damage, not by likelihood.
+
+| # | Risk | Gate | Why it bites | Mitigation |
+|---|---|---|---|---|
+| R1 | An unsourced health claim ships in the new copy | 1b | The app gives health guidance to people with asthma, COPD and pregnancies. One promised outcome or invented percentage destroys the honesty position the whole product rests on | Constraint (g) checklist run against **every** new sentence, in both languages, and the check recorded in the PR |
+| R2 | The window fix changes what the Q&A model is told | 1a | `best_window`'s output is injected into the LLM prompt under an instruction telling the model to trust it. Changing the window silently changes Q&A answers | Assert Q&A behaviour at the four frozen clock times before and after; treat any answer change as in-scope |
+| R3 | The honest branches regress into naming a friendly hour | 1a | AQI > 300 and no-reading are currently the *only* correct branches. A refactor that ranks "remaining hours" could hand them a cheerful time | Pin both branches with tests **before** touching the ranking logic |
+| R4 | Hindi ships wrong and nobody notices | 1a/1b | Devanagari is unicameral and no Hindi speaker has verified the draft; the suite cannot catch a fluent-but-wrong sentence | Every string reviewed in the rendered page, not the dictionary; the unverified-Hindi banner stays |
+| R5 | Browser-measured tests make the suite slow or flaky | 2a | The Devanagari sweep needs headless Chrome over CDP. A flaky gate is worse than no gate | Keep it a separate marked suite; assert determinism by running it three times before merging |
+| R6 | Gate 0.5 ships a device signal that quietly misleads | 0.5 | Zero JS means there is no viewport on the server. A user-agent proxy answers a different question than the one asked | State the method and its limits in the System view; never present the proxy as a viewport measurement |
+| R7 | A usage limit kills a run mid-flight | any | Already happened once this project: a run died between build and merge, leaving ten branches unmerged | One gate per run; progress recorded in this file as it completes |
+| R8 | Manual deploy drifts from master | 1d | There is no CI. Production sat months behind master until 2026-08-10 and nobody knew | Verify every deploy by asset-hash identity against local master, never by `/health` |
+| R9 | The card fix breaks tests that pin card structure | 1c | Several tests assert the reading card's contents and order | Expected and cheap; repair them in the same commit |
+| R10 | The timing counterfactual gets built anyway | 4 | It is the most attractive idea in the backlog and the least defensible without hourly data | It is written down as deferred, with the reason. Revisit only alongside a data-layer decision |
 
 ---
 
