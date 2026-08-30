@@ -6,7 +6,7 @@ with no model key it answers from deterministic rules. Both fallbacks are visibl
 UI rather than disguised, so a deployment without them is honest rather than broken.
 
 **Superseded: the app is deployed at https://saafsaans.stackclimb.com** (one 256 MB Fly.io machine in
-Mumbai, scaled to zero, `WAQI_TOKEN` set and `OPENROUTER_API_KEY` deliberately unset). The
+Singapore, scaled to zero, `WAQI_TOKEN` set and `OPENROUTER_API_KEY` deliberately unset). The
 sentence below was true when written and is kept so the comparison of hosts still reads in
 order.
 
@@ -51,7 +51,19 @@ the same failure this repository was written to document, one level up: a claim 
 survived review because nobody executed it. **A platform's terms are not verified until you
 have tried to use them.**
 
-## Recommended: Fly.io, Mumbai
+## Recommended: Fly.io, Singapore (was Mumbai until Fly deprecated it)
+
+> **2026-08-31.** This section was written when Fly had a Mumbai region and that
+> was the reason to choose Fly: it was the only surveyed host with a region in the
+> same country as the readers. Fly has since deprecated `bom` and removed it from
+> `flyctl platform regions` entirely — its whole Asia-Pacific list is now Singapore,
+> Sydney and Tokyo. Cloning a machine into `bom` returns "Region bom is deprecated
+> and cannot have new resources provisioned." Fly moved the running machine to
+> `sin` on 2026-08-20 without the deployment noticing.
+>
+> The comparison below is kept as written, because the reasoning it records is
+> still how the decision was made — but the fact it turned on no longer holds. If
+> in-country hosting matters again, this table needs redoing, not amending.
 
 The honest first choice once cost is equalised. It has a region in India, which no free
 option does, and scale-to-zero means an idle demo costs approximately nothing.
@@ -61,7 +73,7 @@ from the documentation:
 
 ```bash
 flyctl apps create saafsaans --org personal
-# fly.toml is committed at the repo root: primary_region = "bom", internal_port 7860,
+# fly.toml is committed at the repo root: primary_region = "sin", internal_port 7860,
 # auto_stop_machines = "suspend", min_machines_running = 0, health check on /health
 flyctl deploy --now
 flyctl scale count 1 --yes        # Fly provisions two machines for HA by default
@@ -69,7 +81,7 @@ flyctl secrets set WAQI_TOKEN=...  # triggers a redeploy; the app runs without i
                                    # showing labelled stand-in samples and saying so
 ```
 
-Result: <https://saafsaans.fly.dev/> — one shared-cpu-1x/256MB machine in Mumbai, 56 MB
+Result: <https://saafsaans.fly.dev/> — one shared-cpu-1x/256MB machine in Singapore, 56 MB
 image, health check passing, `/health` returning `{"ok":true,"es":"none","waqi":true,
 "llm":false}`. `"es":"none"` is expected: it is the deployed app confirming, from
 production, that it runs with no Elasticsearch.
@@ -145,7 +157,7 @@ Read on 2026-07-20. Quotes are from the linked page.
 | Platform | Free? | Sleeps | India region |
 |---|---|---|---|
 | **Hugging Face Spaces** | Yes, CPU Basic | after **48 h** idle | no |
-| Fly.io | no — legacy plans only | scale-to-zero, opt-in | **yes** (`bom`) |
+| Fly.io | no — legacy plans only | scale-to-zero, opt-in | no — `bom` deprecated 2026 |
 | Render | yes, 750 h/mo | after **15 min** idle | not verified |
 | Railway | no — $5/mo floor | — | — |
 | PythonAnywhere | yes, but ASGI is experimental | — | — |
@@ -163,9 +175,10 @@ Read on 2026-07-20. Quotes are from the linked page.
   ([pricing](https://fly.io/docs/about/pricing/)). A new account pays. The smallest machine,
   `shared-cpu-1x` 256 MB, is listed at **$2.02/month** on the Amsterdam row; the page notes
   prices vary by region and I could not find a Mumbai figure. A card or a $25 prepaid credit
-  is required ([billing](https://fly.io/docs/about/billing/)). It has a Mumbai region, `bom`
-  ([regions](https://fly.io/docs/reference/regions/)), and opt-in scale-to-zero
-  ([autostop](https://fly.io/docs/launch/autostop-autostart/)).
+  is required ([billing](https://fly.io/docs/about/billing/)). It had a Mumbai region, `bom`
+  ([regions](https://fly.io/docs/reference/regions/)) — **deprecated and delisted by
+  2026-08-31; `flyctl platform regions` no longer offers any region in India** — and opt-in
+  scale-to-zero ([autostop](https://fly.io/docs/launch/autostop-autostart/)).
 - **Render** — "Render spins down a Free web service that goes 15 minutes without receiving
   any inbound traffic" and "This process takes about one minute"
   ([free](https://render.com/docs/free)). A documented one-minute cold start after a quarter
@@ -188,7 +201,7 @@ Read on 2026-07-20. Quotes are from the linked page.
 ## If you outgrow the free tier
 
 Fly.io with the same Dockerfile is the upgrade with the clearest benefit for this audience:
-`primary_region = "bom"` puts the server in Mumbai, and leaving autostop off removes the cold
+`primary_region = "sin"` puts the server in Singapore, and leaving autostop off removes the cold
 start. Roughly $2/month at the smallest size. That is the only reason to pay here — the app
 itself needs almost nothing.
 
