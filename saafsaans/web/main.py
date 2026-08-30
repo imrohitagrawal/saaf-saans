@@ -34,7 +34,7 @@ from saafsaans.attack_demo import ATTACKS
 from saafsaans.data.advisories import ADVISORIES
 from saafsaans.services import (
     aqi_scale, clock, config, cpcb, es, forecast, guard, i18n, llm, metrics,
-    normalize, ratelimit, risk, waqi,
+    normalize, ratelimit, risk, viewport, waqi,
 )
 from saafsaans.web import presenters as pr
 
@@ -1266,9 +1266,15 @@ def system(request: Request):
         # `total` counts every logged event, including blocked prompts and
         # errors. Only completed answers belong under "questions answered".
         answered = (by_event or {}).get("chat_completed", 0)
-        vp_rows = _viewport_rows(metrics.viewport_bands(client))
-        ctx["has_index"] = answers or bool(by_event or loc_rows or k.get("total")
-                                           or vp_rows)
+        vp_rows = _viewport_rows(viewport.bands())
+        # vp_rows is deliberately NOT in this expression. has_index means
+        # Elasticsearch answered, and the bands now come from a local file, so
+        # rows there are evidence about a different store entirely. Leaving it
+        # in would let a populated counter file suppress "none is answering" on
+        # the panels that really are dead -- the same manufactured claim this
+        # view has already been caught making twice, arriving from the other
+        # direction.
+        ctx["has_index"] = answers or bool(by_event or loc_rows or k.get("total"))
         ctx.update({
             "kpis": [
                 {"v": answered,
@@ -1566,8 +1572,9 @@ _PROBE_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosnif
 def viewport_probe(request: Request, band: str):
     """Count one page load in a width band. Never identifies anybody.
 
-    Only the band and the time are written (es.VIEWPORT_FIELDS is two fields
-    wide and that is the guarantee). No cookie is SET, though the browser does
+    Only a counter moves: one running total per width band, and no row of any
+    kind per page load, so there is nothing carrying a time to be joined to
+    anything else. No cookie is SET, though the browser does
     send the ones it already has and nothing here reads them. Nothing is read
     from the request but the limiter's bucket key, and the address that key is
     derived from is never written anywhere -- it sits in the in-process table
@@ -1584,7 +1591,7 @@ def viewport_probe(request: Request, band: str):
                                  ratelimit.PROBE_LIMIT, ratelimit.PROBE_WINDOW,
                                  buckets=ratelimit._PROBE_BUCKETS)
     if allowed:
-        es.log_viewport(get_client(), band)
+        viewport.record(band)
     return Response(content=_PROBE_GIF, media_type="image/gif",
                     headers=_PROBE_HEADERS)
 

@@ -213,3 +213,39 @@ itself needs almost nothing.
 | `PORT` | no | defaults to 7860 |
 | `OPENROUTER_API_KEY` | no | answers come from the rule-based path, logged as fallbacks |
 | `ELASTIC_URL` (or `ELASTIC_CLOUD_ID`) + `ELASTIC_API_KEY` | no | System views show their designed empty states |
+| `SAAFSAANS_VIEWPORT_DB` | for durable counts | page-load counts go to `viewport-counts.sqlite3` in the working directory, which a deploy replaces |
+
+## The viewport counter's volume
+
+The probe's page-load counts are the only state this app keeps between deploys.
+They live in a SQLite file on a Fly volume, because the container filesystem is
+recreated every deploy.
+
+**Create the volume before the first deploy that carries the `[[mounts]]` block
+in `fly.toml`.** A deploy referencing a volume that does not exist fails outright.
+
+```bash
+flyctl volumes create saafsaans_data --app saafsaans --region sin --size 1
+```
+
+`sin` matches `primary_region`; 1 GB is Fly's minimum, not an estimate — the
+table can never exceed three counter rows and one date.
+
+Two things to check on that first deploy, neither verifiable from a laptop:
+
+```bash
+flyctl ssh console -C "ls -ldn /data"   # uid column must be 1000, not 0
+flyctl machine list                     # after it idles out: suspended, not stopped
+```
+
+A fresh Fly volume mounts owned by root and the container runs as uid 1000
+(Hugging Face Spaces requires it, and the image never returns to root), so if
+the uid is 0 the counter is silently dead while every page serves normally. Fix
+it once, from a root shell:
+
+```bash
+flyctl ssh console -C "chown 1000:1000 /data"
+```
+
+The System view is the check that this worked: it reads "not being recorded"
+until a count lands, and page-load bars once one has.
