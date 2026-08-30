@@ -23,24 +23,40 @@
 <meta name="twitter:title" content="{{ share.title }}">
 <meta name="twitter:description" content="{{ share.description }}">
 {#- Self-hosted, subsetted faces (scripts/build_fonts.py): no third-party
-    request on any page view, no render-blocking css2 round trip. The two
-    faces preloaded are the ones the first paint is made of -- the body text
-    and the display face the verdict is set in; on a Hindi page the Devanagari
-    file takes both roles and its latin-subset sibling carries the digits the
-    AQI numerals are set in, so those two are preloaded instead. Font preloads
-    need `crossorigin` even same-origin, because fonts are always fetched in
-    CORS mode.
+    request on any page view, no render-blocking css2 round trip. The faces
+    preloaded are the ones the first paint is made of -- the body text, the
+    display face the verdict is set in, and the mono face carrying the 46px
+    AQI numeral, which is otherwise discovered only after app.css parses. On a
+    Hindi page the Devanagari file takes all three roles and its latin-subset
+    sibling carries the digits, so those two are preloaded instead. Font
+    preloads need `crossorigin` even same-origin, because fonts are always
+    fetched in CORS mode.
+
+    Only the 600 weight of the mono face. Measured on an emulated slow 4G
+    profile: preloading both mono weights pushed render-blocking app.css out by
+    ~0.10s, where the 600 alone costs it ~0.044s and lands the numeral's face
+    0.44s earlier. Mono 400 sets 11px chrome labels and swaps behind the same
+    metric-matched fallback, so it reflows nothing by waiting.
+
+    Order here is the design's, not a performance choice: the verdict sentence
+    is the largest text on the page and its faces come first. Measured on the
+    same profile, moving the mono line to the front changed app.css, plex-sans
+    and anek-latin by 0.000s and its own arrival by 0.006s.
 
     Bare URLs, not asset(): fonts.css declares src: url(/static/fonts/...)
-    unversioned (their names encode identity -- see _ImmutableStatic), and
-    preload matching is exact-URL, so a ?v= here would make every preloaded
-    font download twice. -#}
+    unversioned (their names encode identity -- see _ImmutableStatic), and a
+    preload is keyed on its exact URL, so a ?v= here against a bare src: there
+    is two cache entries -- the 70,488 B this page preloads fetched twice, and
+    272,064 B on a Hindi page.
+    Content is pinned by name instead: test_static_delivery records each face's
+    sha256, so bytes that change under an unchanged name go red. -#}
 {% if lang == 'hi' %}
 <link rel="preload" href="/static/fonts/anek-devanagari-400-800.devanagari.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/anek-devanagari-400-800.latin.r2.woff2" as="font" type="font/woff2" crossorigin>
 {% else %}
 <link rel="preload" href="/static/fonts/plex-sans-400-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/anek-latin-600-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 {% endif %}
 <link rel="stylesheet" href="{{ asset('fonts.css') }}">
 {#- The Devanagari face is a real download and an English reader would never

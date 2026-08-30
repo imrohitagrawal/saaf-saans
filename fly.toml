@@ -1,9 +1,19 @@
 # Fly.io deployment. See docs/DEPLOY.md for why this host and not a free one.
 app = "saafsaans"
 
-# Mumbai. The audience is in Delhi, and this is the only region among the hosts
-# surveyed that is in the same country as the people the app is for.
-primary_region = "bom"
+# Singapore, because Fly no longer has an India region. This said "bom" until
+# 2026-08-31, by which time Fly had deprecated Mumbai and delisted it: cloning a
+# machine into it returns "Region bom is deprecated and cannot have new
+# resources provisioned." Fly moved the running machine to sin on 2026-08-20.
+#
+# Leaving "bom" here was not cosmetic. primary_region is what a new machine is
+# created in, so the next deploy after the current machine was destroyed would
+# have failed outright.
+#
+# The audience is in Delhi and sin is the nearest region Fly still offers -- it
+# costs a Delhi reader roughly 40-60ms of round trip against Mumbai, which is
+# noise next to the seconds this app spends resuming from suspend.
+primary_region = "sin"
 
 [build]
 

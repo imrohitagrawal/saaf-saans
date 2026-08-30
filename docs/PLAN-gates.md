@@ -102,10 +102,31 @@ a stop, it is an interruption.
 **Owner checkpoints (the only places a run stops for a human):**
 
 1. ~~Gate 0.5 method~~ — **decided 2026-08-10: Option A.** No stop here.
-2. **Gate 1b, before the copy merges.** New sentences advise people with asthma, COPD
-   and pregnancies, in two languages, one of which nobody has verified. R1 is the
-   highest-damage risk in this plan and a human reading the strings is the only
-   mitigation a test cannot provide.
+2. ~~Gate 1b, before the copy merges~~ — **removed 2026-08-31 by the owner**, who chose
+   to run the remaining gates with no human stops. Read this before assuming otherwise:
+   a sub-orchestrator has already deferred to this checkpoint after it stopped existing,
+   and correctly said so rather than guessing.
+
+   The claim it made was true when written: new sentences advise people with asthma,
+   COPD and pregnancies, in two languages, one of which nobody has verified; R1 is the
+   highest-damage risk in this plan; and a human reading the strings is the only
+   mitigation a *test* cannot provide. Removing the reader without replacing anything
+   would have left R1 with no mitigation at all.
+
+   What replaces it: **`tests/test_health_claims.py`**, which encodes the eight-item
+   copy-review checklist from `docs/research/2026-07-exposure-evidence.md` as an
+   executable sweep over the whole string corpus — `i18n.HI`, `risk.BAND_ADVICE` and
+   `risk._HEADLINE`, walked recursively rather than by a list of keys, so a new key
+   cannot slip past it. Every rule ships with two partners: one proving it fires on a
+   violation, one proving it does not block the honest sentence it must allow. A further
+   test proves the sweep reached the strings at all, because eight absence-checks over
+   an empty corpus would pass in silence for ever.
+
+   **It is a smaller thing than the reader it replaces, and that gap is accepted, not
+   closed.** It catches eight specific claim shapes. It cannot catch a sentence that is
+   fluent, sourced and simply wrong, and it cannot read Hindi for sense — R4 stands
+   untouched. The unverified-Hindi banner stays up until a Hindi speaker has read the
+   strings.
 3. **Promotion.** A gate may deploy; it never promotes. That is the owner's action.
 
 **Budget note:** a prior autonomous run hit a weekly usage limit mid-flight. Every
@@ -721,6 +742,34 @@ space before the separator after the PM2.5 unit, which compounds in Hindi.
 
 **Typography:** System KPI labels are set in the body face on the page defined by its
 mono register.
+
+**From the fonts-and-payload change (2026-08-31):** nothing in the suite pins the
+metric-matched fallback overrides to the face they were measured from.
+`test_fallback_text_is_metric_matched_not_just_a_system_stack` only checks the family
+names are present, so a typo in any of the six `size-adjust`/`ascent-override`/
+`descent-override` numbers would ship green — and this change moved three of them
+(Anek Latin 95.98/93.77/20.84 → 98.18/91.67/20.37, because clipping the weight axis moves
+the default instance the measurement is taken at). The check that would settle it is
+asserting `build_fonts.fallback_face(family, shipped_file)` reproduces the block in
+fonts.css; it is not written because that reads local Arial and Courier New from
+`/System/Library/Fonts/Supplemental/`, which CI's `ubuntu-24.04` image does not have, so
+it would skip in CI — and a skipped guard proves nothing. Settling it properly needs a
+committed metrics fixture for the two fallback faces, or a Linux-available equivalent.
+· **`*:lang(en)` in app.css is effectively dead.** Its `--body`/`--mono` redefinitions are
+consumed by exactly one element on any Hindi page, `.pat` on the System view, because
+every other `lang="en"` element inherits an already-resolved `font-family` rather than
+re-resolving the variable. (The `English` toggle does re-resolve it, via `.seg a`, and is
+saved only by `:lang(hi) .seg a` hardcoding the Devanagari stack at higher specificity.)
+Not a defect today, but it is why gating `fonts.css` by language was rejected: any future
+fix that made the rule actually bite would silently strip the Latin faces from every
+English island on a Hindi page. · **The size of that prize, stated correctly.** `fonts.css`
+is 501 gzipped bytes and is `?v=`-hashed under `max-age=31536000, immutable`, so gating it
+saves ~500 bytes **once per reader**, not 843 per page load, and no font bytes at all.
+· **`.pat` does not render on production as deployed** — `attempts` comes only from
+`metrics.recent_security_events`, which returns `[]` with no Elasticsearch client, and
+production has no `ELASTIC_*` secret. The skip still falls the right way: the case is one
+`fly secrets set` away and `/system/simulate` exists to populate it, and the local suite
+structurally cannot reach the state, so the regression would ship green.
 
 **From Gate 0.5:** the System view now shows a `.caveat` (the Quiet Caveat Rule's one
 qualification style) in the viewport card, while two sibling cards on the same page still

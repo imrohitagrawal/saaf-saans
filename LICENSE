@@ -16,6 +16,13 @@ project**. Two things in this repository are NOT covered by it:
    own terms, which prohibit commercial use and the redistribution of cached or
    archived data. No data is included in this repository; see the README.
 
+3. `saafsaans/web/static/fonts/*.woff2` — Anek Latin, Anek Devanagari, IBM Plex
+   Sans and IBM Plex Mono, subsetted for this app by `scripts/build_fonts.py`.
+   These are licensed by their originators under the SIL Open Font License 1.1,
+   not by this file, and no rights to them are granted here. The full licence
+   text for both families is in `saafsaans/web/static/fonts/OFL.txt`, which OFL
+   clause 2 requires be redistributed with them.
+
 ------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

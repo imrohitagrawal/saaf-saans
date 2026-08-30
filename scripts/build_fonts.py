@@ -2,8 +2,10 @@
 
     .venv/bin/python scripts/build_fonts.py
 
-Needs network and `pip install fonttools brotli` (build-time only; neither is a
-runtime dependency and tests never run this). Output, all under
+Needs network. fonttools and brotli come from requirements.txt, where they are
+test dependencies: tests/test_static_delivery.py and tests/test_viewport_probe.py
+open the shipped woff2 with fontTools, and brotli is what decodes one. Nothing
+under saafsaans/ imports either, and no test runs this script. Output, all under
 saafsaans/web/static/:
 
     fonts/*.woff2   subsetted faces
@@ -29,7 +31,11 @@ Pipeline, per family:
    declared for it, `--layout-features='*'` so no Devanagari shaping rule
    (half forms, reph, conjuncts) is dropped -- the Devanagari Floor rule dies
    with those features.
-4. Measure the custom fonts' vertical metrics and frequency-weighted average
+4. Clip each variable face's wght axis to the range its @font-face declares.
+   Google serves the family's whole axis whatever the query asked for, so the
+   files arrived carrying weights down to 100 that no rule can select: 43.7 KB
+   across the four of them.
+5. Measure the custom fonts' vertical metrics and frequency-weighted average
    character width with fontTools, measure the same for the local fallback
    (Arial / Courier New), and emit metric-override fallback @font-face blocks
    so swapped-in fallback text occupies the same lines. Formulas as used by
@@ -82,7 +88,13 @@ FALLBACKS = {
 }
 # /static is served immutable for a year and font files carry no ?v=, so a face
 # whose rendering changes has to arrive under a new name or returning readers
-# keep the old one. Generated name -> shipped name.
+# keep the old one. Rendering, not bytes: the 2026-08-31 axis clip rewrote all
+# four variable faces and kept their names, because it moves no glyph more than
+# 0.008 px at 16 px and a returning reader on the old file therefore keeps a
+# correct, merely larger font -- where renaming would have cost every returning
+# Hindi reader a 272 KB re-download to save 24 KB. tests/test_static_delivery.py
+# pins each face's sha256 so that judgement has to be made rather than skipped.
+# Generated name -> shipped name.
 RENAMED = {"anek-devanagari-400-800.latin.woff2":
            "anek-devanagari-400-800.latin.r2.woff2"}
 
@@ -116,9 +128,43 @@ def fetch(url: str) -> bytes:
 
 
 def subset(raw: Path, out: Path, unicodes: str) -> None:
+    # name IDs 13 and 14 are the OFL licence description and its URL. pyftsubset
+    # keeps only 0-6 by default, which strips the licence out of a font whose
+    # licence requires it to travel with the file; the six faces shipped before
+    # 2026-08-31 carry 0-6 only. OFL.txt beside them covers the distribution
+    # either way.
     from fontTools import subset as ftsubset
     ftsubset.main([str(raw), f"--unicodes={unicodes}", "--flavor=woff2",
-                   "--layout-features=*", f"--output-file={out}"])
+                   "--layout-features=*", "--name-IDs+=13,14",
+                   f"--output-file={out}"])
+
+
+def clip_wght(out: Path, lo: int, hi: int) -> None:
+    """Cut the wght axis down to the range the stylesheet can select.
+
+    Google returns the family's whole axis whatever range the css2 query asks
+    for: all four variable faces here arrived carrying wght from 100, which no
+    rule in app.css can reach -- a variable @font-face clamps the request into
+    its own declared range before setting the axis. Measured 2026-08-31,
+    clipping to the declared range saves 10,952 B on Anek Latin, 9,472 on Plex
+    Sans, 21,800 on the Devanagari face and 2,580 on its Latin sibling. No
+    outline moves more than 0.96 units of 2000 upem and no advance more than 1
+    unit -- 0.008 px at 16 px -- at any weight the CSS selects.
+
+    Runs last, on a freshly subsetted full-axis file. It is NOT a fixpoint: a
+    second pass over an already-clipped face re-solves gvar and the head bbox
+    against the narrowed range and shifts the bytes again without changing the
+    rendering, which would turn the sha256 pins in tests/test_static_delivery.py
+    red for nothing. Clip once, from the download.
+    """
+    from fontTools.ttLib import TTFont
+    from fontTools.varLib import instancer
+    font = TTFont(str(out), recalcTimestamp=False)
+    if font.get("fvar") is None:     # IBM Plex Mono is static: one file per weight
+        return
+    clipped = instancer.instantiateVariableFont(font, {"wght": (lo, None, hi)})
+    clipped.flavor = "woff2"
+    clipped.save(str(out))
 
 
 def unmark_middot(out: Path) -> None:
@@ -133,7 +179,19 @@ def unmark_middot(out: Path) -> None:
     classifies it.
     """
     from fontTools.ttLib import TTFont
-    font = TTFont(str(out))
+    # recalcTimestamp=False, here and in clip_wght: TTFont otherwise stamps
+    # head.modified with the wall clock on save, so three runs over identical
+    # input produced three different files (measured 2026-08-31: the Devanagari
+    # face varied across 230,464-231,316 B, every hash different). With it off
+    # the same input gives the same bytes every time, which is what lets the
+    # suite pin each shipped face by content hash.
+    #
+    # That is reproducibility of this script against a fixed download, not of
+    # the six faces in the tree: they were subsetted before --name-IDs+=13,14
+    # was added above and carry name IDs 0-6 only, so the next rebuild will
+    # change all six hashes for a licence-metadata reason. Rendering will be
+    # identical, so that rebuild updates the manifest and keeps the filenames.
+    font = TTFont(str(out), recalcTimestamp=False)
     dot = font.getBestCmap().get(0x00B7)
     gdef = font.get("GDEF")
     if dot is None or gdef is None or gdef.table.GlyphClassDef is None:
@@ -202,6 +260,13 @@ def main() -> int:
             raw.write_bytes(fetch(m["url"]))
             subset(raw, FONTS / name, m["range"].replace(" ", ""))
             unmark_middot(FONTS / name)
+            # "600 800" for a variable face, "400" for a static one. The range
+            # the stylesheet is about to declare is the range the file should
+            # carry, so it is read from the same string rather than a second
+            # table that could drift out of step with it.
+            bounds = [int(w) for w in weight.split()]
+            if len(bounds) == 2:
+                clip_wght(FONTS / name, *bounds)
             raw.unlink()
             block = face(family, weight, name, m["subset"], m["range"].strip())
             (hindi_css if family == "Anek Devanagari" else latin_css).append(block)
