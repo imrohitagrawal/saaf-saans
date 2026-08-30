@@ -22,6 +22,10 @@ primary_region = "sin"
   # the two cannot drift apart silently.
   PORT = "7860"
 
+  # On the volume, not the container filesystem, which is replaced on every
+  # deploy. A counter that resets on deploy measures deploys, not readers.
+  SAAFSAANS_VIEWPORT_DB = "/data/viewport-counts.sqlite3"
+
 [http_service]
   internal_port = 7860
   force_https = true
@@ -44,6 +48,23 @@ primary_region = "sin"
     grace_period = "20s"
     method = "GET"
     path = "/health"
+
+# The viewport probe's page-load counts: four rows, a few kilobytes, and the
+# only state this app keeps between deploys. 1 GB is Fly's minimum, not a size
+# estimate -- measured growth is nil, because the table can never exceed three
+# counter rows and one date.
+#
+# The volume must EXIST before the first deploy that carries this block, or the
+# deploy fails outright:
+#   flyctl volumes create saafsaans_data --app saafsaans --region sin --size 1
+#
+# A fresh Fly volume mounts owned by root, and the Dockerfile runs as uid 1000
+# (Hugging Face Spaces requires it and the image never returns to root), so
+# check `ls -ldn /data` after the first deploy. If it is root-owned the counter
+# is silently dead while pages serve normally, and the System view says so.
+[[mounts]]
+  source = "saafsaans_data"
+  destination = "/data"
 
 [[vm]]
   size = "shared-cpu-1x"

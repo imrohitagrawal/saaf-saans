@@ -500,11 +500,12 @@ timing one:
 
 #### 1d note carried from Gate 0.5
 
-Run `python saafsaans/setup_indices.py` against production as part of that deploy. It now
-creates a fifth index, `viewport-bands`, mapping `band` as a keyword. Skipping it is not
-fatal — `metrics.viewport_bands` retries on `band.keyword` so an auto-created index still
-reads — but the mapping that is meant is the one the script writes. Then confirm the
-System view shows a non-zero band count, which is Gate 0.5's deferred exit criterion.
+**Superseded by b1-telemetry-sqlite.** There is no `viewport-bands` index any more, so
+`setup_indices.py` has nothing to add for the probe. What that deploy must do instead:
+create the Fly volume BEFORE deploying (`flyctl volumes create saafsaans_data --app
+saafsaans --region sin --size 1`), then confirm `/data` is owned by uid 1000 and that the
+System view shows a non-zero band count. That count is still Gate 0.5's deferred exit
+criterion, and it is now the first time this telemetry will have recorded anything at all.
 
 #### 1c. The uneven cards (~2 hours)
 
@@ -775,17 +776,44 @@ structurally cannot reach the state, so the regression would ship green.
 qualification style) in the viewport card, while two sibling cards on the same page still
 use `.caption`. The new card follows DESIGN.md; the two older ones were left alone rather
 than restyled inside a telemetry gate. Converting them is a two-line change and closes the
-`.caption` item above. · **No retention policy on any index.** `viewport-bands` grows by
-one document per page load for ever, and the other four have no ILM policy either. It is
-the first index that grows per page load rather than per deliberate action, so it is the
-first place the absence has a privacy cost as well as a storage one: the panel says only a
-band and a time are kept and cannot answer "for how long". An ILM delete phase created in
-`setup_indices.py`, with the number named in the caveat, is the fix. · The probe's write is
-synchronous on the request path (bounded at 1s); moving it to a background task would stop
-a degraded Elasticsearch occupying a threadpool slot per page load. · A `viewport-bands`
-document carries a timestamp, so it could in principle be joined by time to an
-`app-telemetry` document that carries a session hash; rounding the probe's timestamp to
-the minute or hour would remove that without costing the breakdown anything.
+`.caption` item above.
+
+**From Gate 0.5, CLOSED by the SQLite counter swap (b1-telemetry-sqlite).** Three
+leftovers were recorded here and all three had the same root cause — one document per page
+load in a `viewport-bands` index. Counters removed the cause rather than mitigating it:
+
+- *"No retention policy on any index. `viewport-bands` grows by one document per page load
+  for ever."* Closed for this store only. It now holds three counter rows and one date, for
+  ever, so there is nothing to expire and no ILM policy to write. **The other four indices
+  still have no ILM policy and that item stands.**
+- *"A `viewport-bands` document carries a timestamp, so it could in principle be joined by
+  time to an `app-telemetry` document that carries a session hash."* Closed. No per-load row
+  of any kind survives, so there is nothing to join. A `(day, band)` key was designed,
+  reviewed and rejected precisely because it would have left this *reduced* rather than
+  closed: on a day whose loads all land in one band — the common case on a scaled-to-zero
+  demo — the row still discloses that band for every session hash of that day.
+- *"The probe's write is synchronous on the request path (bounded at 1s); moving it to a
+  background task would stop a degraded Elasticsearch occupying a threadpool slot per page
+  load."* Closed by removing the network call. The write is a local upsert, measured at a
+  ~10 µs median, and the 1 s bound is now a SQLite `busy_timeout` reachable only when
+  another process holds the write lock.
+
+**New, from the same change (advisory, none blocking):**
+
+- The counter store is not created until the first page load, so a healthy deployment that
+  nobody has visited is indistinguishable from a broken one: both read "not being recorded".
+  Creating the schema at startup instead would make an absent file mean exactly one thing —
+  the store could not be created — and let a genuine measured zero say so. Not done here
+  because it changes what the default render says on every page of the suite.
+- `PRAGMA wal_checkpoint(TRUNCATE)` at shutdown would leave a suspended machine a clean
+  file (measured: 4.12 MB of write-ahead log to 0). It needs FastAPI's `lifespan` API —
+  `@app.on_event` is deprecated and adds a warning — and that edit sits in a region of
+  `main.py` another lane owns. SQLite's own auto-checkpoint already bounds the log at
+  ~4 MB, so this is tidiness, not a leak.
+- `ui/sys_empty_no_index` was narrowed in English from "This view reads from a database
+  index" to "These panels…", because the viewport card on the same view is no longer one of
+  them. The Hindi mirror already says "यह हिस्सा" (this section), which is correctly
+  scoped; only its second clause is looser than the English now.
 
 **Copy / states:** a whitespace-only question is accepted and answered with full health
 instructions · an answer with no retrieved guidance shows no sources block and no

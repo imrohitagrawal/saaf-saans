@@ -5,10 +5,17 @@ unauthenticated by design -- there are no accounts, and asking for one to read
 air-quality advice would defeat the point. But each does real work per request:
 `/ask` writes telemetry, may write a security event, and calls a language model
 when a key is configured; `/simulate` writes a document per attack in the demo
-set; the viewport probe writes one document per page load and is deliberately
+set; the viewport probe writes to a local counter and is deliberately
 uncacheable, so nothing between the browser and this process absorbs a flood.
 Unthrottled, one script can drive unbounded Elasticsearch writes and unbounded
 third-party spend, on one 256MB machine that scales to zero.
+
+What the probe's limit does NOT do is bound the counter file. It cannot: the
+overflow path below clears the whole table, so a flood from more than
+`_MAX_BUCKETS` addresses forgives itself. The counter is bounded by its schema
+instead -- `band` is checked against a closed set of three before it reaches
+SQL, so the table can never hold more than three rows however hard it is hit.
+The limit here is about CPU and disk churn, not about growth.
 
 The probe differs from the other two in what a trip COSTS. A throttled question
 is a person told to wait; a throttled probe is a page load that silently never

@@ -52,7 +52,7 @@
             could ask questions all day and this view would stay at zero.
             "answering", not "configured": a configured endpoint that is down
             records exactly as much as no endpoint at all. -#}
-        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'This view reads from a database index, and none is answering, so nothing is being recorded. The app runs without it; these panels are the part that does not.') }}</p>
+        <p class="empty">{{ T('ui', 'sys_empty_no_index', 'These panels read from a database index, and none is answering, so nothing is being recorded in them. The app runs without it; these panels are the part that does not.') }}</p>
         {% endif %}
       {% endif %}
     </section>
@@ -105,7 +105,7 @@
           </div>
           {% endfor %}
         </div>
-        <p class="caveat">{{ T('ui', 'sys_viewport_caveat', 'Page loads, not people: only a width band and a time are written down — no cookie, no address, no identifier. It is the width of the browser window, not the kind of device. Read it as a floor, never a total: a load only counts if the browser fetches the stylesheet image, so anything that blocks images, a page restored by the back button, and most automated visitors are missing, while a resized window and a page preview can each count twice.') }}</p>
+        <p class="caveat">{{ T('ui', 'sys_viewport_caveat', 'Page loads, not people: only a running count for each width band is written down — no time, no cookie, no address, no identifier, and no record of any single page load. It is the width of the browser window, not the kind of device. Read it as a floor, never a total: a load only counts if the browser fetches the stylesheet image, so anything that blocks images, a page restored by the back button, and most automated visitors are missing, while a resized window and a page preview can each count twice.') }}</p>
       {% elif vp_rows is none %}
         {#- Branched on THIS index, not on the page-wide has_index. The two
             states read identically as a zero and are different facts: nobody
