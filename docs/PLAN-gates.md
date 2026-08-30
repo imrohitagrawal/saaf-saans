@@ -102,10 +102,31 @@ a stop, it is an interruption.
 **Owner checkpoints (the only places a run stops for a human):**
 
 1. ~~Gate 0.5 method~~ — **decided 2026-08-10: Option A.** No stop here.
-2. **Gate 1b, before the copy merges.** New sentences advise people with asthma, COPD
-   and pregnancies, in two languages, one of which nobody has verified. R1 is the
-   highest-damage risk in this plan and a human reading the strings is the only
-   mitigation a test cannot provide.
+2. ~~Gate 1b, before the copy merges~~ — **removed 2026-08-31 by the owner**, who chose
+   to run the remaining gates with no human stops. Read this before assuming otherwise:
+   a sub-orchestrator has already deferred to this checkpoint after it stopped existing,
+   and correctly said so rather than guessing.
+
+   The claim it made was true when written: new sentences advise people with asthma,
+   COPD and pregnancies, in two languages, one of which nobody has verified; R1 is the
+   highest-damage risk in this plan; and a human reading the strings is the only
+   mitigation a *test* cannot provide. Removing the reader without replacing anything
+   would have left R1 with no mitigation at all.
+
+   What replaces it: **`tests/test_health_claims.py`**, which encodes the eight-item
+   copy-review checklist from `docs/research/2026-07-exposure-evidence.md` as an
+   executable sweep over the whole string corpus — `i18n.HI`, `risk.BAND_ADVICE` and
+   `risk._HEADLINE`, walked recursively rather than by a list of keys, so a new key
+   cannot slip past it. Every rule ships with two partners: one proving it fires on a
+   violation, one proving it does not block the honest sentence it must allow. A further
+   test proves the sweep reached the strings at all, because eight absence-checks over
+   an empty corpus would pass in silence for ever.
+
+   **It is a smaller thing than the reader it replaces, and that gap is accepted, not
+   closed.** It catches eight specific claim shapes. It cannot catch a sentence that is
+   fluent, sourced and simply wrong, and it cannot read Hindi for sense — R4 stands
+   untouched. The unverified-Hindi banner stays up until a Hindi speaker has read the
+   strings.
 3. **Promotion.** A gate may deploy; it never promotes. That is the owner's action.
 
 **Budget note:** a prior autonomous run hit a weekly usage limit mid-flight. Every

@@ -37,7 +37,7 @@ air."
 - Runs with zero API keys: every external call is timeout-bounded with a deterministic
   fallback. Live data (WAQI), the model (OpenRouter), and dashboards (Elastic) light
   up only when credentials exist.
-- Deployed at https://saafsaans.stackclimb.com on one 256 MB Fly.io machine in Mumbai,
+- Deployed at https://saafsaans.stackclimb.com on one 256 MB Fly.io machine in Singapore,
   scaled to zero when idle — first request after a quiet spell is slow. The public
   instance has WAQI live but deliberately no model key, so Q&A answers come from the
   rule-based fallback.
