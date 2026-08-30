@@ -1,0 +1,251 @@
+"""The eight things the evidence forbids this app from saying.
+
+`docs/research/2026-07-exposure-evidence.md` ends with a copy-review checklist
+derived from the evidence above it. Until now that checklist was prose: a human
+read the strings and decided. On 2026-08-31 the owner chose to run the remaining
+gates with no human stops, which removes the reader. This file is what replaces
+them.
+
+It is not a substitute for a person and does not claim to be. It catches the
+eight specific claim shapes the evidence rules out. It cannot catch a sentence
+that is fluent, sourced, and simply wrong -- and it cannot read Hindi for sense
+at all. The unverified-Hindi banner stays up for that reason.
+
+Two design choices, both load-bearing:
+
+**It sweeps the corpus, not a list of keys.** Every string in `i18n.HI` and in
+`risk.BAND_ADVICE`/`risk._HEADLINE` is walked, so a rule cannot be outflanked by
+adding a new key. The Devanagari floor was policed by hand-maintained selector
+lists for months and every audit found another place a list had missed; that is
+Gate 2a. A hand-maintained key list here would fail the same way, and this gate
+guards health guidance given to people with asthma, COPD and pregnancies.
+
+**Every rule ships with two partners.** A rule that matches nothing passes
+silently forever, and so does a rule pointed at an empty corpus. So each rule is
+proven to fire on a violation and proven not to fire on the compliant sentence
+it must allow, and the sweep is proven to have actually reached the strings.
+"""
+import re
+
+import pytest
+
+from saafsaans.services import i18n, risk
+
+# --- The corpus ------------------------------------------------------------
+# Everything a reader can be shown that carries advice. `i18n.HI` is the whole
+# Hindi side; BAND_ADVICE and _HEADLINE are the English sentences that have no
+# Hindi-side equivalent to walk because their Hindi lives in HI already.
+
+
+def _walk(node, path=()):
+    """Yield ``(dotted.path, string)`` for every leaf string under ``node``."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from _walk(value, path + (str(key),))
+    elif isinstance(node, (list, tuple)):
+        for i, value in enumerate(node):
+            yield from _walk(value, path + (str(i),))
+    elif isinstance(node, str):
+        yield ".".join(path), node
+
+
+def corpus():
+    """Every user-facing advice string, with a path naming where it came from."""
+    rows = list(_walk(i18n.HI, ("i18n.HI",)))
+    rows += list(_walk(risk.BAND_ADVICE, ("risk.BAND_ADVICE",)))
+    rows += list(_walk(risk._HEADLINE, ("risk._HEADLINE",)))
+    return rows
+
+
+# --- The eight rules -------------------------------------------------------
+# Each entry: the checklist item, the pattern, one sentence that MUST be caught,
+# and one that MUST be allowed. The allowed twin is not decoration -- it is what
+# stops a rule being tightened into something that blocks honest copy. Several
+# of these sentences are close paraphrases of strings the app already ships.
+
+# Spans words but not sentences. A bare full stop or danda ends the span; a full
+# stop followed by a digit does not, because "PM2.5" is one token and an earlier
+# draft of D3 silently failed on exactly that -- its own violation sentence went
+# uncaught until the partner test below refused it.
+_NEAR = r"(?:[^.।]|\.\d)"
+
+RULES = [
+    (
+        "D1 no promised health outcome",
+        # A promise about the reader's body. Not "wear a mask" (an action) but
+        # "this will protect your lungs" (an outcome). D1: personal protective
+        # measures showed no lung-function benefit in the RCTs.
+        re.compile(
+            r"(?:will|going to)\s+(?:protect|prevent|stop|cure|heal|fix)\b"
+            r"|guarantee(?:s|d)?\b|keeps?\s+you\s+safe\b|ensures?\s+(?:you|your)\b"
+            r"|बचाएगा|बचाएगी|सुरक्षित\s+रखेगा|रोकेगा|ठीक\s+कर\s+देगा",
+            re.IGNORECASE),
+        "An N95 will protect your lungs from damage.",
+        "Wear an N95 outdoors.",
+    ),
+    (
+        "D2 no purifier dismissed as useless",
+        # D1 and D2 together: the app must not overcorrect into nihilism.
+        re.compile(
+            r"purifiers?\s+(?:do\s?n[o']?t|don't|do not|never)\s+(?:work|help)\b"
+            r"|purifiers?\s+(?:are|is)\s+(?:useless|pointless|a\s+waste)\b"
+            r"|no\s+point\s+(?:in\s+)?(?:a\s+|an\s+)?purifier"
+            r"|प्यूरीफ़ायर\s+बेकार|प्यूरीफ़ायर\s+से\s+कोई\s+फ़ायदा\s+नहीं",
+            re.IGNORECASE),
+        "Air purifiers are useless, do not bother.",
+        "Run an air purifier indoors.",
+    ),
+    (
+        "D3 no specific filtration percentage",
+        # The evidence range is 11-82%. Any single figure misrepresents it.
+        re.compile(
+            r"\d{1,3}\s?%" + _NEAR + r"{0,40}(?:filtrat|filter|purif|प्यूरीफ़ायर|फ़िल्टर)"
+            r"|(?:filtrat|filter|purif|प्यूरीफ़ायर|फ़िल्टर)" + _NEAR + r"{0,40}\d{1,3}\s?%",
+            re.IGNORECASE),
+        "A purifier cuts indoor PM2.5 by 60%.",
+        "A purifier lowers indoor PM2.5.",
+    ),
+    (
+        "D4/D6 no ug/m3 figure for a commute mode",
+        # D6 supports RANK ORDER ONLY. A per-mode concentration is a modelled or
+        # single-campaign figure wearing the clothes of a measurement.
+        re.compile(
+            r"(?:bus|metro|auto|rickshaw|car|walk|cycl|बस|मेट्रो|ऑटो|कार|पैदल|साइकिल)"
+            + _NEAR + r"{0,60}\d+\s?(?:µg|ug|μg|माइक्रोग्राम)"
+            r"|\d+\s?(?:µg|ug|μg)" + _NEAR + r"{0,60}"
+            r"(?:bus|metro|auto|rickshaw|car|walk|cycl|बस|मेट्रो|ऑटो|कार|पैदल|साइकिल)",
+            re.IGNORECASE),
+        "The bus exposes you to 113 µg/m³ on that route.",
+        "A closed car takes in less than an open auto.",
+    ),
+    (
+        "D6 never stop walking",
+        # Tainio: the active-travel benefit outlasts the pollution penalty far
+        # past Delhi's concentrations. Telling people to stop walking is a net
+        # health harm.
+        re.compile(
+            r"stop\s+walking\b|do\s?n[o']?t\s+walk\b|don't\s+walk\b|never\s+walk\b"
+            r"|avoid\s+walking\b|पैदल\s+(?:मत|न)\s+(?:चल|जा)",
+            re.IGNORECASE),
+        "Stop walking to work until the air clears.",
+        "Walk a shorter route, and go slower.",
+    ),
+    (
+        "D7 recirculation, never use the AC",
+        # D7: it is the recirculation setting that does the work, not cooling.
+        # "Use the AC" sends people to the wrong button.
+        re.compile(
+            r"(?:use|turn\s+on|switch\s+on|put\s+on)\s+the\s+(?:a\.?c\.?|air\s?con)\b"
+            r"|ए\.?सी\.?\s+(?:चला|चालू|ऑन)",
+            re.IGNORECASE),
+        "Use the AC when you drive through traffic.",
+        "Set the car vents to recirculate.",
+    ),
+    (
+        "D8 never ambient AQI is uninformative",
+        # D8 cuts both ways: the proxy is imperfect AND it is the best signal a
+        # reader has. Dismissing it leaves them with nothing.
+        re.compile(
+            r"(?:aqi|एक्यूआई)" + _NEAR + r"{0,40}"
+            r"(?:mean(?:s|ing)?\s+nothing|is\s+meaningless|is\s+useless|tells?\s+you\s+nothing"
+            r"|बेकार|कोई\s+मतलब\s+नहीं)"
+            r"|ignore\s+the\s+(?:aqi|number)",
+            re.IGNORECASE),
+        "Ignore the AQI, it tells you nothing about your air.",
+        "The AQI is a city-wide average, not your doorstep.",
+    ),
+    (
+        "D4 no modelled figure presented as measured",
+        # A future-tense concentration is always modelled: this app holds daily
+        # forecast averages and no hourly concentration source at all.
+        re.compile(
+            r"(?:will\s+be|expect(?:ed)?\s+to\s+be|by\s+\d{1,2}\s?(?:am|pm))"
+            + _NEAR + r"{0,40}\d+\s?(?:µg|ug|μg|aqi)"
+            r"|\d+\s?(?:µg|ug|μg)" + _NEAR + r"{0,30}(?:tomorrow|tonight|later|कल|शाम\s+तक)",
+            re.IGNORECASE),
+        "By 7 pm the air will be 84 µg/m³.",
+        "Later hours are usually calmer than the afternoon.",
+    ),
+]
+
+IDS = [name for name, *_ in RULES]
+
+
+# --- The gate --------------------------------------------------------------
+
+@pytest.mark.parametrize("name,pattern,violation,allowed", RULES, ids=IDS)
+def test_no_shipped_string_breaks_the_checklist(name, pattern, violation, allowed):
+    """The whole corpus, against one rule.
+
+    Turns red when: any string in i18n.HI, risk.BAND_ADVICE or risk._HEADLINE
+    starts saying the thing this rule forbids.
+    """
+    hits = [(path, text) for path, text in corpus() if pattern.search(text)]
+    assert not hits, (
+        f"{name} violated in {len(hits)} string(s):\n"
+        + "\n".join(f"  {p}: {t[:120]}" for p, t in hits[:8]))
+
+
+@pytest.mark.parametrize("name,pattern,violation,allowed", RULES, ids=IDS)
+def test_every_rule_catches_its_own_violation(name, pattern, violation, allowed):
+    """The partner the sweep above needs.
+
+    The sweep asserts an ABSENCE, and an absence is satisfied by a pattern that
+    matches nothing at all -- replace any regex with `(?!)` and the sweep stays
+    green for ever. This proves each rule fires on the sentence it exists to
+    stop, so the green above is a result rather than a silence.
+    """
+    assert pattern.search(violation), f"{name} does not catch: {violation!r}"
+
+
+@pytest.mark.parametrize("name,pattern,violation,allowed", RULES, ids=IDS)
+def test_every_rule_permits_the_honest_sentence(name, pattern, violation, allowed):
+    """The other partner, against over-reach.
+
+    A rule tightened until it blocks honest copy is worse than no rule: the next
+    author deletes it rather than argues with it. Each `allowed` sentence is the
+    nearest compliant thing to its violation -- the action without the promised
+    outcome, the rank order without the figure, recirculation instead of the AC.
+    """
+    assert not pattern.search(allowed), f"{name} wrongly blocks: {allowed!r}"
+
+
+def test_the_sweep_actually_reaches_the_strings():
+    """A check that counts nothing needs a partner proving the thing exists.
+
+    Every assertion above is over `corpus()`. If it returned an empty list --
+    a renamed `i18n.HI`, a `_walk` that stopped recursing -- all eight sweeps
+    would pass having read nothing, and this file would report a clean corpus it
+    never opened.
+
+    The floors are deliberately far below the real counts (503 Hindi leaves and
+    10 English sentences as at 2026-08-31) so ordinary copy work never trips
+    them; they catch a corpus that collapsed, not one that changed.
+    """
+    rows = corpus()
+    paths = [p for p, _ in rows]
+    assert len(rows) > 300, f"corpus collapsed to {len(rows)} strings"
+    assert any(p.startswith("i18n.HI.") for p in paths), "no Hindi strings swept"
+    assert any(p.startswith("risk.BAND_ADVICE.") for p in paths), "no band advice swept"
+    assert any(p.startswith("risk._HEADLINE.") for p in paths), "no headlines swept"
+
+    # And that it reached the specific sentences this gate exists for: the five
+    # band_advice lines are the ones that speak to a person with a condition.
+    for band in ("Low", "Moderate", "High", "Very High", "Extreme"):
+        assert f"risk.BAND_ADVICE.{band}" in paths, f"{band} advice not swept"
+        assert f"i18n.HI.band_advice.{band}" in paths, f"{band} Hindi advice not swept"
+
+
+def test_both_languages_are_swept_for_every_band():
+    """The English corpus is not the whole corpus.
+
+    R4 in the risk register: no Hindi speaker has verified the draft, and the
+    suite cannot catch a fluent-but-wrong sentence. What it CAN do is refuse to
+    let the Hindi side go unchecked for the eight claim shapes. A gate that read
+    only English would pass a Hindi string promising a health outcome.
+    """
+    en = {p for p, _ in corpus() if p.startswith("risk.")}
+    hi = {p for p, _ in corpus() if p.startswith("i18n.HI.band_advice")
+          or p.startswith("i18n.HI.headline")}
+    assert len(en) == 10, f"expected 5 advice + 5 headline in English, got {len(en)}"
+    assert len(hi) == 10, f"expected 5 advice + 5 headline in Hindi, got {len(hi)}"
