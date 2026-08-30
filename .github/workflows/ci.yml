@@ -1,0 +1,86 @@
+# One workflow, because one file is one place to look when something is red.
+#
+# `suite` is the required check and it runs every test. Nothing is selected,
+# deselected, or path-filtered. 19 of the 37 test files reference i18n.py, so
+# any scoped subset is a claim about coupling that would have to stay true on
+# every future commit rather than being verified once -- and the whole suite is
+# 46 seconds against a job that spends 40 of its seconds installing.
+name: CI
+
+on:
+  pull_request:
+  # master only. A branch push AND its pull_request would produce two runs of
+  # the same job name against the same SHA: twice the work, and two check runs
+  # competing to satisfy one required context.
+  push:
+    branches: [master]
+
+# Nothing here writes to the repository, so nothing here needs write. Stating
+# the default means a later change to the repository default cannot silently
+# widen this workflow.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A second push to a PR cancels its own superseded run. A push to master never
+  # cancels: master's history is the record, and a cancelled run is a hole in it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  suite:
+    name: suite
+    # Pinned, not ubuntu-latest. This job depends on a specific fact about the
+    # image -- Google Chrome at /usr/bin/google-chrome, which is the third entry
+    # in CHROME_CANDIDATES -- and that fact should change when we change it, not
+    # when GitHub moves the latest tag to 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # tests/test_viewport_browser.py calls pytest.skip when Chrome or
+      # websocket-client is missing, and a skipped guard proves nothing: a green
+      # tick that counted zero browsers. This turns absence into a failure, so
+      # `suite` green means a real Chrome really fetched the probes.
+      SAAFSAANS_REQUIRE_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Chrome, named out loud
+        # Two seconds, and it turns "the browser test failed mysteriously" into a
+        # log line saying which browser answered.
+        run: /usr/bin/google-chrome --version
+
+      - name: The browser guard still exists under the name we think it has
+        # SAAFSAANS_REQUIRE_BROWSER turns a SKIP into a failure. It cannot notice
+        # a test that was RENAMED or DELETED -- pytest would collect nothing
+        # there and the suite would pass having asked no browser anything. This
+        # names the node id out loud. Renaming the test is meant to turn this
+        # step red; update it in the same commit.
+        run: |
+          python -m pytest tests/test_viewport_browser.py --collect-only -q \
+            | grep -qx 'tests/test_viewport_browser.py::test_a_real_browser_fetches_exactly_one_probe_per_page_load'
+
+      - name: Suite
+        # `python -m pytest`, never bare `pytest`. saafsaans is not installed
+        # into the environment and tests/ has no __init__.py, so `import
+        # saafsaans` and `from tests._netguard import ...` resolve only because
+        # -m puts the working directory on sys.path. Bare pytest dies at
+        # collection with ModuleNotFoundError: No module named 'tests'.
+        #
+        # -ra prints the reason for every skip: the one thing this repository
+        # will not tolerate is a guard that quietly stopped running.
+        # --strict-markers makes a mistyped marker an error rather than a
+        # warning; allow_network is registered in conftest's pytest_configure,
+        # so a misspelling of it is otherwise invisible.
+        run: python -m pytest tests/ -q -ra --strict-markers --durations=10
