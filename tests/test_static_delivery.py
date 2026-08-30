@@ -21,18 +21,32 @@ STATIC = Path(web_main.__file__).parent / "static"
 PERSONA = {"locality": "Anand Vihar", "age": "Adult",
            "condition": "Asthma", "activity": "Outdoor exercise"}
 
-# Every face the stylesheets may reference, with a size cap in KB set just
-# above the subsetted size measured at generation (2026-08-09: 41.9, 38.0,
-# 8.8, 8.9, 246.1, 43.4). A regenerated file that lost its subsetting -- the
-# whole font instead of one script's glyphs -- blows through its cap.
-FACES_KB = {
-    "anek-latin-600-800.woff2": 64,
-    "plex-sans-400-700.woff2": 64,
-    "plex-mono-400.woff2": 24,
-    "plex-mono-600.woff2": 24,
-    "anek-devanagari-400-800.devanagari.woff2": 300,
-    "anek-devanagari-400-800.latin.r2.woff2": 64,
+# Every face the stylesheets may reference: name -> (size cap in KB, sha256 of
+# the bytes this name was chosen for).
+#
+# The cap sits above the subsetted size measured at generation (2026-08-31:
+# 31.2, 28.7, 8.8, 8.9, 224.8, 40.8). A regenerated file that lost its
+# subsetting -- the whole font instead of one script's glyphs -- blows through
+# it, and says so in a sentence rather than as a changed hash.
+#
+# The hash is the stricter half, and it exists because /static is served
+# immutable for a year while font URLs carry no ?v=. See
+# test_no_face_changed_its_bytes_under_an_unchanged_name.
+FACES = {
+    "anek-latin-600-800.woff2":
+        (40, "be2d8bcdae9637321d224559862de6bb492c61ac5ced52ddf95cfc9f57340240"),
+    "plex-sans-400-700.woff2":
+        (36, "64d353cb8f067294d848ed719d1dbb507949f70195b47c828e652118c3ef0bdb"),
+    "plex-mono-400.woff2":
+        (24, "a27d5c10a629d4dff0295088973394881e036e94b0d5bee8688f7449c154ff8d"),
+    "plex-mono-600.woff2":
+        (24, "0684322301b0525ed566876e4f23dae656346886100df23b91e33f7d028f5758"),
+    "anek-devanagari-400-800.devanagari.woff2":
+        (264, "20857b3700499c16385fb5feac54d4214298d74389e9b7f4b3fe88fbc9ce50af"),
+    "anek-devanagari-400-800.latin.r2.woff2":
+        (48, "021513f9d48f1e25a471c2a5b0a32b816275adeb6a1e8d3ec918c26752ebbc5a"),
 }
+FACES_KB = {name: cap for name, (cap, _) in FACES.items()}
 
 
 @pytest.fixture
@@ -87,6 +101,134 @@ def test_no_shipped_face_calls_the_middot_a_combining_mark():
                 f"{name} lost its real accent marks -- the GDEF check above "
                 "is passing on an empty class table")
     assert len(carriers) >= 5, f"only {carriers} carry U+00B7"
+
+
+def test_the_open_font_licence_ships_beside_the_faces_it_covers():
+    """The six faces are subsetted, axis-clipped copies of two Google Fonts
+    families under the SIL Open Font License 1.1. Clause 2 permits exactly that
+    modification and this redistribution, and requires the licence travel with
+    the files. pyftsubset's default name-ID set drops the licence records (13
+    and 14) out of the binaries, so before 2026-08-31 the repository carried no
+    copy of the OFL at all.
+
+    Red if OFL.txt is deleted, emptied, or stops naming either originator.
+    The clause-2 assertion is the partner: it proves the file is the licence
+    rather than any text that happens to sit at that path.
+    """
+    licence = (STATIC / "fonts" / "OFL.txt").read_text()
+    assert "SIL OPEN FONT LICENSE Version 1.1" in licence
+    assert "PERMISSION & CONDITIONS" in licence, (
+        "OFL.txt does not contain the licence body it is named for")
+    for originator in ("The Anek Project Authors", "IBM Corp"):
+        assert originator in licence, f"{originator} is not credited in OFL.txt"
+
+
+def test_no_face_changed_its_bytes_under_an_unchanged_name():
+    """/static is served immutable for a year and font URLs carry no ?v=, so a
+    face whose bytes change under an unchanged name is pinned stale on every
+    returning reader until their own cache expires -- a reload does not clear
+    it. The rename discipline that prevents this lived only in two comments,
+    and the rest of this file could not see a font's bytes change at all: a
+    face swapped for another under its own name passed every other test here.
+
+    Updating a hash is the deliberate act the discipline asks for, and it is
+    correct only when the rendering is unchanged -- so a stale copy stays right
+    -- or the file arrived under a new name. Red the moment bytes move without
+    that judgement being made.
+
+    The set comparison is the partner check: it proves the loop ran over real
+    files, so a green cannot mean "the manifest was empty", and it forces a new
+    face to be registered rather than silently skipped.
+    """
+    shipped = {p.name: p.read_bytes() for p in (STATIC / "fonts").glob("*.woff2")}
+    assert set(shipped) == set(FACES), (
+        "the shipped faces and the manifest disagree -- a new or removed face "
+        "must be recorded here, and a regenerated one must arrive under a new "
+        "name unless its rendering is unchanged")
+    for name, data in sorted(shipped.items()):
+        assert hashlib.sha256(data).hexdigest() == FACES[name][1], (
+            f"{name} changed its bytes under an unchanged name")
+
+
+def test_each_variable_face_carries_only_the_weights_its_stylesheet_selects():
+    """A variable file ships every weight on its wght axis, and the Google css2
+    API returns the family's whole axis whatever range the query asked for.
+    Measured 2026-08-31: all four variable faces arrived carrying wght from
+    100 -- a weight no rule in app.css can reach, because a variable
+    @font-face clamps the request into its own declared range before setting
+    the axis -- at a cost of 43.7 KB across them.
+
+    Red if scripts/build_fonts.py stops clipping and an unclipped file ships.
+    Min and max only: Anek Devanagari's default instance stays at 500 while it
+    declares 400 800, so pinning the default would go red after the fix rather
+    than before it.
+
+    The static-face half is the partner check. IBM Plex Mono is one file per
+    weight and must carry no fvar at all, so a green here cannot mean "found
+    no axis to look at".
+    """
+    from fontTools.ttLib import TTFont
+
+    ranged = 0
+    for sheet in ("fonts.css", "fonts-hi.css"):
+        for block in re.findall(r"@font-face \{[^}]+\}", (STATIC / sheet).read_text()):
+            weight = re.search(r"font-weight: (\d+) (\d+);", block)
+            url = re.search(r"url\(/static/fonts/([^)]+\.woff2)\)", block)
+            if not (weight and url):
+                continue
+            ranged += 1
+            declared = (float(weight.group(1)), float(weight.group(2)))
+            axes = TTFont(STATIC / "fonts" / url.group(1)).get("fvar").axes
+            assert [a.axisTag for a in axes] == ["wght"], (
+                f"{url.group(1)} carries axes {[a.axisTag for a in axes]}")
+            assert (axes[0].minValue, axes[0].maxValue) == declared, (
+                f"{url.group(1)} carries wght {axes[0].minValue}-{axes[0].maxValue} "
+                f"while its @font-face selects only {declared[0]}-{declared[1]}")
+    assert ranged == 4, f"expected four faces declaring a weight range, found {ranged}"
+    for static_face in ("plex-mono-400.woff2", "plex-mono-600.woff2"):
+        assert TTFont(STATIC / "fonts" / static_face).get("fvar") is None, (
+            f"{static_face} grew a variable axis -- the assertions above look for "
+            "fvar tables and must not be finding one in every file")
+
+
+def test_the_generator_still_clips_the_axis_it_is_asked_to_clip(tmp_path):
+    """Red if clip_wght stops clipping -- it is called with a range narrower
+    than the face already carries, so a no-op body cannot pass.
+
+    It does NOT guard the call site. Nothing in tests/ runs build_fonts.py, so
+    deleting the clip_wght(...) line from main() leaves the whole suite green;
+    what catches that is the shipped-artifact test above, which goes red as
+    soon as an unclipped file is committed. This test covers the other half:
+    the call surviving while the function stops working.
+
+    The static face is the partner check: IBM Plex Mono has no fvar, and
+    clip_wght must leave such a file byte for byte alone rather than rewriting
+    it and churning its hash on every build.
+    """
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(Path(web_main.__file__).parents[2] / "scripts"))
+    try:
+        import build_fonts
+    finally:
+        sys.path.pop(0)
+    from fontTools.ttLib import TTFont
+
+    variable = tmp_path / "anek.woff2"
+    shutil.copy(STATIC / "fonts" / "anek-latin-600-800.woff2", variable)
+    build_fonts.clip_wght(variable, 700, 800)
+    axes = TTFont(variable)["fvar"].axes
+    assert (axes[0].minValue, axes[0].maxValue) == (700.0, 800.0), (
+        f"clip_wght left the axis at {axes[0].minValue}-{axes[0].maxValue}")
+
+    static = tmp_path / "mono.woff2"
+    shutil.copy(STATIC / "fonts" / "plex-mono-400.woff2", static)
+    before = static.read_bytes()
+    build_fonts.clip_wght(static, 400, 400)
+    assert static.read_bytes() == before, (
+        "clip_wght rewrote a static face -- it must return before saving when "
+        "there is no fvar, or every build would churn the Plex Mono bytes")
 
 
 def test_the_stylesheets_declare_swap_and_a_file_that_exists():
@@ -161,6 +303,12 @@ def test_each_language_preloads_the_faces_its_first_paint_is_set_in(client):
     hi_preloads = re.findall(r'<link rel="preload"[^>]+>', hi)
     assert any("plex-sans-400-700" in p for p in en_preloads), en_preloads
     assert any("anek-latin-600-800" in p for p in en_preloads), en_preloads
+    # The mono face carries the 46px AQI numeral, the largest measurement on
+    # the site, and is otherwise discovered only after app.css parses -- a
+    # round trip late. English only: Hindi redirects --mono to Anek Devanagari,
+    # which is preloaded already, and fetches no Latin face at all.
+    assert any("plex-mono-600" in p for p in en_preloads), en_preloads
+    assert not any("plex-mono" in p for p in hi_preloads), hi_preloads
     assert any("anek-devanagari-400-800.devanagari" in p for p in hi_preloads), hi_preloads
     assert any("anek-devanagari-400-800.latin" in p for p in hi_preloads), hi_preloads
     for p in en_preloads + hi_preloads:
@@ -199,3 +347,44 @@ def test_html_is_gzipped_exactly_when_the_client_asks(client):
     plain = client.get("/", params=PERSONA, headers={"Accept-Encoding": "identity"})
     assert plain.headers.get("Content-Encoding") is None
     assert "SaafSaans" in plain.text
+
+
+def test_already_compressed_media_is_not_gzipped_but_text_still_is(client):
+    """woff2 carries brotli inside and PNG/ICO carry deflate, so gzipping them
+    spends CPU to move almost no bytes. Measured 2026-08-31 at compresslevel 9
+    against the faces this repository actually ships: four of the six came back
+    BIGGER (plex-mono-600 by 23 bytes, anek-latin by 21), and the 230 KB
+    Devanagari face saved 0.37% for 8.4 ms of CPU while losing its
+    Content-Length to chunked streaming -- on a 256 MB machine that serves
+    every first paint.
+
+    /favicon.ico is here as well as under /static because it is a second code
+    path: a route returning its own FileResponse, not the StaticFiles mount.
+
+    Red if the bypass in _GZipTextOnly.__call__ is removed. The app.css partner
+    is what stops a vacuous green: it asserts text is still compressed, so
+    deleting the gzip middleware outright turns this test red rather than green.
+    """
+    for path, raw_file in (("/static/fonts/plex-mono-600.woff2", "fonts/plex-mono-600.woff2"),
+                           ("/static/fonts/anek-devanagari-400-800.devanagari.woff2",
+                            "fonts/anek-devanagari-400-800.devanagari.woff2"),
+                           ("/static/apple-touch-icon.png", "apple-touch-icon.png"),
+                           ("/static/favicon.ico", "favicon.ico"),
+                           ("/favicon.ico", "favicon.ico")):
+        response = client.get(path, headers={"Accept-Encoding": "gzip"})
+        assert response.status_code == 200, path
+        assert response.headers.get("Content-Encoding") is None, (
+            f"{path} came back gzipped -- it is already compressed")
+        # Content-Length, never len(response.content): the test client decodes
+        # gzip transparently, so the body length reads the same either way and
+        # would stay green with the bypass gone.
+        raw = (STATIC / raw_file).stat().st_size
+        assert response.headers.get("Content-Length") == str(raw), (
+            f"{path} sent Content-Length {response.headers.get('Content-Length')} "
+            f"for {raw} raw bytes -- an absent value means it streamed chunked "
+            "through gzip")
+    css = client.get("/static/app.css", headers={"Accept-Encoding": "gzip"})
+    assert css.headers.get("Content-Encoding") == "gzip", (
+        "app.css is no longer compressed -- the assertions above are passing "
+        "because nothing compresses anything")
+    assert int(css.headers["Content-Length"]) * 2 < (STATIC / "app.css").stat().st_size
