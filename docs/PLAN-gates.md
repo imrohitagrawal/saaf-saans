@@ -28,6 +28,7 @@ present in every worktree — read them both in full before touching anything.
 --- BEFORE PROMOTION -------------------------------------------------
 Gate 0    deploy + verify                                DONE 2026-08-10
 Gate 0.5  viewport telemetry                             DONE 2026-08-10
+Gate 0.9  CI, and a merge gate that binds                DONE 2026-08-31
 Gate 1a   the window must be true at the hour it is read ~1-2 days  <- next
 Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days
 Gate 1c   card alignment                                 ~2 hours
@@ -120,10 +121,14 @@ completes so a fresh session can pick up without re-deriving anything.
 - **(b) Obey DESIGN.md's named rules:** Never-Colour-Alone, Monotone Severity (binds
   tints as well as inks), Quiet Caveat, Devanagari Floor, Flat-On-Paper, Steady Digits.
 - **(c) Read the impeccable reference docs by ABSOLUTE path** — that directory is
-  untracked and absent from worktrees:
-  `/Users/rohitagrawal/Projects/saaf-saans/.claude/skills/impeccable/reference/craft-floor.md`
+  untracked and absent from worktrees. The skill is installed under the user's home
+  directory, not inside this project:
+  `/Users/rohitagrawal/.claude/skills/impeccable/reference/craft-floor.md`
   plus the command doc that matches the work (`polish.md`, `harden.md`, `clarify.md`,
-  `audit.md`, `critique.md`).
+  `audit.md`, `critique.md`). Confirm the file opens before relying on it. The path
+  written here until 2026-08-31 pointed inside the project, where nothing has ever been
+  installed, so every subagent that followed this instruction read nothing and said so
+  to no one.
 - **(d) Every change is TDD and bite-proof** — see protocol step 6. A test that passes
   when the feature is absent is worthless. Never write a check that goes red when the
   bug is fixed.
@@ -301,6 +306,40 @@ What shipped, and what it costs:
   The System view says so. **The first numbers must not be read as human traffic** — R6.
 - The count is a floor, not a total: past 1200 loads in five minutes from one address the
   page is served normally and the load is not counted.
+
+---
+
+### Gate 0.9 — CI, and a merge gate that binds — **DONE 2026-08-31**
+
+**Goal:** make "merged" mean a machine agreed, not that whoever ran the suite said so.
+
+Until this gate there was no `.github/` directory and no branch protection. The plan's own
+step 9 ("rerun the full suite on master, then push") was policed by nothing.
+
+- [x] `.github/workflows/ci.yml`: one `suite` job, no path filters, on every PR and every
+      push to master. `python -m pytest` — **bare `pytest` dies at collection** here, because
+      `saafsaans` is not installed into the venv and `tests/` has no `__init__.py`, so only
+      `-m` puts the working directory on `sys.path`.
+- [x] `SAAFSAANS_REQUIRE_BROWSER=1` at job level, so the headless-Chrome test fails instead
+      of skipping. Verified on the runner: Google Chrome 151.0.7922.173, and the test spent
+      42.26s of a 51s suite actually driving it.
+- [x] A tripwire step pinning the browser test's node id, because the env var turns a *skip*
+      into a failure but cannot see a test *renamed away*.
+- [x] Branch protection: `suite` required and pinned to the GitHub Actions app id,
+      `strict: true`, `required_pull_request_reviews: null` (so an agent can still merge),
+      `required_linear_history`, no force pushes, no deletions.
+- [x] **`enforce_admins: true`.** Proven necessary the hard way: with it false, a direct push
+      to master succeeded while GitHub printed `Required status check "suite" is expected`.
+      Reverted through a PR (#5). With it true the identical push is `[remote rejected]
+      (protected branch hook declined)`.
+- [x] **The gate observed failing.** PR #4 appended `body::after { background-image: none }`
+      to `app.css` — invisible to all 26 string tests in `test_viewport_probe.py`, caught by
+      the browser test. CI went red; `gh pr merge --squash` was refused with "the base branch
+      policy prohibits the merge". Closed, never merged; branch and worktree deleted.
+
+`strict: true` is why there is no merge queue: it refuses any PR not up to date with master,
+which is the guarantee a queue exists to give. GitHub's native merge queue is unavailable
+here anyway — it requires an organization-owned repository, and this one is user-owned.
 
 ---
 
