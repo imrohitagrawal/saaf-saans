@@ -13,6 +13,18 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=7860
 
+# Which commit this image was built from. Deploy verification had no way to ask:
+# the only build signal a running instance gave was the ?v= content hash on
+# app.css, so a release that changed only Python, a template or a font reported
+# byte-identical to the build before it. On 2026-08-31 that check said "parity
+# OK" while production was nine files behind master.
+#
+# Passed by the deploy, never guessed: `--build-arg GIT_SHA=$(git rev-parse HEAD)`.
+# "unknown" is the honest answer for an image built without one, and the
+# verification treats it as a failure rather than a pass.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 # UID 1000 is not a preference here -- Hugging Face Spaces requires it.
 RUN useradd --create-home --uid 1000 app
 USER app
