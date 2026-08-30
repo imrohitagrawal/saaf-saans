@@ -117,33 +117,131 @@ def _pollutant_key(dominant) -> str:
     return "pm"  # PM is the default driver in Delhi
 
 
+# The diurnal shape, as an hourly tier per driver.
+#
+# One rule decides every hour of the table, and it is the whole reason the
+# table can be trusted: tier 1 where a rationale sentence below names those
+# hours calm, tier 3 where one names them bad, tier 2 everywhere else. Tier 2
+# is not a claim that an hour is average, it is the ABSENCE of a claim -- which
+# is why no hour inside it outranks another, and why the ranking still prefers
+# it to tier 3: avoiding an hour a sentence calls bad is the only preference
+# those sentences license.
+#
+# The tiers are not written out. They are built from the citations below, so an
+# hour cannot be given a tier without quoting the clause that grounds it, and
+# the quote is checked against the shipped sentence by
+# test_the_tier_table_cites_a_sentence_for_every_claim. Applied this way, with
+# no hour of the day gone, the four drivers return the same four windows this
+# function returned when it did not read the clock at all: 6-9 AM, 9 AM-12 PM,
+# 11 AM-3 PM, 1-4 PM.
+#
+# Delhi winter evenings are tier 2 here, not tier 3. The winter sentence names
+# a mechanism ("overnight temperature inversions trap smog near the ground")
+# and one span of hours ("~6-10 AM"); it never says when overnight begins. An
+# earlier draft scored 7 PM to midnight as bad on that clause and it was the
+# single ungrounded assignment in the table -- the one place the answer was
+# decided by judgement rather than by the rule.
+_TIER_CALM, _TIER_UNSAID, _TIER_BAD = 1, 2, 3
+
+# (driver, hours, tier, the clause in that driver's rationale that grounds it)
+_TIER_CITATIONS = (
+    ("pm-winter", (6, 7, 8, 9, 10), _TIER_BAD, "~6-10 AM is "),
+    ("pm-winter", (13, 14, 15), _TIER_CALM, "eases by early afternoon"),
+    ("pm-other", (12, 13, 14, 15, 16, 17), _TIER_BAD, "before the afternoon peak"),
+    ("pm-other", (9, 10, 11), _TIER_CALM, "late morning tends to be the calmer window"),
+    ("o3", (12, 13, 14, 15, 16, 17), _TIER_BAD, "afternoons are worst"),
+    ("o3", (6, 7, 8), _TIER_CALM, "the early morning is the cleaner window"),
+    ("no2", (8, 9, 10, 18, 19, 20, 21), _TIER_BAD, "morning and evening rush hours"),
+    ("no2", (11, 12, 13, 14), _TIER_CALM, "the midday lull between them"),
+)
+
+# The heuristic never sends anybody outside at 3 AM, so the ranking starts at
+# 6 and the last hour it can offer is the one the day ends in.
+_DAY_FIRST_HOUR = 6
+_DAY_LAST_HOUR = 23
+# The four windows this function shipped spanned three and four hours. Longer
+# than four reads as a claim about a whole evening that no sentence supports.
+_MAX_RUN_HOURS = 4
+
+
+def _driver_key(pollutant: str, winter: bool) -> str:
+    if pollutant == "pm":
+        return "pm-winter" if winter else "pm-other"
+    return pollutant
+
+
+def _hour_tiers(pollutant: str, winter: bool) -> tuple:
+    """The 24 hourly tiers for one driver, built from the citations."""
+    tiers = [_TIER_UNSAID] * 24
+    key = _driver_key(pollutant, winter)
+    for driver, hours, tier, _clause in _TIER_CITATIONS:
+        if driver == key:
+            for hour in hours:
+                tiers[hour] = tier
+    return tuple(tiers)
+
+
+def _first_useful_hour(now) -> int:
+    """The earliest hour still worth offering.
+
+    Rounded up once half the current hour is gone -- the defect this function
+    exists to fix was measured at 17:52, where offering "5 PM" would be true
+    only for another eight minutes. Never rounded past the end of the day: in
+    the last half hour the answer stays the hour the reader is standing in.
+    """
+    hour = now.hour
+    if now.minute >= 30 and hour < _DAY_LAST_HOUR:
+        hour += 1
+    return min(max(hour, _DAY_FIRST_HOUR), _DAY_LAST_HOUR)
+
+
+def _best_run(tiers, first_hour: int):
+    """``(start, end, tier)`` for the calmest run of hours still ahead.
+
+    ``end`` is exclusive. Ties go to the soonest run: when two stretches are
+    ranked the same, the sooner one is the more useful answer and the less
+    speculative one. Capped at ``_MAX_RUN_HOURS``.
+    """
+    first = min(max(first_hour, _DAY_FIRST_HOUR), _DAY_LAST_HOUR)
+    remaining = range(first, _DAY_LAST_HOUR + 1)
+    best = min(tiers[h] for h in remaining)
+    start = next(h for h in remaining if tiers[h] == best)
+    end = start
+    while end + 1 <= _DAY_LAST_HOUR and tiers[end + 1] == best:
+        end += 1
+    return start, min(end + 1, start + _MAX_RUN_HOURS), best
+
+
 def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "en") -> dict:
-    """Return ``{window, rationale}`` — a Delhi diurnal heuristic.
+    """Return ``{window, rationale, note}`` for the hours a reader has left.
 
-    The window now varies by three things, so it is not constant within a
-    season: the **dominant pollutant**, the **current AQI severity**, and the
-    **season**. It stays an honest rule of thumb, never claiming to be an
-    hourly station forecast:
+    The window is answered for TODAY, from the current hour to the end of the
+    day: the diurnal shape per driver is intersected with the hours that remain
+    and the calmest run of those is named, with the day it belongs to. It used
+    to read ``clock.today_ist().month`` for the season and nothing else, so it
+    returned one of four fixed labels all day. Measured on 2026-08-10 at 17:52
+    IST, every driver named a window already in the past -- under "IF YOU MUST
+    GO OUT", the one claim a reader can check against their own clock.
 
-      * Ozone (o3): builds up under afternoon sun, so mornings are cleaner.
-      * Traffic gases (no2/so2/co): peak at morning and evening rush, so the
-        midday lull is calmer.
-      * Particulates (pm2.5/pm10): in winter, overnight inversions trap smog so
-        ~6-10 AM is worst and early afternoon is better; other seasons, late
-        morning is the calm window before the afternoon photochemical peak.
+    ``window`` never names an hour that has gone, and never names one at all
+    unless a shipped rationale sentence calls those hours calm: once the cited
+    calm hours are behind us it says so instead of ranking the hours nothing
+    describes. ``note`` carries the band that was actually measured and the
+    lever for it, and is empty when the reading needs no lever.
 
-    When AQI > 300 there is no safe outdoor window regardless of time. When the
-    AQI is missing entirely, no window is named either: an unknown reading must
-    never produce a friendlier answer than a known bad one, and it used to
-    produce the friendliest answer available, because the unparseable value was
-    read as 0. The rationale then says the reading is unavailable rather than
-    borrowing the severe-air one, which would assert a band nobody measured.
-    ``forecast`` is accepted for future refinement; the window works without it.
+    Those two branches are unchanged. When AQI > 300 there is no safe outdoor
+    window regardless of time, and when the AQI is missing no window is named
+    either: an unknown reading must never produce a friendlier answer than a
+    known bad one, and it used to produce the friendliest available, because
+    the unparseable value was read as 0.
 
-    ``lang`` translates both returned strings. The rationale is assembled from
-    two or three separately translated sentences rather than one, because the
-    severity tail is chosen independently of the pollutant clause; each piece
-    is a whole sentence, so no clause has to be built word by word.
+    ``forecast`` is still accepted and still unused. It was to have carried a
+    "the calmer hours fall here tomorrow" line, which was cut: the daily
+    outlook is absent on the retained, CPCB and fallback paths, so the line
+    would have shipped from a static table alone on every one of them.
+
+    ``lang`` translates every returned string. The rationale is assembled from
+    separately translated whole sentences rather than built word by word.
     """
     try:
         aqi_val = int(aqi)
@@ -168,6 +266,7 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
                 "confirmed.").replace(
                     "{activity}",
                     i18n.t(lang, "answer", "activity_generic", "outdoor activity")),
+            "note": "",
         }
 
     # The season is Delhi's, so the month must be Delhi's. date.today() is the
@@ -175,7 +274,8 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
     # after midnight UTC it still reports the previous month, so the winter
     # rationale arrived late at every month boundary -- including the one into
     # November, when Delhi's air turns and the advice matters most.
-    winter = _is_winter(clock.today_ist().month)
+    today = clock.today_ist()
+    winter = _is_winter(today.month)
     pollutant = _pollutant_key(dominant_pollutant)
 
     if aqi_val > 300:
@@ -187,24 +287,22 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
                 "stays hazardous across the whole day. It is best to stay "
                 "indoors and keep windows shut. This is a rule of thumb, not "
                 "an hourly station forecast."),
+            "note": "",
         }
 
     if pollutant == "o3":
-        window = i18n.t(lang, "window", "o3", "Early morning (about 6-9 AM)")
         rationale = i18n.t(
             lang, "window", "o3_rationale",
             "Today's air is driven by ozone, which builds up under afternoon "
             "sunlight — so the early morning is the cleaner window and "
             "afternoons are worst.")
     elif pollutant == "no2":
-        window = i18n.t(lang, "window", "no2", "Midday (about 11 AM-3 PM)")
         rationale = i18n.t(
             lang, "window", "no2_rationale",
             "Today's air is driven by traffic gases (like NO2), which spike "
             "during the morning and evening rush hours — so the midday lull "
             "between them is the calmer window.")
     elif winter:
-        window = i18n.t(lang, "window", "winter", "Early afternoon (about 1-4 PM)")
         rationale = i18n.t(
             lang, "window", "winter_rationale",
             "Fine particles are the main driver. In Delhi winter, overnight "
@@ -212,16 +310,38 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
             "usually worst and the air eases by early afternoon once the "
             "mixing layer lifts.")
     else:
-        window = i18n.t(lang, "window", "default", "Late morning (about 9 AM-12 PM)")
         rationale = i18n.t(
             lang, "window", "default_rationale",
             "Fine particles are the main driver. Outside winter, afternoon sun "
             "can lift ozone too, so late morning tends to be the calmer window "
             "before the afternoon peak.")
 
-    parts = [rationale, i18n.t(
-        lang, "window", "general_note",
-        "This is a general pattern, not an hourly station forecast.")]
+    tiers = _hour_tiers(pollutant, winter)
+    start, end, tier = _best_run(tiers, _first_useful_hour(clock.now_ist()))
+    if tier == _TIER_CALM:
+        window = i18n.t(
+            lang, "window", "today_window", "Today, about {range}").replace(
+                "{range}", i18n.clock_range(lang, start, end))
+    else:
+        # Every hour this app names is one a shipped sentence calls calm. Once
+        # those are behind us the honest answer is that there is no calmer hour
+        # left, not the least bad of the hours nothing describes: ranking an
+        # unwritten-about hour above one a sentence calls bad would turn the
+        # absence of evidence into a recommendation.
+        #
+        # Not window/none, which asserts that no time is SAFE. That is a
+        # severity claim, true above 300 and false at AQI 45, where the reading
+        # is Good and only the hour-to-hour ranking has run out.
+        window = i18n.t(lang, "window", "no_named_hour",
+                        "No hour left today is a calmer one.")
+
+    parts = []
+    # The band is the one that was measured, stated in the present. A band for
+    # the hour being suggested would be a modelled figure wearing a
+    # measurement's clothes, which the evidence checklist forbids (D4). Both
+    # sentences already existed and are moved, not written: they were assembled
+    # into `rationale`, which no template renders, so the lever has been
+    # reaching the model and never the reader.
     if aqi_val > 200:
         parts.append(i18n.t(
             lang, "window", "note_poor",
@@ -231,4 +351,7 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
             lang, "window", "note_moderate",
             "Air is Moderate, so ease off intense exertion."))
 
-    return {"window": window, "rationale": " ".join(parts)}
+    rationale = " ".join([rationale, i18n.t(
+        lang, "window", "general_note",
+        "This is a general pattern, not an hourly station forecast.")])
+    return {"window": window, "rationale": rationale, "note": " ".join(parts)}

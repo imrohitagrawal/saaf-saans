@@ -117,15 +117,17 @@ def test_ask_with_no_reading_never_says_outdoor_activity_is_fine(unknown):
 
 
 # --- The window ------------------------------------------------------------
-def test_unknown_aqi_is_not_a_friendlier_window_than_severe_air():
+def test_unknown_aqi_is_not_a_friendlier_window_than_severe_air(at_ist):
+    at_ist(6)
     unknown_w = forecast.best_window(None, dominant_pollutant="pm25")
     severe = forecast.best_window(450, dominant_pollutant="pm25")
     assert unknown_w["window"] == severe["window"]
     assert "9 AM" not in unknown_w["window"]
 
 
-def test_the_unknown_window_says_why_rather_than_naming_a_band():
+def test_the_unknown_window_says_why_rather_than_naming_a_band(at_ist):
     """It must not borrow the severe rationale, which asserts a reading."""
+    at_ist(6)
     out = forecast.best_window(None)
     assert "unavailable" in out["rationale"]
     assert "Very Poor/Severe range" not in out["rationale"]

@@ -90,6 +90,9 @@
     <div class="hero-window">
       <span class="lbl">{{ T('ui', 'window_label', 'IF YOU MUST GO OUT') }}</span>
       <span class="val">{{ window.window }}</span>
+      {%- if window.note %}
+      <span class="caveat">{{ window.note }}</span>
+      {%- endif %}
       <span class="caveat">{{ T('ui', 'window_note', 'a general pattern, not an hourly forecast') }}</span>
     </div>
     {% endif %}

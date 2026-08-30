@@ -747,6 +747,31 @@ centre-aligned over left-aligned data · the ask chip's accent fill marks a *sta
 question and disappears once it is answered · the selected chip's focus ring is the
 same colour as its own fill.
 
+**From Gate 1a (the window at the hour it is read):** the app now declines to name
+an hour once the hours its own rationale sentences call calm have passed — measured on
+the shipped curves, three distinct answers across the drivers at hours 00–11, two at
+12–14, and one ("No hour left today is a calmer one.") at 15–23. So for roughly the
+last third of the day a reader gets the lever and no clock time. That is the ruling
+working as intended, not a gap: ranking the hours no sentence describes above the hours
+a sentence calls bad would turn an absence of evidence into a recommendation. It does
+mean the dominant pollutant stops changing the answer from 15:00, so `best_window`'s
+docstring no longer promises the window "varies by three things". · **None of the eight
+`window` strings traces to `docs/research/2026-07-exposure-evidence.md`** — the file is
+silent on the diurnal cycle in both directions (zero hits for morning, afternoon, rush
+hour, ozone, inversion or diurnal). Pre-existing and inherited, not introduced here; the
+tier table is where a diurnal claim would land if the evidence file ever gains one. ·
+`window.rationale` is rendered by no template, so `window/general_note` survives only in
+the prompt; the one hedge a reader sees is `ui/window_note`. · Owner's rule 5's second
+clause — the honest branches should also offer a least-risk option and its lever — is
+Gate 1b's `window_none` item, and 1b will have to change
+`test_severe_air_names_no_hour_whatever_the_time`, which currently forbids a clock time
+on those branches. · `at_ist` freezes the clock in the tests that call `best_window`
+directly; making the freeze suite-wide is the follow-up, so that no future test's subject
+depends on when CI runs. · `_first_useful_hour` rounds up only while the day has an hour
+left, so between 23:30 and midnight the hour it returns is the one already in progress;
+harmless on the shipped curves, which name no hour that late. · `forecast.py` carries an
+unused `import datetime` that predates this change.
+
 **Rejected, with reasons — do not resurrect without new evidence:** the
 largest-text-is-a-number arithmetic (DESIGN.md prescribes both values) · stripping
 26KB of design-rationale comments from `app.css` (needs a build pipeline) · the

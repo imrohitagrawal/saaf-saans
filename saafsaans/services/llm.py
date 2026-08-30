@@ -143,7 +143,8 @@ def build_user_message(reading: dict, persona: dict, advisories: list, question:
     if best_window and best_window.get("window"):
         window_line = (
             f"Best-time-to-go-out heuristic: {best_window.get('window')} — "
-            f"{best_window.get('rationale', '')}\n"
+            f"{best_window.get('rationale', '')}"
+            f"{(' ' + best_window['note']) if best_window.get('note') else ''}\n"
         )
     risk_line = ""
     if risk_band in risk.BAND_ADVICE:
@@ -470,6 +471,8 @@ def _rule_based(reading: dict, advisories: list, best_window: dict = None,
         window = best_window["window"]
         if best_window.get("rationale"):
             window += f" — {best_window['rationale']}"
+        if best_window.get("note"):
+            window += f" {best_window['note']}"
     elif aqi_val is not None and aqi_val > 300:
         window = i18n.t(lang, "answer", "window_none",
                         "No safe outdoor window today; stay indoors with windows shut "
