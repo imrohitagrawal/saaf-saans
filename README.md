@@ -230,4 +230,3 @@ This project was built for a hackathon and did not place.
   independent, with measured kill rates and its own limitations.
 - [`docs/review-workflow.js`](docs/review-workflow.js) — a runnable, parameterised version
   of that review for any repository.
-
