@@ -40,13 +40,45 @@ from saafsaans.web import presenters as pr
 
 BASE = Path(__file__).parent
 app = FastAPI(title="SaafSaans")
-# Compress responses a client asks to have compressed. The pages are
-# server-rendered HTML of 30-60 KB and app.css is ~35 KB, served to phones on
-# Delhi mobile networks; gzip takes them to roughly a fifth. woff2 is already
-# brotli inside, so the floor spares the tiny responses and gzip merely wastes
-# a few cycles on fonts -- correct either way, since the middleware only acts
-# on Accept-Encoding.
-app.add_middleware(GZipMiddleware, minimum_size=500)
+# Compress responses a client asks to have compressed. Measured 2026-08-31:
+# the server-rendered pages are 6-39 KB and app.css is 58.8 KB, served to
+# phones on Delhi mobile networks, and gzip takes them to roughly a third.
+#
+# Not the media, though. woff2 carries brotli and PNG/ICO carry deflate, so
+# gzipping them re-compresses compressed bytes: at compresslevel 9 the six
+# shipped faces netted 841 bytes across 352 KB, FOUR of them came back BIGGER
+# (plex-mono-600 9,116 -> 9,139), and the 230 KB Devanagari face spent 8.4 ms
+# of a 256 MB machine's single core to save 0.37% while losing its
+# Content-Length to chunked streaming. The 500-byte floor spares none of this:
+# the smallest face is 9,032 bytes.
+#
+# Not free in both languages, measured on the wire including headers. English
+# is strictly better: keeping gzip would make that page 191 bytes LARGER, since
+# it inflates both mono faces and Anek Latin. Hindi gives up 690 bytes -- the
+# Devanagari face is the one file gzip genuinely helps -- and buys back 7.05 ms
+# of CPU per cold paint and a Content-Length the browser can show progress
+# against. At 1.6 Mbit/s those 690 bytes are ~3.5 ms, so it is close to a wash
+# on wall clock and the determinate length breaks the tie.
+#
+# Starlette's own exclusion list is a module constant with no constructor
+# override, so the bypass is a subclass. Suffix rather than Content-Type
+# because it has to be decided before a responder is built, and StaticFiles
+# derives the type from that same suffix; scope["path"] carries no query string
+# and is percent-decoded identically by uvicorn and the test client. SVG stays
+# compressed -- it is text, and gzip halves it.
+_ALREADY_COMPRESSED = (".woff2", ".woff", ".png", ".ico", ".gif",
+                       ".jpg", ".jpeg", ".webp")
+
+
+class _GZipTextOnly(GZipMiddleware):
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].lower().endswith(_ALREADY_COMPRESSED):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
+app.add_middleware(_GZipTextOnly, minimum_size=500)
 
 
 class _ImmutableStatic(StaticFiles):

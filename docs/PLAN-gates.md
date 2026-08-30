@@ -744,6 +744,34 @@ space before the separator after the PM2.5 unit, which compounds in Hindi.
 **Typography:** System KPI labels are set in the body face on the page defined by its
 mono register.
 
+**From the fonts-and-payload change (2026-08-31):** nothing in the suite pins the
+metric-matched fallback overrides to the face they were measured from.
+`test_fallback_text_is_metric_matched_not_just_a_system_stack` only checks the family
+names are present, so a typo in any of the six `size-adjust`/`ascent-override`/
+`descent-override` numbers would ship green — and this change moved three of them
+(Anek Latin 95.98/93.77/20.84 → 98.18/91.67/20.37, because clipping the weight axis moves
+the default instance the measurement is taken at). The check that would settle it is
+asserting `build_fonts.fallback_face(family, shipped_file)` reproduces the block in
+fonts.css; it is not written because that reads local Arial and Courier New from
+`/System/Library/Fonts/Supplemental/`, which CI's `ubuntu-24.04` image does not have, so
+it would skip in CI — and a skipped guard proves nothing. Settling it properly needs a
+committed metrics fixture for the two fallback faces, or a Linux-available equivalent.
+· **`*:lang(en)` in app.css is effectively dead.** Its `--body`/`--mono` redefinitions are
+consumed by exactly one element on any Hindi page, `.pat` on the System view, because
+every other `lang="en"` element inherits an already-resolved `font-family` rather than
+re-resolving the variable. (The `English` toggle does re-resolve it, via `.seg a`, and is
+saved only by `:lang(hi) .seg a` hardcoding the Devanagari stack at higher specificity.)
+Not a defect today, but it is why gating `fonts.css` by language was rejected: any future
+fix that made the rule actually bite would silently strip the Latin faces from every
+English island on a Hindi page. · **The size of that prize, stated correctly.** `fonts.css`
+is 501 gzipped bytes and is `?v=`-hashed under `max-age=31536000, immutable`, so gating it
+saves ~500 bytes **once per reader**, not 843 per page load, and no font bytes at all.
+· **`.pat` does not render on production as deployed** — `attempts` comes only from
+`metrics.recent_security_events`, which returns `[]` with no Elasticsearch client, and
+production has no `ELASTIC_*` secret. The skip still falls the right way: the case is one
+`fly secrets set` away and `/system/simulate` exists to populate it, and the local suite
+structurally cannot reach the state, so the regression would ship green.
+
 **From Gate 0.5:** the System view now shows a `.caveat` (the Quiet Caveat Rule's one
 qualification style) in the viewport card, while two sibling cards on the same page still
 use `.caption`. The new card follows DESIGN.md; the two older ones were left alone rather
