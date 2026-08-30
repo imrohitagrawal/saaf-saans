@@ -75,7 +75,9 @@ from the documentation:
 flyctl apps create saafsaans --org personal
 # fly.toml is committed at the repo root: primary_region = "sin", internal_port 7860,
 # auto_stop_machines = "suspend", min_machines_running = 0, health check on /health
-flyctl deploy --now
+# --build-arg is not optional. Without it the image reports build "unknown"
+# and there is no way to tell which commit is running.
+flyctl deploy --now --build-arg GIT_SHA=$(git rev-parse HEAD)
 flyctl scale count 1 --yes        # Fly provisions two machines for HA by default
 flyctl secrets set WAQI_TOKEN=...  # triggers a redeploy; the app runs without it,
                                    # showing labelled stand-in samples and saying so
@@ -249,3 +251,42 @@ flyctl ssh console -C "chown 1000:1000 /data"
 
 The System view is the check that this worked: it reads "not being recorded"
 until a count lands, and page-load bars once one has.
+
+
+## Verifying a deploy — three ways, never `/health` 200 alone
+
+`/health` returning 200 proves *a* process is answering. Under
+`min_machines_running = 0` with suspend/resume, the process answering may be the
+one from three deploys ago.
+
+**1. The deploy job ran.** Capture the release number before and require it to move:
+
+```bash
+rel () { flyctl releases --app saafsaans --json \
+         | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["Version"])'; }
+BEFORE=$(rel); flyctl deploy --now --build-arg GIT_SHA=$(git rev-parse HEAD); AFTER=$(rel)
+[ "$AFTER" -gt "$BEFORE" ] || { echo "NO NEW RELEASE"; exit 1; }
+```
+
+**2. The running build is the commit you merged.** This is the check that
+matters, and until 2026-08-31 it did not exist:
+
+```bash
+WANT=$(git rev-parse origin/master)
+GOT=$(curl -sS --max-time 60 https://saafsaans.stackclimb.com/health \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["build"])')
+[ "$GOT" = "$WANT" ] && echo "RUNNING $GOT" || echo "MISMATCH: running $GOT, merged $WANT"
+```
+
+`unknown` is a **failure**, not a pass: it means the image was built without the
+build arg and cannot say what it is.
+
+> The check this replaces compared the `?v=` content hash on `app.css` against
+> the merged file. That hash moves only when that one stylesheet changes, so on
+> 2026-08-31 it reported "parity OK" against an instance nine files behind
+> master — the fonts release changed every subsetted face, `main.py` and
+> `base.html`, and touched no CSS. Keep the asset check if you like; it is
+> necessary and never sufficient.
+
+**3. It serves.** All four views plus `?lang=hi` return 200, and the System view
+shows a non-zero page-load count once traffic has arrived.

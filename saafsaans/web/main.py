@@ -16,6 +16,7 @@ chat transcript needs continuity; it is held per session id in memory and never
 persisted, because the persona is sensitive and must not reach an index.
 """
 import hashlib
+import os
 import time
 import uuid
 from collections import OrderedDict, deque
@@ -1632,9 +1633,14 @@ def viewport_probe(request: Request, band: str):
 def health():
     # Primary source first. This reported only "waqi", so a deploy with no
     # CPCB_API_KEY looked green while the PRIMARY source was off.
+    # "build" is the commit this image was built from, and it is the only
+    # thing here that identifies the RUNNING code rather than its configuration.
+    # Without it a deploy could be confirmed only by the ?v= hash on app.css,
+    # which does not move when a release changes Python, a template or a font.
     return {"ok": True, "es": config.es_mode(),
             "cpcb": config.cpcb_available(),
-            "waqi": config.waqi_available(), "llm": config.llm_available()}
+            "waqi": config.waqi_available(), "llm": config.llm_available(),
+            "build": os.environ.get("GIT_SHA", "unknown")}
 
 
 # --- helpers ---------------------------------------------------------------
