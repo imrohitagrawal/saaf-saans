@@ -1029,12 +1029,17 @@ def test_no_link_in_running_prose_is_marked_by_colour_alone(sheet):
                 "nothing is left to identify it as a link")
 
 
-def test_the_hero_caveat_is_readable_over_every_sky_in_both_themes(sheet):
-    """The hero caveat is white-ish text at 65% opacity, on an 85%-opaque panel,
-    over a gradient that changes with the reading. Its worst case is therefore a
-    composite of three layers and cannot be read off a token pair."""
+@pytest.mark.parametrize("selector", (".hero-window .caveat", ".hero-window .lever"))
+def test_the_hero_small_text_is_readable_over_every_sky_in_both_themes(sheet, selector):
+    """The hero's small text is white-ish at reduced opacity, on an 85%-opaque
+    panel, over a gradient that changes with the reading. Its worst case is
+    therefore a composite of three layers and cannot be read off a token pair.
+
+    Both quiet styles in the bar are checked. `.lever` carries the severity
+    line, which is the only instruction in the bar, so it may not ship at a
+    contrast nobody measured just because it is not the caveat."""
     css = _strip_comments(sheet["raw"])
-    hero = _decls(sheet["top"], ".hero-window .caveat")
+    hero = _decls(sheet["top"], selector)
     window = _decls(sheet["top"], ".hero-window")
     ink = hero["color"]
     alpha = float(hero["opacity"])
@@ -1048,7 +1053,7 @@ def test_the_hero_caveat_is_readable_over_every_sky_in_both_themes(sheet):
                 for pair in skies for sky in pair
                 for backdrop in [_over(panel_rgb, panel_alpha, [int(sky.lstrip('#')[i:i + 2], 16)
                                                                 for i in (0, 2, 4)])])
-    assert worst >= AA_TEXT, f"hero caveat bottoms out at {worst:.2f}:1 over some sky"
+    assert worst >= AA_TEXT, f"{selector} bottoms out at {worst:.2f}:1 over some sky"
 
 
 def test_hindi_never_renders_a_caveat_below_the_devanagari_floor(sheet):

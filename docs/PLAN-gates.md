@@ -747,29 +747,46 @@ centre-aligned over left-aligned data · the ask chip's accent fill marks a *sta
 question and disappears once it is answered · the selected chip's focus ring is the
 same colour as its own fill.
 
-**From Gate 1a (the window at the hour it is read):** the app now declines to name
-an hour once the hours its own rationale sentences call calm have passed — measured on
-the shipped curves, three distinct answers across the drivers at hours 00–11, two at
-12–14, and one ("No hour left today is a calmer one.") at 15–23. So for roughly the
-last third of the day a reader gets the lever and no clock time. That is the ruling
-working as intended, not a gap: ranking the hours no sentence describes above the hours
-a sentence calls bad would turn an absence of evidence into a recommendation. It does
-mean the dominant pollutant stops changing the answer from 15:00, so `best_window`'s
-docstring no longer promises the window "varies by three things". · **None of the eight
-`window` strings traces to `docs/research/2026-07-exposure-evidence.md`** — the file is
-silent on the diurnal cycle in both directions (zero hits for morning, afternoon, rush
-hour, ozone, inversion or diurnal). Pre-existing and inherited, not introduced here; the
-tier table is where a diurnal claim would land if the evidence file ever gains one. ·
-`window.rationale` is rendered by no template, so `window/general_note` survives only in
-the prompt; the one hedge a reader sees is `ui/window_note`. · Owner's rule 5's second
-clause — the honest branches should also offer a least-risk option and its lever — is
-Gate 1b's `window_none` item, and 1b will have to change
-`test_severe_air_names_no_hour_whatever_the_time`, which currently forbids a clock time
-on those branches. · `at_ist` freezes the clock in the tests that call `best_window`
-directly; making the freeze suite-wide is the follow-up, so that no future test's subject
-depends on when CI runs. · `_first_useful_hour` rounds up only while the day has an hour
-left, so between 23:30 and midnight the hour it returns is the one already in progress;
-harmless on the shipped curves, which name no hour that late. · `forecast.py` carries an
+**From Gate 1a (the window at the hour it is read):** the app names an hour only while
+a stretch its own rationale sentences call calm is still ahead; after that it says the
+pattern points to no calmer hour and gives the lever instead. Measured per driver, which
+is what one reader experiences — a reader has one dominant pollutant, not four:
+
+| driver | names no hour from | share of the day |
+|---|---|---|
+| traffic gases (no2) | 18:00 | 6/24 (25%) |
+| winter particulates | 16:00 | 8/24 (33%) |
+| particulates, other seasons | 12:00 | 12/24 (50%) |
+| ozone | 09:00 | 15/24 (62%) |
+
+An earlier draft of this entry reported "three distinct answers at 00–11, two at 12–14,
+one at 15–23". That counted distinct strings across the four driver columns, which no
+reader experiences, and it was wrong even as that: it is four, three, and the single-answer
+band starts at 16. The per-driver table above is the honest form. **The ozone and
+non-winter-particulate spans are large enough to be a product decision rather than a
+detail, and they are the direct consequence of the ruling that a fabricated hour is worse
+than a lever.** They should be revisited against real usage. · The dominant pollutant
+therefore stops changing the answer late in the day, so `best_window`'s docstring no
+longer promises the window "varies by three things". · **None of the eight `window`
+strings traces to `docs/research/2026-07-exposure-evidence.md`** — the file is silent on
+the diurnal cycle in both directions (zero hits for morning, afternoon, rush hour, ozone,
+inversion or diurnal). Pre-existing and inherited, not introduced here; the tier table is
+where a diurnal claim would land if the evidence file ever gains one. Seven of its eight
+citations name a daypart rather than clock hours, so the hour boundaries are a reading of
+imprecise prose, and the module comment says so. · `window.rationale` is rendered by no
+template, so `window/general_note` survives only in the prompt; the one hedge a reader
+sees is `ui/window_note`, and it now captions a value that carries the word "Today" —
+consider whether that caption should retract the day as well as the hour. ·
+`clock_range`'s midnight form is reachable only if a future citation makes hour 23 calm;
+it is pinned in `GOLDEN_CLOCK` against that day. · Owner's rule 5's second clause — the
+honest branches should also offer a least-risk option and its lever — is Gate 1b's
+`window_none` item, and 1b will have to change
+`test_severe_air_names_no_hour_whatever_the_time`, which currently forbids a clock time on
+those branches. · `at_ist` freezes the clock in the tests that call `best_window`
+directly; making the freeze suite-wide is the follow-up, so no future test's subject
+depends on when CI runs. · `tests/test_hindi_completeness.py` never freezes the clock and
+its `LATIN_RUN` needs three characters, so a bare `AM`/`PM` leaking into Hindi would not
+match; the literal hero-bar pins are what cover that today. · `forecast.py` carries an
 unused `import datetime` that predates this change.
 
 **Rejected, with reasons — do not resurrect without new evidence:** the

@@ -199,12 +199,26 @@ def test_the_hindi_window_says_which_half_of_the_day():
     is composed now, so the same property is asserted over every range the
     composer can produce instead of over four fixed ones."""
     from saafsaans.services import i18n
-    marks = ("सुबह", "दोपहर", "शाम", "रात")
+
+    # The daypart each start hour must carry. Asserting merely that SOME marker
+    # is present passes an implementation that labels every hour सुबह, which is
+    # the ambiguity above, not a guard against it.
+    expected = {**{h: "सुबह" for h in range(4, 12)},
+                **{h: "दोपहर" for h in range(12, 16)},
+                **{h: "शाम" for h in range(16, 20)},
+                **{h: "रात" for h in list(range(20, 24)) + [0, 1, 2, 3]}}
     for start in range(6, 24):
         for end in range(start + 1, min(start + 5, 25)):
             value = i18n.clock_range("hi", start, end)
-            assert any(m in value for m in marks), (start, end, value)
+            assert value.startswith(expected[start]), (start, end, value)
             assert "AM" not in value and "PM" not in value, (start, end, value)
+            # The closing daypart appears only when the range crosses one.
+            closing = expected[end % 24]
+            assert value.count("बजे") == 1, (start, end, value)
+            if closing != expected[start]:
+                assert closing in value, (start, end, value)
+            else:
+                assert value.count(closing) == 1, (start, end, value)
 
 
 def test_the_season_is_decided_in_india_not_on_the_server(monkeypatch):

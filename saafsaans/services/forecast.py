@@ -127,20 +127,30 @@ def _pollutant_key(dominant) -> str:
 # it to tier 3: avoiding an hour a sentence calls bad is the only preference
 # those sentences license.
 #
-# The tiers are not written out. They are built from the citations below, so an
-# hour cannot be given a tier without quoting the clause that grounds it, and
-# the quote is checked against the shipped sentence by
-# test_the_tier_table_cites_a_sentence_for_every_claim. Applied this way, with
-# no hour of the day gone, the four drivers return the same four windows this
-# function returned when it did not read the clock at all: 6-9 AM, 9 AM-12 PM,
-# 11 AM-3 PM, 1-4 PM.
+# The tiers are not written out; they are built from the citations below, and
+# every row carries the clause it rests on. What that does and does not buy is
+# worth being exact about, because the honesty of the feature rests on it.
 #
-# Delhi winter evenings are tier 2 here, not tier 3. The winter sentence names
-# a mechanism ("overnight temperature inversions trap smog near the ground")
-# and one span of hours ("~6-10 AM"); it never says when overnight begins. An
-# earlier draft scored 7 PM to midnight as bad on that clause and it was the
-# single ungrounded assignment in the table -- the one place the answer was
-# decided by judgement rather than by the rule.
+# Only one clause names clock hours: winter's "~6-10 AM". The other seven name
+# a DAYPART -- "early morning", "late morning", "the midday lull", "the
+# afternoon peak", "the morning and evening rush hours" -- and turning a
+# daypart into hour boundaries is a reading, not a derivation. Those boundaries
+# are the author's, and a reviewer who disagrees with one should move it. What
+# the citations do buy is that no hour is ranked without a sentence to point
+# at, and that the sentence still contains the clause quoted beside it.
+#
+# Two spans were argued over. Delhi winter evenings are tier 2, not tier 3: the
+# winter sentence names a mechanism ("overnight temperature inversions trap
+# smog near the ground") but never says when overnight begins, and an earlier
+# draft scored 7 PM to midnight as bad on it. The no2 lull runs to 17 rather
+# than 14 because its clause defines it as the lull BETWEEN the rushes, and
+# this table puts those at 8-10 and 18-21; stopping it at 14 made the table
+# disagree with itself, and cost the traffic-gas reader the three hours it
+# disagreed about.
+#
+# Applied this way, with no hour of the day gone, the four drivers return the
+# same four windows this function returned when it did not read the clock at
+# all: 6-9 AM, 9 AM-12 PM, 11 AM-3 PM, 1-4 PM.
 _TIER_CALM, _TIER_UNSAID, _TIER_BAD = 1, 2, 3
 
 # (driver, hours, tier, the clause in that driver's rationale that grounds it)
@@ -152,7 +162,8 @@ _TIER_CITATIONS = (
     ("o3", (12, 13, 14, 15, 16, 17), _TIER_BAD, "afternoons are worst"),
     ("o3", (6, 7, 8), _TIER_CALM, "the early morning is the cleaner window"),
     ("no2", (8, 9, 10, 18, 19, 20, 21), _TIER_BAD, "morning and evening rush hours"),
-    ("no2", (11, 12, 13, 14), _TIER_CALM, "the midday lull between them"),
+    ("no2", (11, 12, 13, 14, 15, 16, 17), _TIER_CALM,
+     "the midday lull between them"),
 )
 
 # The heuristic never sends anybody outside at 3 AM, so the ranking starts at
@@ -182,17 +193,17 @@ def _hour_tiers(pollutant: str, winter: bool) -> tuple:
 
 
 def _first_useful_hour(now) -> int:
-    """The earliest hour still worth offering.
+    """The earliest hour still worth offering: the one the reader is in.
 
-    Rounded up once half the current hour is gone -- the defect this function
-    exists to fix was measured at 17:52, where offering "5 PM" would be true
-    only for another eight minutes. Never rounded past the end of the day: in
-    the last half hour the answer stays the hour the reader is standing in.
+    An earlier draft rounded up once half the hour had gone, so that 17:52 was
+    not offered a window with eight minutes of life in it. It was removed: at
+    11:30 it denied that any calmer hour was left while thirty minutes of a
+    cited-calm hour were still ahead, which is the same untrue statement this
+    function exists to stop. The run it names ends at the end of the calm
+    stretch rather than the end of the hour, so those eight minutes were never
+    the whole offer anyway.
     """
-    hour = now.hour
-    if now.minute >= 30 and hour < _DAY_LAST_HOUR:
-        hour += 1
-    return min(max(hour, _DAY_FIRST_HOUR), _DAY_LAST_HOUR)
+    return min(max(now.hour, _DAY_FIRST_HOUR), _DAY_LAST_HOUR)
 
 
 def _best_run(tiers, first_hour: int):
@@ -332,8 +343,9 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
         # Not window/none, which asserts that no time is SAFE. That is a
         # severity claim, true above 300 and false at AQI 45, where the reading
         # is Good and only the hour-to-hour ranking has run out.
-        window = i18n.t(lang, "window", "no_named_hour",
-                        "No hour left today is a calmer one.")
+        window = i18n.t(
+            lang, "window", "no_named_hour",
+            "The daily pattern points to no calmer hour from here.")
 
     parts = []
     # The band is the one that was measured, stated in the present. A band for

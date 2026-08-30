@@ -22,7 +22,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import forecast, i18n
+from saafsaans.services import clock, forecast, i18n
 from saafsaans.web import presenters
 from saafsaans.web.main import app
 
@@ -132,6 +132,12 @@ def test_the_page_keeps_the_honest_branch_at_five_in_the_afternoon(
     slot = re.search(r'class="val">([^<]*)<', body)
     assert slot, "no window slot rendered at all"
     assert not CLOCK_TIME.search(slot.group(1)), (lang, slot.group(1))
+    # Not merely "no digits leaked": at 17:00 the ranking names no hour either,
+    # so an hour-free string cannot tell the two apart. Severe air has to get
+    # the severe line, not the one saying the pattern picks nothing out.
+    assert slot.group(1).strip() == i18n.t(
+        lang, "window", "none", "No safe outdoor window today"), (
+            lang, slot.group(1))
 
 
 # --- The ranking ------------------------------------------------------------
@@ -165,7 +171,7 @@ EXPECTED_CITATIONS = (
     ("o3", 3, (12, 13, 14, 15, 16, 17), "afternoons are worst"),
     ("o3", 1, (6, 7, 8), "the early morning is the cleaner window"),
     ("no2", 3, (8, 9, 10, 18, 19, 20, 21), "morning and evening rush hours"),
-    ("no2", 1, (11, 12, 13, 14), "the midday lull between them"),
+    ("no2", 1, (11, 12, 13, 14, 15, 16, 17), "the midday lull between them"),
 )
 
 
@@ -179,23 +185,29 @@ def test_the_tier_table_cites_a_sentence_for_every_claim(at_ist):
     sentence it quotes. That is the defect this package twice had in draft --
     ozone nights scored calm, then Delhi winter evenings scored bad, neither
     supported by any sentence in the file."""
-    assert {(d, t, h) for d, h, t, _c in forecast._TIER_CITATIONS} == \
-        {(d, t, h) for d, t, h, _c in EXPECTED_CITATIONS}, \
+    shipped = {(d, t, frozenset(h), c) for d, h, t, c in forecast._TIER_CITATIONS}
+    expected = {(d, t, frozenset(h), c) for d, t, h, c in EXPECTED_CITATIONS}
+    assert shipped == expected, \
         "the shipped tier table no longer matches the one read off the sentences"
 
     for driver, dominant, winter in DRIVERS:
         rationale = _rationale_for(dominant, winter, at_ist)
         cited = {}
-        for row_driver, tier, hours, clause in EXPECTED_CITATIONS:
+        # Read the clause off the SHIPPED table, not off the copy above. An
+        # earlier version of this test took it from EXPECTED_CITATIONS, so
+        # every shipped clause could be blanked with the suite green -- the
+        # grounding claim was checked only against the test's own private copy.
+        for row_driver, hours, tier, clause in forecast._TIER_CITATIONS:
             if row_driver != driver:
                 continue
-            assert clause in rationale, (driver, clause, rationale)
+            assert clause and clause in rationale, (driver, clause, rationale)
             for hour in hours:
                 cited[hour] = tier
         tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
         for hour in range(24):
-            expected = cited.get(hour, forecast._TIER_UNSAID)
-            assert tiers[hour] == expected, (driver, hour, tiers[hour], expected)
+            # 2, not forecast._TIER_UNSAID: an expectation imported from the
+            # implementation follows it silently when it changes.
+            assert tiers[hour] == cited.get(hour, 2), (driver, hour, tiers[hour])
 
 
 def test_an_hour_is_named_only_when_a_sentence_calls_those_hours_calm(at_ist):
@@ -211,8 +223,8 @@ def test_an_hour_is_named_only_when_a_sentence_calls_those_hours_calm(at_ist):
             at_ist(hour, month=12 if winter else 8)
             win = forecast.best_window(168, dominant_pollutant=dominant)
             tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
-            _s, _e, tier = forecast._best_run(tiers, forecast._first_useful_hour(
-                __import__("datetime").datetime(2026, 1, 1, hour)))
+            _s, _e, tier = forecast._best_run(
+                tiers, forecast._first_useful_hour(clock.now_ist()))
             named = bool(CLOCK_TIME.search(win["window"]))
             assert named == (tier == forecast._TIER_CALM), (driver, hour, win["window"])
 
@@ -221,13 +233,22 @@ def test_no_hour_is_ever_named_before_the_hour_it_is_read(at_ist):
     """The defect itself, measured at 17:52 IST on 2026-08-10, when every
     driver named a window already gone.
 
-    Turns red when: `_best_run` stops clamping its first hour up to now."""
+    Goes through best_window rather than _best_run, and at :52 as well as :00,
+    because the property belongs to what a reader is handed. An earlier version
+    asserted _best_run's own clamp line back to it, which stayed green under an
+    implementation that ignored the minutes entirely.
+
+    Turns red when: _first_useful_hour stops clamping up to the current hour."""
     for driver, dominant, winter in DRIVERS:
         for hour in range(24):
-            tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
-            start, end, _tier = forecast._best_run(tiers, hour)
-            assert start >= min(max(hour, 6), 23), (driver, hour, start)
-            assert start < end <= 24, (driver, hour, start, end)
+            for minute in (0, 29, 30, 52):
+                at_ist(hour, minute, month=12 if winter else 8)
+                win = forecast.best_window(168, dominant_pollutant=dominant)
+                for start, meridiem in re.findall(r"(\d+)(?:-\d+)? ?(AM|PM)",
+                                                  win["window"]):
+                    named = int(start) % 12 + (12 if meridiem == "PM" else 0)
+                    assert named >= hour or hour < 6, (
+                        driver, hour, minute, win["window"])
 
 
 def test_the_four_windows_this_module_shipped_before_it_read_the_clock(at_ist):
@@ -249,6 +270,7 @@ def test_the_four_windows_this_module_shipped_before_it_read_the_clock(at_ist):
 # rather than the rule, so it cannot see an uncited tier. It is here to make
 # any change to the shipped answer visible in a diff a person can read.
 GOLDEN_WINDOWS = """
+## columns: pm-winter  pm-other  o3  no2
 00 1-4 PM 9 AM-12 PM 6-9 AM 11 AM-3 PM
 01 1-4 PM 9 AM-12 PM 6-9 AM 11 AM-3 PM
 02 1-4 PM 9 AM-12 PM 6-9 AM 11 AM-3 PM
@@ -261,12 +283,12 @@ GOLDEN_WINDOWS = """
 09 1-4 PM 9 AM-12 PM none 11 AM-3 PM
 10 1-4 PM 10 AM-12 PM none 11 AM-3 PM
 11 1-4 PM 11 AM-12 PM none 11 AM-3 PM
-12 1-4 PM none none 12-3 PM
-13 1-4 PM none none 1-3 PM
-14 2-4 PM none none 2-3 PM
-15 3-4 PM none none none
-16 none none none none
-17 none none none none
+12 1-4 PM none none 12-4 PM
+13 1-4 PM none none 1-5 PM
+14 2-4 PM none none 2-6 PM
+15 3-4 PM none none 3-6 PM
+16 none none none 4-6 PM
+17 none none none 5-6 PM
 18 none none none none
 19 none none none none
 20 none none none none
@@ -276,17 +298,66 @@ GOLDEN_WINDOWS = """
 """
 
 
-def test_the_shipped_window_table_is_what_a_reader_gets():
+def test_the_shipped_window_table_is_what_a_reader_gets(at_ist):
+    """A REGRESSION GUARD over the shipped answer, hour by hour and driver by
+    driver. It pins the output of the rule, not the rule, so it cannot see an
+    uncited tier -- that is the citation test's job. It is here so any change
+    to what a reader is told shows up as a diff a person can read.
+
+    It calls best_window, not the helpers: an earlier version reimplemented the
+    naming rule in the test body and so stayed green when the floor was removed
+    and when the day word was dropped."""
     rows = []
     for hour in range(24):
         cells = []
         for _driver, dominant, winter in DRIVERS:
-            tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
-            start, end, tier = forecast._best_run(tiers, hour)
-            cells.append(i18n.clock_range("en", start, end)
-                         if tier == forecast._TIER_CALM else "none")
+            at_ist(hour, month=12 if winter else 8)
+            window = forecast.best_window(168, dominant_pollutant=dominant)["window"]
+            cells.append(window.replace("Today, about ", "")
+                         if "Today" in window else "none")
         rows.append(f"{hour:02d} " + " ".join(cells))
-    assert "\n".join(rows) == GOLDEN_WINDOWS.strip()
+    wanted = "\n".join(l for l in GOLDEN_WINDOWS.strip().splitlines()
+                        if not l.startswith("##"))
+    assert "\n".join(rows) == wanted, (
+        "the shipped window changed; columns are "
+        + ", ".join(d for d, _dom, _w in DRIVERS))
+
+# Every range the ranking can put in front of a reader, in both languages, plus
+# the midnight form clock_range supports but no driver currently reaches.
+# GOLDEN_WINDOWS' sibling: without it, "always repeat the daypart" passes, and
+# so does labelling 8 PM as सुबह -- the exact ambiguity the Hindi clock exists
+# to avoid.
+GOLDEN_CLOCK = """
+06 09 | 6-9 AM | सुबह 6 से 9 बजे
+07 09 | 7-9 AM | सुबह 7 से 9 बजे
+08 09 | 8-9 AM | सुबह 8 से 9 बजे
+09 12 | 9 AM-12 PM | सुबह 9 से दोपहर 12 बजे
+10 12 | 10 AM-12 PM | सुबह 10 से दोपहर 12 बजे
+11 12 | 11 AM-12 PM | सुबह 11 से दोपहर 12 बजे
+11 15 | 11 AM-3 PM | सुबह 11 से दोपहर 3 बजे
+12 16 | 12-4 PM | दोपहर 12 से शाम 4 बजे
+13 16 | 1-4 PM | दोपहर 1 से शाम 4 बजे
+13 17 | 1-5 PM | दोपहर 1 से शाम 5 बजे
+14 16 | 2-4 PM | दोपहर 2 से शाम 4 बजे
+14 18 | 2-6 PM | दोपहर 2 से शाम 6 बजे
+15 16 | 3-4 PM | दोपहर 3 से शाम 4 बजे
+15 18 | 3-6 PM | दोपहर 3 से शाम 6 बजे
+16 18 | 4-6 PM | शाम 4 से 6 बजे
+17 18 | 5-6 PM | शाम 5 से 6 बजे
+20 24 | 8 PM-midnight | रात 8 से 12 बजे
+"""
+
+
+def test_the_clock_reads_as_a_clock_in_both_languages():
+    """Turns red when: the meridiem is printed on the wrong end, midnight stops
+    being a word, a Devanagari daypart is dropped or mislabelled, or the second
+    daypart stops appearing only when the range crosses one."""
+    rows = []
+    for line in GOLDEN_CLOCK.strip().splitlines():
+        start, end = (int(x) for x in line.split("|")[0].split())
+        rows.append(f"{start:02d} {end:02d} | {i18n.clock_range('en', start, end)}"
+                    f" | {i18n.clock_range('hi', start, end)}")
+    assert "\n".join(rows) == GOLDEN_CLOCK.strip()
 
 
 # --- What the change does to the answer (R2) --------------------------------
@@ -344,17 +415,17 @@ BAR_AT_250 = {
                 "Air is already Poor, so keep any outdoor activity short and wear an N95."),
     (6, "hi"): ("आज, क़रीब सुबह 9 से दोपहर 12 बजे तक",
                 "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (12, "en"): ("No hour left today is a calmer one.",
+    (12, "en"): ("The daily pattern points to no calmer hour from here.",
                  "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (12, "hi"): ("आज बचे घंटों में कोई ज़्यादा शांत नहीं है।",
+    (12, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
                  "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (17, "en"): ("No hour left today is a calmer one.",
+    (17, "en"): ("The daily pattern points to no calmer hour from here.",
                  "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (17, "hi"): ("आज बचे घंटों में कोई ज़्यादा शांत नहीं है।",
+    (17, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
                  "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (23, "en"): ("No hour left today is a calmer one.",
+    (23, "en"): ("The daily pattern points to no calmer hour from here.",
                  "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (23, "hi"): ("आज बचे घंटों में कोई ज़्यादा शांत नहीं है।",
+    (23, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
                  "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
 }
 
@@ -409,10 +480,9 @@ def test_the_answer_card_has_never_carried_the_window():
 # --- Owner's rule 4, and the partner for the lever --------------------------
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-@pytest.mark.parametrize("hour", range(24))
-@pytest.mark.parametrize("dominant", ("pm25", "o3", "no2"))
+@pytest.mark.parametrize("hour,dominant", STILL_A_CALM_STRETCH_LEFT)
 def test_a_named_hour_always_says_which_day_it_belongs_to(
-        at_ist, hour, lang, dominant):
+        at_ist, hour, dominant, lang):
     """Owner's rule 4. A bare clock time is ambiguous the moment today's window
     has passed, and "9 AM-12 PM" read at 5pm is the defect this package exists
     to fix wearing a different hat.
