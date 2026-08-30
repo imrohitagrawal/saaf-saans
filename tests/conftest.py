@@ -193,3 +193,77 @@ def live_feed(monkeypatch):
 
     monkeypatch.setattr(waqi, "get_aqi", _get)
     return LIVE_READING
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _viewport_counts_never_touch_a_real_store(tmp_path_factory):
+    """The probe's counter file, pointed at a temporary directory.
+
+    Not tidiness. Several test files issue real probe requests, and
+    tests/test_viewport_browser.py runs a real uvicorn in this process across
+    seven widths -- against the developer's real .env, because config calls
+    load_dotenv() at import and find_dotenv() walks up out of a worktree. With
+    no override the suite writes page-load counts into whatever store the
+    machine is configured for: the pollution this module's docstring already
+    describes for Elasticsearch, arriving in a second place.
+
+    Set rather than unset, for the reason
+    test_privacy.py::test_clearing_credentials_needs_them_empty_not_unset
+    pins: load_dotenv() does not overwrite a name already in the environment,
+    but it does fill in one that has been UNSET.
+    """
+    import os
+
+    from saafsaans.services import config, viewport
+
+    path = tmp_path_factory.mktemp("viewport") / "counts.sqlite3"
+    saved = os.environ.get(config.VIEWPORT_DB_ENV)
+    os.environ[config.VIEWPORT_DB_ENV] = str(path)
+    viewport.reset()
+    yield
+    viewport.reset()
+    if saved is None:
+        os.environ.pop(config.VIEWPORT_DB_ENV, None)
+    else:
+        os.environ[config.VIEWPORT_DB_ENV] = saved
+
+
+@pytest.fixture(autouse=True)
+def _no_viewport_counts_carryover_between_tests():
+    """Counters are cumulative by design, so without this the bands a test
+    asserts depend on how many probe requests every earlier test happened to
+    make -- the argument the rate-limit fixture above makes about buckets.
+
+    The FILE is removed, not emptied, and the difference is the whole point.
+    An emptied store answers as a MEASURED zero ("no page loads counted yet");
+    a store that was never created answers as no measurement at all. Emptying
+    would silently move every test after the first probe request onto the other
+    branch, and which branch renders is what several other files assert.
+
+    The -wal and -shm sidecars go too: a WAL left behind holds committed rows
+    the main file does not, so removing only the database would let one test
+    read the previous test's counts.
+
+    Deleting the store lives here rather than in the module under test. A
+    production module that can erase its own database is a footgun the app has
+    no use for.
+    """
+    import pathlib
+
+    from saafsaans.services import config, viewport
+
+    def clear():
+        base = pathlib.Path(config.viewport_db_path())
+        if not base.exists():
+            # Most tests never touch the store. Reopening and unlinking nothing
+            # 1400 times over is measurable, and skipping it is free: with no
+            # file there is no connection to drop either.
+            return
+        viewport.reset()
+        for path in (base, base.with_name(base.name + "-wal"),
+                     base.with_name(base.name + "-shm")):
+            path.unlink(missing_ok=True)
+
+    clear()
+    yield
+    clear()

@@ -208,7 +208,7 @@ def test_the_system_bars_and_day_columns_carry_their_own_geometry(monkeypatch):
     than a live index. Removing `{{ pos(r.w) }}` or `{{ pos(d.h) }}` from
     system.html turns each of these red; nothing else in the suite renders
     these surfaces at all."""
-    from saafsaans.services import metrics
+    from saafsaans.services import metrics, viewport
 
     monkeypatch.setattr(metrics, "telemetry_kpis", lambda c: {
         "total": 40, "latency_p50": 900, "latency_p95": 2100,
@@ -220,7 +220,7 @@ def test_the_system_bars_and_day_columns_carry_their_own_geometry(monkeypatch):
     # PURPOSE: the list below is exact, and without this the test would pass
     # only because the default client happens to make that panel empty -- a
     # reason no reader of the assertion could see.
-    monkeypatch.setattr(metrics, "viewport_bands", lambda c: [])
+    monkeypatch.setattr(viewport, "bands", lambda: [])
     with TestClient(app) as client:
         body = client.get("/system").text
 

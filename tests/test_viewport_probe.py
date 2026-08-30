@@ -5,67 +5,57 @@ image per width band; the browser fetches only the band whose query matches, so
 the server learns the real viewport band with no JavaScript, no cookie and no
 user-agent parsing. These tests pin the server half. The browser half -- that a
 browser actually issues exactly one of the three requests -- is only observable
-in a browser, and lives in tests/test_viewport_browser.py.
+in a browser, and lives in tests/test_viewport_browser.py. What the counter
+store does with the band lives in tests/test_viewport_store.py.
 """
 import re
+import sqlite3
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import es, normalize, ratelimit
+from saafsaans.services import config, es, normalize, ratelimit, viewport
 from saafsaans.web import main as web_main
 from saafsaans.web.main import app
 
 CSS_PATH = Path(web_main.__file__).parent / "static" / "app.css"
 
 
-class Recorder:
-    """An ES client that records what it was asked to index, and how."""
-
-    def __init__(self):
-        self.docs = []
-        self.options_seen = []
-
-    def options(self, **kwargs):
-        self.options_seen.append(kwargs)
-        return self
-
-    def index(self, index, document):
-        self.docs.append({"index": index, "doc": document})
-
-
 @pytest.fixture
-def recorder(monkeypatch):
-    client = Recorder()
-    monkeypatch.setattr(web_main, "get_client", lambda: client)
-    return client
+def counted():
+    """Read the counts the probe actually wrote.
+
+    There is no client to stub any more: the probe writes to a local SQLite
+    file that conftest already points at a temporary directory and empties
+    between tests. Asserting against the real store rather than a double is
+    what lets these tests catch a writer that silently drops.
+    """
+    def _counts():
+        return {row["band"]: row["count"] for row in (viewport.bands() or [])}
+    return _counts
 
 
 # --- what reaches storage --------------------------------------------------
-def test_the_probe_records_the_band_and_nothing_else(recorder):
+def test_the_probe_records_the_band_and_nothing_else(counted):
     with TestClient(app) as client:
         client.get("/probe/narrow.gif")
 
-    assert len(recorder.docs) == 1, recorder.docs
-    written = recorder.docs[0]
-    assert written["index"] == es.INDEX_VIEWPORT
-    assert set(written["doc"]) == {"@timestamp", "band"}
-    assert written["doc"]["band"] == "narrow"
+    assert counted() == {"narrow": 1}
 
 
-def test_the_probe_never_writes_an_identifier(recorder):
-    """The privacy floor, asserted against a request that carries every
-    identifier a browser can send.
+def test_the_probe_never_writes_an_identifier(counted):
+    """The privacy floor, against a request carrying every identifier a browser
+    can send.
 
-    The allowlist is compared for EQUALITY rather than screened for suspicious
-    names. A rule like "no field whose name contains hash" waves through
-    `referer`, `client_id` and `remote`; equality makes any addition a
-    deliberate edit to this line, which a reviewer sees.
+    The old version scanned the fields of one Elasticsearch document. This
+    scans the RAW BYTES of the whole database file, which is strictly stronger:
+    it would also catch an identifier landing in a column nobody asserted on,
+    in an index, or in a freed page the file still holds.
 
-    The absence half is worthless without the partner below it: the same
-    detection is run against a document that DOES carry a session hash, so a
-    detector that could never fire cannot pass this test.
+    The absence half is worthless without a partner, so the same detection is
+    run against a document that DOES carry a session hash.
     """
     sid = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
     agent = "Mozilla/5.0 (probe-test-user-agent)"
@@ -74,19 +64,11 @@ def test_the_probe_never_writes_an_identifier(recorder):
         client.get("/probe/wide.gif",
                    headers={"User-Agent": agent, "X-Forwarded-For": address})
 
-    doc = recorder.docs[0]["doc"]
-    haystack = " ".join(str(value) for value in doc.values())
+    assert counted() == {"wide": 1}
     hashed = normalize.session_hash(sid)
+    raw = Path(config.viewport_db_path()).read_bytes()
     for secret in (sid, agent, address, hashed):
-        assert secret not in haystack, (secret, doc)
-
-    assert es.VIEWPORT_FIELDS == {"@timestamp", "band"}
-    assert set(doc) <= es.VIEWPORT_FIELDS
-    # The partner: the band IS recorded, and the same detection fires on a
-    # document this codebase really produces. Built from es.log_telemetry --
-    # which does carry a session hash -- rather than from a dict literal
-    # assembled here, which would only prove that `in` works.
-    assert doc["band"] == "wide"
+        assert secret.encode() not in raw, secret
 
     telemetry = {}
 
@@ -101,52 +83,59 @@ def test_the_probe_never_writes_an_identifier(recorder):
         "proves nothing")
 
 
-def test_log_viewport_drops_any_stray_field():
-    """The allowlist is the guarantee, so it is asserted at the write helper
-    too -- not only at the one call site that exists today."""
-    captured = {}
+def test_no_page_load_leaves_a_row_of_its_own(counted):
+    """The reason for the swap, asserted on the physical file.
 
-    class FakeClient:
-        def options(self, **kwargs):
-            return self
-
-        def index(self, index, document):
-            captured["doc"] = document
-
-    es.log_viewport(FakeClient(), "mid")
-    assert set(captured["doc"]) == {"@timestamp", "band"}
-
-    captured.clear()
-    es._safe_index(FakeClient(), es.INDEX_VIEWPORT,
-                   {"@timestamp": "t", "band": "mid", "session_hash": "abc",
-                    "user_agent": "x"}, es.VIEWPORT_FIELDS)
-    assert set(captured["doc"]) == {"@timestamp", "band"}
-
-
-def test_the_probe_write_cannot_hold_a_page_render(recorder):
-    """es.py's own rule for the reachability ping: a hung endpoint must not
-    hold a render for the client's full ten seconds. The probe fires on every
-    page load, so it carries a tighter bound than the ping's own two."""
+    The Elasticsearch design wrote one document per page load, so the index
+    grew for ever and every row carried a timestamp that could in principle be
+    joined to a telemetry row holding a session hash. Fifty loads must move one
+    integer and add nothing.
+    """
     with TestClient(app) as client:
-        client.get("/probe/mid.gif")
+        for _ in range(50):
+            client.get("/probe/mid.gif")
 
-    assert {"request_timeout": 1} in recorder.options_seen, recorder.options_seen
-    # Partner: the bounded call still wrote the document.
-    assert recorder.docs[0]["doc"]["band"] == "mid"
+    rows = sqlite3.connect(config.viewport_db_path()).execute(
+        f"SELECT band, count FROM {viewport.TABLE_COUNTS}").fetchall()
+    assert rows == [("mid", 50)], rows
 
 
-def test_a_missing_index_client_is_not_an_error(monkeypatch):
-    """With no Elastic credentials `get_client()` is None all the way down, and
-    the probe must still serve its image rather than raise."""
-    monkeypatch.setattr(web_main, "get_client", lambda: None)
+def test_the_probe_write_cannot_hold_a_page_render(counted):
+    """Every route in this app is a sync ``def``, so they share one anyio
+    threadpool and a slow probe write starves page renders of the same pool.
+
+    The bound, and the floor proving it is in force, are measured against a
+    real held lock in tests/test_viewport_store.py. Here the assertion is that
+    the route pays the uncontended cost and nothing more.
+    """
+    started = time.monotonic()
+    with TestClient(app) as client:
+        for _ in range(20):
+            response = client.get("/probe/mid.gif")
+    elapsed = time.monotonic() - started
+
+    assert response.status_code == 200
+    assert elapsed < 2.0, f"20 probe requests took {elapsed:.2f}s"
+    # The partner: all twenty were recorded, so the speed above is not a writer
+    # that does nothing.
+    assert counted() == {"mid": 20}
+
+
+def test_a_store_that_cannot_be_written_is_not_an_error(monkeypatch, tmp_path):
+    """A page must render whether or not the counter can be written. Pointed at
+    a directory that does not exist, which is the shape a Fly volume that
+    failed to mount takes."""
+    monkeypatch.setenv(config.VIEWPORT_DB_ENV, str(tmp_path / "gone" / "c.sqlite3"))
+    viewport.reset()
     with TestClient(app) as client:
         response = client.get("/probe/wide.gif")
     assert response.status_code == 200
     assert response.content.startswith(b"GIF8")
+    assert viewport.bands() is None
 
 
 # --- the response itself ---------------------------------------------------
-def test_the_probe_is_never_cached(recorder):
+def test_the_probe_is_never_cached():
     """Without this the browser answers the second page load from its own
     cache and every returning reader stops reporting, so the counts silently
     under-read exactly the people who came back."""
@@ -160,7 +149,7 @@ def test_the_probe_is_never_cached(recorder):
     assert response.content.startswith(b"GIF8") and len(response.content) > 20
 
 
-def test_the_probe_sets_no_cookie(recorder):
+def test_the_probe_sets_no_cookie():
     """Every rendered page attaches a session cookie. This response must not:
     it is a counter, and a counter that hands out an identifier is a tracker."""
     with TestClient(app) as client:
@@ -172,7 +161,7 @@ def test_the_probe_sets_no_cookie(recorder):
     assert "set-cookie" not in {k.lower() for k in response.headers}
 
 
-def test_an_unknown_band_is_never_counted(recorder):
+def test_an_unknown_band_is_never_counted(counted):
     """A path segment is caller-controlled, so it is checked against the closed
     set the stylesheet asks for -- otherwise any string a crawler invents ends
     up as a bucket on the System view."""
@@ -182,17 +171,17 @@ def test_an_unknown_band_is_never_counted(recorder):
     # Not merely uncounted: it must not serve a valid image either, or
     # /probe/anything.gif becomes an open image endpoint.
     assert not unknown.content.startswith(b"GIF8")
-    assert recorder.docs == []
+    assert counted() == {}
 
     # The partner: a band the stylesheet does ask for is served and counted.
     with TestClient(app) as client:
         known = client.get("/probe/wide.gif")
     assert known.status_code == 200
-    assert [d["doc"]["band"] for d in recorder.docs] == ["wide"]
+    assert counted() == {"wide": 1}
 
 
-def test_a_flood_stops_being_counted_but_never_stops_being_served(recorder,
-                                                                  monkeypatch):
+def test_a_flood_stops_being_counted_but_never_stops_being_served(counted,
+                                                                 monkeypatch):
     """The counter is public and uncacheable, so a loop could otherwise write
     an unbounded number of documents and decide a layout argument.
 
@@ -205,7 +194,7 @@ def test_a_flood_stops_being_counted_but_never_stops_being_served(recorder,
 
     assert [r.status_code for r in responses] == [200] * 6
     assert all(r.content.startswith(b"GIF8") for r in responses)
-    assert len(recorder.docs) == 3, [d["doc"] for d in recorder.docs]
+    assert counted() == {"mid": 3}
 
 
 # --- the stylesheet and the server must agree ------------------------------
@@ -279,10 +268,10 @@ BANDS_STUB = [{"band": "narrow", "count": 12},
 
 
 def _system(monkeypatch, lang="en", rows=BANDS_STUB, answering=True):
-    from saafsaans.services import es as es_module, metrics
+    from saafsaans.services import es as es_module, viewport
     # `None` is a distinct answer from `[]` here and must survive the stub.
-    monkeypatch.setattr(metrics, "viewport_bands",
-                        lambda c: None if rows is None else list(rows))
+    monkeypatch.setattr(viewport, "bands",
+                        lambda: None if rows is None else list(rows))
     # Both branches are set explicitly. One test calls this twice, and
     # monkeypatch does not undo between calls inside a test, so leaving the
     # False case unpatched would silently inherit the True case's client.
@@ -374,15 +363,22 @@ def test_the_viewport_block_tells_an_unrecorded_zero_from_a_measured_one(monkeyp
     assert "Not a measured zero" not in hindi
 
 
-def test_counted_bands_prove_the_index_answered(monkeypatch):
-    """Rows on the page are proof the index answered, whatever the ping said --
-    the rule every other panel on this view already follows. Dropping vp_rows
-    from the has_index expression would print "none is answering" above three
-    bars drawn from that very index."""
+def test_counted_bands_never_claim_the_elasticsearch_index_answered(monkeypatch):
+    """Inverted, not repaired, because the swap makes the old claim false.
+
+    While the bands came from Elasticsearch, rows on the page were proof the
+    index had answered, and the old test asserted exactly that. They now come
+    from a local file, so they are evidence about a different store, and
+    letting them set has_index would suppress "nothing is being recorded" on
+    the panels that really are dead -- a manufactured claim of the class this
+    view has already been caught making twice.
+    """
     body = _system(monkeypatch, "en", rows=BANDS_STUB, answering=False)
     card = _viewport_card(body)
     assert card.count('class="sysbar"') == 3, card
-    assert "nothing is being recorded" not in body
+    assert "nothing is being recorded" in body, (
+        "a populated local counter file suppressed the Elasticsearch panels' "
+        "own empty state")
 
 
 def test_the_bars_carry_their_geometry_as_a_step_class(monkeypatch):
@@ -426,6 +422,23 @@ def test_the_rendered_band_labels_match_the_stylesheets_breakpoints(monkeypatch)
 
 
 # --- what the site says it records -----------------------------------------
+def _privacy_answer(body):
+    """The <dd> answering "What happens to what I type?", and nothing else.
+
+    A whole-page search cannot tell the Guide's own account of what is stored
+    from the footer's, because every page carries the footer.
+    """
+    from saafsaans.services import i18n
+
+    for question in (i18n.HI["guide"]["q_privacy"], "What happens to what I type?"):
+        start = body.find(question)
+        if start != -1:
+            end = body.find("</dd>", start)
+            assert end != -1, "the privacy answer never closed"
+            return body[start:end]
+    raise AssertionError("the privacy question is not on the Guide at all")
+
+
 def test_the_site_names_the_width_band_among_what_it_records(monkeypatch):
     """The footer and the Guide are this site's account of what is written
     down. A new stored value that appears in neither makes both incomplete on
@@ -445,9 +458,13 @@ def test_the_site_names_the_width_band_among_what_it_records(monkeypatch):
         hindi_guide = _html.unescape(client.get("/guide", params={"lang": "hi"}).text)
 
     assert "width band your browser reports" in english
-    assert "width band your browser reports" in english_guide
+    # Sliced to the privacy answer itself. /guide extends base.html, so the
+    # FOOTER's own copy of this clause satisfied a whole-page search: deleting
+    # the sentence from a_privacy entirely left this test, and the whole suite,
+    # green. Located the way test_guide_matches_behaviour.py locates the footer.
+    assert "width band your browser reports" in _privacy_answer(english_guide)
     assert i18n.HI["ui"]["footer"] in hindi
-    assert i18n.HI["guide"]["a_privacy"] in hindi_guide
+    assert i18n.HI["guide"]["a_privacy"] in _privacy_answer(hindi_guide)
     for hindi_text in (i18n.HI["ui"]["footer"], i18n.HI["guide"]["a_privacy"]):
         assert "चौड़ाई" in hindi_text, hindi_text
 
@@ -487,7 +504,7 @@ def _band_label_all():
     return [web_main._band_label(band) for band in web_main.VIEWPORT_BANDS]
 
 
-def test_a_flood_of_page_loads_cannot_forgive_the_ask_limiter(recorder, monkeypatch):
+def test_a_flood_of_page_loads_cannot_forgive_the_ask_limiter(monkeypatch):
     """The limiter's overflow path clears its whole table, and that table used
     to be shared. `/ask` inserts a bucket only when somebody posts a question,
     so reaching the cap was unreachable; the probe inserts one per address per
@@ -508,7 +525,7 @@ def test_a_flood_of_page_loads_cannot_forgive_the_ask_limiter(recorder, monkeypa
     assert "ask:1.2.3.4" in ratelimit._BUCKETS, "a page-load flood wiped the ask limiter"
 
 
-def test_the_probe_does_not_spend_the_readers_question_budget(recorder):
+def test_the_probe_does_not_spend_the_readers_question_budget():
     """Same address, both endpoints: the buckets are namespaced, so page loads
     cannot throttle a reader off the Q&A."""
     ratelimit.reset()
@@ -565,14 +582,17 @@ def test_the_base_probe_rule_sits_above_the_width_blocks():
     assert css.index('url("/probe/wide.gif")') > wide_block
 
 
-def test_the_viewport_index_is_created_with_a_keyword_mapping():
-    """metrics.viewport_bands retries on band.keyword so a deployment nobody
-    re-seeded still reads, but the shape that is MEANT is a keyword field. If
-    the mapping is dropped, the retry papers over it and nothing else notices."""
-    from saafsaans.setup_indices import MAPPINGS
+def test_no_elasticsearch_path_for_viewport_bands_survives():
+    """The swap replaced the Elasticsearch backing; it did not add to it. A
+    half-done change that still wrote documents somewhere would keep the
+    unbounded per-page-load growth this package exists to remove, and nothing
+    else in the suite would notice."""
+    from saafsaans import setup_indices
 
-    assert es.INDEX_VIEWPORT in MAPPINGS, "the probe's index is never created"
-    properties = MAPPINGS[es.INDEX_VIEWPORT]["mappings"]["properties"]
-    assert properties["band"]["type"] == "keyword", properties
-    assert set(properties) == es.VIEWPORT_FIELDS, (
-        "the mapping and the write allowlist disagree about the document")
+    for gone in ("log_viewport", "INDEX_VIEWPORT", "VIEWPORT_FIELDS"):
+        assert not hasattr(es, gone), gone
+    assert not any("viewport" in name for name in setup_indices.MAPPINGS), \
+        setup_indices.MAPPINGS.keys()
+    # The partner: the four indices advisory search really needs are still set
+    # up, so this did not pass by emptying the mapping table.
+    assert len(setup_indices.MAPPINGS) == 4, setup_indices.MAPPINGS.keys()

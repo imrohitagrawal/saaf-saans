@@ -30,7 +30,7 @@ Hindi is drafted and gated behind a banner saying no Hindi speaker has checked i
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                      # optional: blank = mock mode
-python saafsaans/setup_indices.py         # create 5 indices + seed 43 advisories
+python saafsaans/setup_indices.py         # create 4 indices + seed 43 advisories
 python -m saafsaans.seed_demo_history     # optional: backfill so System has data
 uvicorn saafsaans.web.main:app --reload --port 8010
 ```
@@ -131,10 +131,12 @@ They live only in the URL and the request — never written to any index. **Loca
 exception and is written deliberately:** telemetry stores the station name so the Observability
 view can show requests by area. It is a coarse, non-identifying label (one of 21 public
 monitoring stations), never paired with the health condition. The field whitelists in
-`services/es.py` (`TELEMETRY_FIELDS`, `SECURITY_FIELDS`, `VIEWPORT_FIELDS`) enforce that
-boundary in code rather than by convention. `VIEWPORT_FIELDS` is the strictest of the
-three — `{"@timestamp", "band"}` and nothing else — because the viewport probe writes one
-document per page load and must never become a way to recognise a returning reader. Logs store a `session_hash` (sha256, truncated) and `prompt_excerpt` is
+`services/es.py` (`TELEMETRY_FIELDS`, `SECURITY_FIELDS`) enforce that
+boundary in code rather than by convention. The viewport probe is stricter still and does
+not use Elasticsearch at all: `services/viewport.py` keeps one running count per width
+band in a local SQLite file — three integers and the date counting began — so there is no
+per-page-load row to carry a time, and nothing that could be joined to a session hash to
+recognise a returning reader. Logs store a `session_hash` (sha256, truncated) and `prompt_excerpt` is
 capped at 120 characters. Chat transcripts, which hold raw questions, stay in process memory
 and are never persisted.
 

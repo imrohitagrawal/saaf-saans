@@ -2,6 +2,12 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# The viewport probe's local counter file, and SQLite's write-ahead log
+# sidecars. A local run creates it in the working directory; production keeps
+# it on a Fly volume.
+viewport-counts.sqlite3
+viewport-counts.sqlite3-*
 .venv/
 venv/
 

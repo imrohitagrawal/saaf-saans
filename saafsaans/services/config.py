@@ -82,6 +82,26 @@ def cpcb_key() -> str:
     return _clean("CPCB_API_KEY")
 
 
+# Not a credential, so it is deliberately not in the _CLEAN credential shape
+# tests/test_privacy.py screens for (_KEY|_TOKEN|_SECRET|_PASSWORD|_CLOUD_ID|
+# _URL) and not in conftest's BLANKED_CREDENTIALS: blanking it would point the
+# suite at the default path in the working directory, which is the opposite of
+# what the harness wants.
+VIEWPORT_DB_ENV = "SAAFSAANS_VIEWPORT_DB"
+
+
+def viewport_db_path() -> str:
+    """Where the viewport probe keeps its per-band counts.
+
+    Defaults to a file in the working directory so tests and local runs need no
+    volume. Production sets the variable to a path on a mounted Fly volume,
+    because the container filesystem is replaced on every deploy.
+
+    Read at call time rather than captured at import, so a test can repoint it.
+    """
+    return _clean(VIEWPORT_DB_ENV) or "viewport-counts.sqlite3"
+
+
 def cpcb_available() -> bool:
     """Derived from ``cpcb_key`` rather than re-reading the environment.
 

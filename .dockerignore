@@ -7,6 +7,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+# A developer's local page-load counts are not part of the image.
+viewport-counts.sqlite3*
 tests/
 docs/
 private/
