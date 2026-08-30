@@ -931,3 +931,8 @@ html *:lang(hi):lang(hi) { letter-spacing: normal; }
 @media (pointer: coarse) {
   :lang(hi) .pill-btn { padding-top: 17px; padding-bottom: 13px; }
 }
+
+/* PROVE-THE-GATE. Deliberately breaks the viewport probe in the one way no
+   string-parsing test can see: a later rule overriding the content. This
+   branch is thrown away. */
+body::after { background-image: none; }
