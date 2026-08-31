@@ -1258,8 +1258,34 @@ def _effective_font_size(node, flat, cache):
 
 @pytest.fixture(scope="module")
 def hindi_pages():
-    """The same disclosure states as `pages`, served in Hindi."""
+    """The same disclosure states as `pages`, served in Hindi.
+
+    One view stubs the feed. Every other view here renders with no reading, so
+    `is_current` is false in all of them and the hero's score chips -- and the
+    line that labels them -- are never in the corpus. `.hero-gap` sat at 13px
+    against a 12.5px floor and would have measured the same at 8px.
+    """
     persona = {**PERSONA, "lang": "hi"}
+    rendered = {}
+    from saafsaans.services import waqi
+    from tests.conftest import LIVE_READING
+    upstream = waqi.get_aqi
+    waqi.get_aqi = lambda locality, es_client=None: (
+        {**LIVE_READING, "station": locality}, "ok")
+    try:
+        rendered.update(_hindi_views(persona))
+    finally:
+        waqi.get_aqi = upstream
+
+    trees = {}
+    for name, html in rendered.items():
+        parser = _Tree()
+        parser.feed(html)
+        trees[name] = parser.root
+    return trees
+
+
+def _hindi_views(persona):
     rendered = {}
     with TestClient(app) as client:
         client.post("/ask", params=persona,
@@ -1272,6 +1298,9 @@ def hindi_pages():
             # First visit in Hindi: renders .persona-path, the banner's route
             # into the persona editor, so its Devanagari sizes get measured.
             "today-first-visit": ("/", {"theme": "light", "lang": "hi"}),
+            # Same state, but the feed above is stubbed live, so the hero prints
+            # the two score chips and the line that says what they are.
+            "today-first-visit-scored": ("/", {"lang": "hi"}),
             "today-persona-open": ("/", {**persona, "edit": "1"}),
             "today-term-open": ("/", {**persona, "term": "PM2.5"}),
             "city": ("/city", persona),
@@ -1285,13 +1314,7 @@ def hindi_pages():
         if turn:
             rendered["today-prov-open"] = client.get(
                 "/", params={**persona, "prov": turn.group(1)}).text
-
-    trees = {}
-    for name, html in rendered.items():
-        parser = _Tree()
-        parser.feed(html)
-        trees[name] = parser.root
-    return trees
+    return rendered
 
 
 def _devanagari_sizes(sheet, hindi_pages, context):

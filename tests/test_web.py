@@ -2365,3 +2365,133 @@ def test_the_hindi_first_visit_page_labels_the_example_in_hindi(live_feed):
     assert re.search(r"उदाहरण व्यक्ति · \d+/100", body)
     assert "उदाहरण —" in body                 # the kicker prefix
     assert "आपका ख़तरा" not in body           # never "your risk" unchosen
+
+
+def test_the_first_visit_page_says_what_the_app_is_for(client, live_feed):
+    """"What am I supposed to do" was answered -- the form is open and the
+    example is labelled. "What is this?" was answered nowhere: no sentence on
+    the page stated the product's purpose, and the wordmark's "clean breath" is
+    a translation, not a description.
+
+    Turns red when: the orientation line leaves the first-visit page, or stops
+    coming before the hero a reader meets it above.
+    """
+    from saafsaans.web import presenters as pr
+
+    for lang in ("en", "hi"):
+        body = client.get("/", params={"theme": "light", "lang": lang}).text
+        line = pr.orientation_line(lang)
+        # "" is in every body and its index is 0, so the order check below
+        # passes against a presenter that returns nothing.
+        assert line, lang
+        assert line in body, lang
+        assert body.index(line) < body.index('class="hero'), lang
+
+
+def test_the_orientation_line_is_gone_once_the_reader_has_a_persona(client, live_feed):
+    """It answers a question only a first reader has, so it is withheld once a
+    persona is applied -- the same rule base.html's persona-path already takes.
+
+    The gate is also what keeps the returning reader's page byte-identical:
+    measured in Chrome 151, the verdict and the chips sit at exactly the same
+    y in every applied state at 320, 360, 900 and 1120 as they did before this
+    line existed. On the first visit, where it does render, it costs 56-76px.
+
+    Turns red when: the line starts rendering for a reader who has applied a
+    persona.
+    """
+    from saafsaans.web import presenters as pr
+
+    for lang in ("en", "hi"):
+        body = client.get("/", params={**PERSONA, "lang": lang}).text
+        assert pr.orientation_line(lang) not in body, lang
+
+
+def test_the_hero_chips_are_labelled_when_the_comparison_sentence_is_withheld(
+        client, live_feed):
+    """91 beside 79 IS the product -- the personal delta -- and on a first visit
+    it rendered as two bare chips with nothing saying what the distance between
+    them is. `comparison_line` is the sentence that says it and it stays gated
+    on persona_applied, because it says "Your 56 comes from your asthma" about a
+    persona the visitor never chose. The label carries the claim with no owner,
+    and only in the state the sentence is absent from, so the page never makes
+    it twice.
+
+    Turns red when: the label leaves the first-visit hero, drifts out of the
+    hero away from the chips it explains, or starts doubling the sentence on a
+    page that already prints it.
+    """
+    from saafsaans.web import presenters as pr
+
+    for lang in ("en", "hi"):
+        first = client.get("/", params={"theme": "light", "lang": lang}).text
+        label = pr.gap_label(lang)
+        assert label in first, lang
+        # Beside the chips it names: after the pair, and before the dark window
+        # bar that ends the hero body. The first </section> is 376 characters
+        # further on, so bounding at it would have admitted the whole window.
+        assert first.index('class="chip-base"') < first.index(label), lang
+        assert first.index(label) < first.index('class="hero-window"'), lang
+        # The reviewed sentence this label stands in for stays withheld here,
+        # which is the whole reason a label was written rather than the gate
+        # loosened: it says "Your 56 comes from your asthma" to a visitor who
+        # entered nothing. Nothing else on the page pins that.
+        assert 'class="compare"' not in first, lang
+        example = {"locality": "Anand Vihar", "age": "Adult",
+                   "condition": "Asthma", "activity": "Outdoor exercise"}
+        assert pr.comparison_line(56, 44, example, lang) not in first, lang
+
+        applied = client.get("/", params={**PERSONA, "lang": lang}).text
+        assert label not in applied, lang
+        assert 'class="compare"' in applied, lang
+
+
+@pytest.mark.parametrize("lang", ["en", "hi"])
+def test_the_chip_label_needs_two_numbers_to_label(monkeypatch, client, lang):
+    """The other half of the gate. The label says "the two numbers", and on a
+    held or missing reading there is one chip and it reads "WE CANNOT SCORE
+    YOUR RISK" -- a sentence about a pair, beside a chip saying there is no
+    pair. Same freshness blindness the route was rewritten to remove, one
+    element lower.
+
+    Turns red when: is_current is dropped from the label's gate.
+    """
+    from saafsaans.services import waqi
+    from saafsaans.web import presenters as pr
+    from tests.conftest import LIVE_READING
+
+    for state in ("held", "none"):
+        def _get(locality, es_client=None, state=state):
+            if state == "held":
+                return ({**LIVE_READING, "station": locality,
+                         "retained": True, "stale": True}, "held")
+            return waqi._reading(None, None, station=locality, city="Delhi",
+                                 stale=False, forecast=None, obs_time=None,
+                                 retained=False, source=None), "none"
+        monkeypatch.setattr(waqi, "get_aqi", _get)
+        body = client.get("/", params={"theme": "light", "lang": lang}).text
+        assert 'class="chip-base"' not in body, (lang, state)
+        assert pr.gap_label(lang) not in body, (lang, state)
+
+
+def test_the_effort_lever_sits_with_the_picker_it_informs(client, live_feed):
+    """A lever with a number, at the moment the choice is made: the sentence
+    renders directly above the activity picker, not beside the driver chips,
+    which already say "outdoor exertion multiplies dose" against a different
+    baseline and would print two multiples of one activity side by side.
+
+    Turns red when: the sentence leaves the open editor, or drifts below the
+    form to the drivers.
+    """
+    from saafsaans.web import presenters as pr
+
+    for lang in ("en", "hi"):
+        body = client.get("/", params={"theme": "light", "lang": lang}).text
+        line = pr.effort_line(lang)
+        assert line in body, lang
+        assert body.index(line) < body.index('<form class="fields"'), lang
+        assert body.index('id="persona"') < body.index(line), lang
+        # Closed editor: the card keeps the height 1c measured it at.
+        closed = client.get("/", params={**PERSONA, "lang": lang}).text
+        assert '<form class="fields"' not in closed, lang
+        assert line not in closed, lang
