@@ -25,11 +25,13 @@ silently forever, and so does a rule pointed at an empty corpus. So each rule is
 proven to fire on a violation and proven not to fire on the compliant sentence
 it must allow, and the sweep is proven to have actually reached the strings.
 """
+import pathlib
 import re
 
 import pytest
 
 from saafsaans.services import i18n, risk
+from saafsaans.web import presenters
 
 # --- The corpus ------------------------------------------------------------
 # Everything a reader can be shown that carries advice. `i18n.HI` is the whole
@@ -49,11 +51,50 @@ def _walk(node, path=()):
         yield ".".join(path), node
 
 
+def _english_defaults():
+    """Every English string passed as the fallback to ``i18n.t(lang, g, k, english)``.
+
+    The Hindi side is one dict and walks itself. The English side is not: it lives
+    as the fourth argument at each call site, so there is no object to iterate.
+    Listing those call sites by hand would rot the first time someone added one --
+    the failure this module's docstring is about.
+
+    So they are read out of the syntax tree instead. Any call to ``t`` or
+    ``i18n.t`` with four positional arguments contributes its fourth, when that
+    argument is a literal string. A call built from a variable is skipped and
+    cannot be checked here; that is a real limit, and it is why the dict sweep
+    below is kept rather than replaced.
+    """
+    import ast
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "saafsaans"
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or len(node.args) < 4:
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            if name != "t":
+                continue
+            arg = node.args[3]
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                rel = path.relative_to(root.parent)
+                yield f"{rel}:{node.lineno}", arg.value
+
+
 def corpus():
     """Every user-facing advice string, with a path naming where it came from."""
     rows = list(_walk(i18n.HI, ("i18n.HI",)))
     rows += list(_walk(risk.BAND_ADVICE, ("risk.BAND_ADVICE",)))
     rows += list(_walk(risk._HEADLINE, ("risk._HEADLINE",)))
+    # The sentence a reader actually meets. `risk._HEADLINE` is rendered by no
+    # template at all -- it exists only in compute_risk()'s return contract --
+    # while `presenters._VERDICTS` is the <h1> at the top of Today, and carries
+    # the bluntest health statement on the page. This file shipped on
+    # 2026-08-31 sweeping the one nobody sees and not the one everybody does.
+    rows += list(_walk(presenters._VERDICTS, ("presenters._VERDICTS",)))
+    rows += list(_english_defaults())
     return rows
 
 
@@ -226,6 +267,14 @@ def test_the_sweep_actually_reaches_the_strings():
     paths = [p for p, _ in rows]
     assert len(rows) > 300, f"corpus collapsed to {len(rows)} strings"
     assert any(p.startswith("i18n.HI.") for p in paths), "no Hindi strings swept"
+    # The two sources added on 2026-08-31, each with its own reason to be here.
+    # Without these two lines, deleting either from corpus() is invisible: the
+    # eight sweeps would go on passing over a smaller corpus, which is the exact
+    # silence this file exists to prevent.
+    assert any(p.startswith("presenters._VERDICTS.") for p in paths), \
+        "the on-screen hero headline is not being swept"
+    assert sum(1 for p in paths if p.startswith("saafsaans/")) > 50, \
+        "no English i18n.t defaults swept -- the AST walk found nothing"
     assert any(p.startswith("risk.BAND_ADVICE.") for p in paths), "no band advice swept"
     assert any(p.startswith("risk._HEADLINE.") for p in paths), "no headlines swept"
 
