@@ -29,8 +29,11 @@ present in every worktree — read them both in full before touching anything.
 Gate 0    deploy + verify                                DONE 2026-08-10
 Gate 0.5  viewport telemetry                             DONE 2026-08-10
 Gate 0.9  CI, and a merge gate that binds                DONE 2026-08-31
-Gate 1a   the window must be true at the hour it is read ~1-2 days  <- next
-Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days
+Gate 1a   the window must be true at the hour it is read DONE 2026-08-31
+C1        fonts and payload (was Appendix B)             DONE 2026-08-31
+B1        page-load counts leave Elasticsearch           DONE 2026-08-31
+P1        /health says which commit is running           DONE 2026-08-31
+Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days  <- next
 Gate 1c   card alignment                                 ~2 hours
 Gate 1d   deploy + verify the whole batch                ~1 hour
           >>> PROMOTE HERE <<<
@@ -364,6 +367,40 @@ here anyway — it requires an organization-owned repository, and this one is us
 
 ---
 
+### Gate 0.5 addendum — the telemetry finally measured something, 2026-08-31
+
+Gate 0.5 was recorded DONE on 2026-08-10. **It had recorded nothing at all between then
+and 2026-08-31**, and the reason was not in the code: production carried no Elastic
+credentials, so `es.get_client()` returned `None` and `_safe_index` returned on its first
+line. The System view said so honestly the whole time — *"this index is not answering"* —
+and nobody read it. The Elastic project in the local `.env` had also stopped resolving.
+
+Two consequences worth carrying forward:
+
+- **"Deployed" was not "collecting".** The gate's exit criterion (a non-zero band count)
+  was recorded as deferred rather than failed, and a deferred criterion nobody returns to
+  is indistinguishable from one that was met.
+- **The fix removed the dependency rather than restoring it.** Page loads are now counted
+  in SQLite on a 1 GB Fly volume (`vol_vwnx0xwo2keg9e9v`, `sin`), as `band -> count`
+  integers — not one document per load. A `(day, band)` schema was designed and rejected:
+  on a day whose loads all fall in one band, which is the ordinary case at this traffic,
+  that row discloses the band for every session hash of that day. Four rows, no timestamp,
+  nothing to join.
+
+  This **replaces** the planned ILM/retention work rather than adding to it, and it
+  retires three Appendix B items: the unbounded index, the missing retention policy, and
+  the timestamp joinable to `app-telemetry`.
+
+**Verified on 2026-08-31, in production, by running it:** `/data` is owned by uid 1000,
+not root; six probes produced `0–560px 3 · 561–899px 2 · 900px+ 1`; the counts survived a
+machine restart; an unknown band and a path-traversal attempt both return 404.
+
+**Still unverified:** whether Fly honours `auto_stop_machines = "suspend"` with a volume
+attached. If it does not, the fallback is `stop` — a slower cold start, no data loss,
+because the volume is durable either way. It needs an idle period to observe.
+
+---
+
 ### Gate 1 — The window must be true, then the advice, then the cards
 
 **Goal:** stop being another app that says "don't go out." Give a reader a lever they
@@ -434,6 +471,65 @@ time-independent.
 - Apply the same discipline to any future audit — the nine-lens audit of 2026-08-10
   varied language, theme and six viewport widths, but only ever rendered a single
   instant. That is why it missed this.
+
+#### 1a — **DONE 2026-08-31.** What shipped, and what it costs
+
+Deployed and verified: release **v15**, `/health` reports `build`
+`3e1db68b1366cff6f6d103ec88108b3f0440a248`, equal to the merged commit. Suite **1513**.
+
+`best_window` now reads the hour. Each driver's diurnal sentence is transcribed into an
+hourly tier table where **every row carries the clause it rests on**: tier 1 where a
+sentence calls those hours calm, tier 3 where one calls them bad, tier 2 everywhere else.
+Tier 2 is the *absence* of a claim, so no hour inside it outranks another.
+
+**The design decision worth remembering, because it was got wrong twice first.** Two plan
+revisions were rejected for inventing a ranking — v1 scored evening hours as calm, v2
+scored winter evenings as bad — each time moving the invention rather than removing it.
+The rule that settled it: **name an hour only when a sentence can be pointed at, and say
+what that sentence actually says.** The difference between honest and invented turned out
+to live entirely in the copy, not the selection:
+
+- *"6 PM is the calmest hour left"* — ranks hours nothing ranks. Forbidden.
+- *"After about 6 PM the afternoon peak is past"* — the shipped clause, read as an
+  exclusion. Allowed.
+
+A first ruling suppressed tier-2 spans outright, which was honest and cost too much: the
+app named no hour for 15 of 24 ozone hours and 12 of 24 default-driver hours, always
+running to midnight, while `PRODUCT.md` promises "and if not, **when**?". Correcting the
+copy instead of suppressing the span recovered most of it:
+
+| driver | named before | named after | first silent hour |
+|---|---|---|---|
+| traffic gases | 18/24 | **22/24** | 22:00 |
+| particulates, other seasons | 12/24 | **18/24** | 18:00 |
+| ozone | 9/24 | **18/24** | 18:00 |
+| winter particulates | 16/24 | 16/24 | 16:00 |
+
+**Residual: 22 of 96 driver-hours (23%) name no time** — late evening on three drivers,
+and from 16:00 in winter, where no cited stretch remains to define an edge. Those hours
+say the remaining time is alike and give the lever. That is the honest floor, not a gap
+to be closed by ranking.
+
+A guard refuses "calmest", "cleanest", "best time", "least bad", "safest" and
+`सबसे शांत` / `सबसे साफ़` / `सबसे कम ख़राब` / `सबसे अच्छा` / `सबसे बेहतर` in either
+language, with a partner proving it fires. The whole feature's honesty rests on wording,
+so the wording is tested.
+
+**R2 discharged in part, and the gap named.** `best_window`'s output reaches the model at
+`llm.py` and the rule-based fallback. Moving the severity tail out of `rationale` would
+have silently stripped "wear an N95" from both — 128 occurrences in the captured baseline
+— because `rationale` had become its only carrier. Both sites now append `note`. The
+paid-model path stays untestable: `presenters.answer_sections` drops the window section
+deliberately, so no rendered surface reflects it.
+
+**One pre-registered test changed and it should be read as a cost.**
+`test_the_same_hour_with_a_normal_reading_does_name_one` froze 06/12/17/23 before any
+ranking existed. 12 and 17 name a clock time again; **23 does not** and cannot, so a
+partner covers that hour by proving normal air still gets a different answer from severe
+air and from a missing reading, with the lever, where those get none. The absence tests
+still cannot be satisfied by an empty implementation.
+
+---
 
 #### 1b. Copy: orientation, advice, and the one honest number (~1.5 days)
 
