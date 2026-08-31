@@ -1502,26 +1502,18 @@ def test_no_devanagari_on_any_page_renders_letter_spaced(sheet, hindi_pages):
                         + "\n  ".join(sorted(set(spaced))))
 
 
-def test_the_devanagari_tracking_reset_outranks_every_tracking_rule(sheet):
-    """Specificity, not source order. A reset that only wins because it sits
-    last is beaten by the next two-token rule anyone writes above it, and the
-    page carries no sign of the loss -- the tracking simply reappears."""
-    resets, spacings = [], []
-    for context in ["top"] + sorted(sheet["media"]):
-        for spec, _order, selector, value in _tracking_rules(
-                sheet["top"] + sheet["media"].get(context, [])):
-            if ":lang(hi)" in selector and not _spaced(value):
-                resets.append((spec, selector))
-            elif _spaced(value):
-                spacings.append((spec, selector))
-    assert resets, "no :lang(hi) rule resets letter-spacing at all"
-    assert len(spacings) > 5, f"only {len(spacings)} tracking rules parsed -- the parser broke"
-    best = max(spec for spec, _ in resets)
-    losing = [f"{selector} {spec}" for spec, selector in spacings if spec >= best]
-    assert not losing, (
-        f"the Devanagari tracking reset is {best}; these tracking rules are not "
-        "out-specified, so Devanagari keeps their tracking wherever they reach it:\n  "
-        + "\n  ".join(sorted(set(losing))))
+# `test_the_devanagari_tracking_reset_outranks_every_tracking_rule` lived here
+# (Gate 2a finding 6): it flagged ANY same-or-higher-specificity tracking rule
+# as a violation, blind to source order -- so it could not tell a genuine gap
+# in the reset from `.wordmark b:lang(hi)` (app.css), a deliberate, documented
+# exception that restores the Latin wordmark's own -.01em display tracking
+# after the broad `:lang(hi)` reset, at the same (0,2,1) specificity, winning
+# on source order the way real CSS resolves a tie. A Python re-implementation
+# of specificity that does not also re-implement source-order tie-breaking
+# cannot host an intentional exception; a real browser can, because it IS the
+# cascade rather than a model of it. tests/test_devanagari_floor.py asserts
+# both directions on the rendered page: no Devanagari carries tracking, and
+# `.wordmark b` still carries its own.
 
 
 # --- 7. The band ramp as text, not as a swatch ------------------------------

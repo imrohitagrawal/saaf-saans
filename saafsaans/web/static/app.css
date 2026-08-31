@@ -834,6 +834,32 @@ h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
   --body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
 }
+/* The escape hatch above redirects only the two custom properties. `body` is
+   the one element that reads `var(--body)` into `font-family`, so every
+   descendant with `lang="en"` inherited body's ALREADY-SUBSTITUTED Devanagari
+   stack regardless of what its own `--body` recomputed to -- a custom
+   property re-resolves per element, but a property nobody re-declares on
+   that element does not. This re-declares it, but scoped to `:lang(hi)
+   [lang="en"]` rather than a bare `*:lang(en)`: on an ENGLISH page every
+   element's computed language is already "en", so a bare `*:lang(en)` rule
+   would apply to the whole page at (0,1,0) and, tied with and later than
+   every other (0,1,0) `font-family: var(--mono)` declaration in this file
+   (`.bar-row`, `.hero-meta`, `.scale-mark`, `.scale-ends`...), win the source-
+   order tie and push every one of them onto the body face -- which is what
+   moved the outlook bar's digit widths and turned a 51px foot into an 82px
+   one, measured by tests/test_viewport_browser.py. Nesting inside `:lang(hi)`
+   means the selector only ever matches a citation escaping OUT of a Hindi
+   page, never a whole English one: `.notice-en`, the CPCB host name, and the
+   WHO/EPA source captions now render in the Latin face. Two elements need
+   more than the body face this gives every `lang="en"` node, and both
+   overrides live in the Hindi typography block further down, at higher
+   specificity so they are not lost to this rule's own source position:
+   `code` already renders in the browser's own monospace default with no
+   author rule at all, and `.sysbar .l` (a stored event name inside the
+   mono-family sysbar row) must keep that face rather than fall onto body's. */
+:lang(hi) [lang="en"] { font-family: var(--body); }
+:lang(hi) code[lang="en"] { font-family: monospace; }
+:lang(hi) .sysbar .l { font-family: var(--mono); }
 
 /* The tracking reset needs specificity, not a place in the file. On the block
    above it is (0,1,0), which loses to `.fields .lbl`, `.hero-window .lbl` and
@@ -845,6 +871,16 @@ h2.kicker { font-family: var(--mono); font-size: 11px; font-weight: 400;
    the sheet -- and narrows nothing: it still follows the computed language, so
    the Devanagari wordmark inside an English page is covered too. */
 html *:lang(hi):lang(hi) { letter-spacing: normal; }
+
+/* This reset is scoped to computed LANGUAGE, and `.wordmark b` ("SaafSaans")
+   carries no `lang` attribute of its own, so it inherits `lang="hi"` from
+   `<html>` on a Hindi page and matched a rule whose job is protecting
+   Devanagari, not Latin -- costing the brand's own -.01em display tracking
+   (0.21px at 21px) on every Hindi page. `.wordmark b:lang(hi)` ties the
+   reset's own (0,2,1) specificity, so this must sit AFTER it in source order
+   to win; source order is what settles a tie in the cascade, not an
+   `!important` or a `:not()` on the reset itself. */
+.wordmark b:lang(hi) { letter-spacing: -.01em; }
 
 /* Vertical centring across scripts. Latin and Devanagari allocate their line
    boxes differently -- at the same font-size and line-height, Anek's box is
@@ -917,7 +953,11 @@ html *:lang(hi):lang(hi) { letter-spacing: normal; }
 :lang(hi) .bar-row,
 :lang(hi) .sysbar,
 :lang(hi) .reading-meta,
-:lang(hi) .ask-sub { font-size: 12.5px; }
+:lang(hi) .ask-sub,
+/* Rendered only when a System simulation just fired (`?sim=1`), which is
+   why this sat under the floor through every prior audit: no fixture ever
+   requested that state in Hindi. tests/test_devanagari_floor.py does. */
+:lang(hi) .sim-note { font-size: 12.5px; }
 /* The provenance line is the densest text on the site and was entirely mono. */
 :lang(hi) .prov-ground { font-size: 13px; line-height: 1.75; }
 :lang(hi) .caveat,
