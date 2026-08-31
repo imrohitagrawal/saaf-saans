@@ -66,25 +66,28 @@ def test_a_missing_reading_names_no_hour_whatever_the_time(at_ist, hour, lang):
                                    "No safe outdoor window today")
 
 
-# (hour, driver) pairs where a stretch of hours a shipped sentence calls calm
-# is still ahead: ozone's morning at 8, particulates' late morning at 6, the
-# traffic-gas midday lull at 12. After about 3 PM no driver has one, which is
-# the ranking's floor working rather than a gap in the table.
-STILL_A_CALM_STRETCH_LEFT = ((6, "pm25"), (8, "o3"), (12, "no2"))
+# The frozen hours at which a normal reading still gets a clock time. This was
+# HOURS itself when the test was written, before any ranking existed. It lost
+# 12, 17 and 23 to the first draft of the floor, which named a time only inside
+# a cited-calm run; 12 and 17 came back once a span could also be named by the
+# stretch beside it. 23 does not: with no cited stretch anywhere in the hours
+# that are left, there is nothing to point at, and the answer is that the hours
+# are alike. `test_a_normal_reading_is_never_told_what_severe_air_is_told`
+# below is the partner at that hour.
+HOURS_WITH_SOMETHING_TO_NAME = (6, 12, 17)
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-@pytest.mark.parametrize("hour,dominant", STILL_A_CALM_STRETCH_LEFT)
-def test_the_same_hour_with_a_normal_reading_does_name_one(
-        at_ist, hour, dominant, lang):
+@pytest.mark.parametrize("hour", HOURS_WITH_SOMETHING_TO_NAME)
+def test_the_same_hour_with_a_normal_reading_does_name_one(at_ist, hour, lang):
     """The partner the two tests above need. Both of them assert an ABSENCE, and
     an absence is satisfied by a function that returns nothing at all: delete
     the whole heuristic and they stay green. This proves that at the very same
     instant, air the app can be honest about DOES get a named hour -- so the
     absence above is a decision, not an empty implementation."""
     at_ist(hour)
-    win = forecast.best_window(168, dominant_pollutant=dominant, lang=lang)
-    assert CLOCK_TIME.search(win["window"]), (hour, dominant, lang, win["window"])
+    win = forecast.best_window(168, dominant_pollutant="pm25", lang=lang)
+    assert CLOCK_TIME.search(win["window"]), (hour, lang, win["window"])
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -210,23 +213,100 @@ def test_the_tier_table_cites_a_sentence_for_every_claim(at_ist):
             assert tiers[hour] == cited.get(hour, 2), (driver, hour, tiers[hour])
 
 
-def test_an_hour_is_named_only_when_a_sentence_calls_those_hours_calm(at_ist):
-    """The floor. Ranking the hours nothing describes above the hours a
-    sentence calls bad would turn an absence of evidence into a recommendation,
-    which is worse than the bug this package was opened for: today's window is
-    wrong, but it is at least a stated pattern.
+def _shape_at(dominant, winter, hour):
+    """What the ranking has to work with at this hour: a cited-calm run, a run
+    with a cited bad stretch beside it, or neither."""
+    tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
+    first = min(max(hour, 6), 23)
+    rem = range(first, 24)
+    start, end, tier = forecast._best_run(tiers, first)
+    if tier == forecast._TIER_CALM:
+        return "calm"
+    if any(tiers[h] == forecast._TIER_BAD for h in rem if h >= end):
+        return "before"
+    if any(tiers[h] == forecast._TIER_BAD for h in rem if h < start):
+        return "after"
+    return "alike"
 
-    Turns red when: the tier check around the named window is removed, so a
-    tier-2 or tier-3 run gets a clock time."""
-    for driver, dominant, winter in DRIVERS:
+
+def test_a_time_is_named_only_when_a_sentence_puts_something_beside_it(at_ist):
+    """The rule the whole feature rests on, in one assertion.
+
+    A tier-1 run is named because a sentence calls those hours calm. A tier-2
+    run may be named only when a tier-3 stretch is still in the remaining hours
+    to give it an edge -- then the claim is about that stretch ("the afternoon
+    peak is past by then"), which a sentence does state. With no tier-3 left
+    there is nothing to cite, and no time may be named at all.
+
+    Turns red when: a tier-2 span is named with no bad stretch beside it, which
+    is ranking hours no sentence ranks; or a cited edge stops being named,
+    which is the silence this replaced."""
+    for _driver, dominant, winter in DRIVERS:
         for hour in range(24):
             at_ist(hour, month=12 if winter else 8)
             win = forecast.best_window(168, dominant_pollutant=dominant)
-            tiers = forecast._hour_tiers(forecast._pollutant_key(dominant), winter)
-            _s, _e, tier = forecast._best_run(
-                tiers, forecast._first_useful_hour(clock.now_ist()))
+            shape = _shape_at(dominant, winter, hour)
             named = bool(CLOCK_TIME.search(win["window"]))
-            assert named == (tier == forecast._TIER_CALM), (driver, hour, win["window"])
+            assert named == (shape != "alike"), (dominant, hour, shape, win["window"])
+            # And a named tier-2 span always states the fact that earns it.
+            if shape in ("before", "after"):
+                assert win["note"] and win["note"] != "", (dominant, hour)
+
+
+def test_every_edge_the_table_can_reach_has_a_sentence_to_state(at_ist):
+    """The partner for the rule above. `_edge_sentence` returns "" for a driver
+    it has no clause for, and the caller then falls back to saying the hours
+    are alike -- correct, but silent. If a change to the tier table makes a new
+    (driver, edge) pair reachable, this fails rather than quietly losing the
+    answer for those hours.
+
+    Turns red when: a citation moves so a driver reaches an edge nobody wrote
+    a sentence for."""
+    missing = []
+    for _driver, dominant, winter in DRIVERS:
+        for hour in range(24):
+            shape = _shape_at(dominant, winter, hour)
+            if shape in ("before", "after") and not forecast._edge_sentence(
+                    forecast._pollutant_key(dominant), winter, shape, "en"):
+                missing.append((dominant, winter, hour, shape))
+    assert not missing, f"reachable edges with no sentence: {sorted(set(missing))}"
+
+
+# Superlatives rank hours against each other. The sentences this module ships
+# rank one stretch as bad and say nothing about the rest, so a superlative in
+# the window or the note is a claim nothing backs -- and in Hindi "सबसे कम
+# ख़राब" would reuse ख़राब, the reserved CPCB word for the Poor band, on hours
+# no reading has banded.
+SUPERLATIVES = ("calmest", "cleanest", "best time", "least bad", "safest",
+                "सबसे शांत", "सबसे साफ़", "सबसे कम ख़राब", "सबसे अच्छा", "सबसे बेहतर")
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("aqi", (45, 168, 250))
+def test_no_window_ranks_the_hours_it_cannot_rank(at_ist, lang, aqi):
+    """Turns red when: any window or note string starts calling a named span
+    the calmest, cleanest or least bad of what is left, in either language."""
+    for _driver, dominant, winter in DRIVERS:
+        for hour in range(24):
+            at_ist(hour, month=12 if winter else 8)
+            win = forecast.best_window(aqi, dominant_pollutant=dominant, lang=lang)
+            whole = f"{win['window']} {win['note']}".lower()
+            for word in SUPERLATIVES:
+                assert word.lower() not in whole, (dominant, hour, lang, word, whole)
+
+
+def test_the_superlative_guard_would_notice_one(at_ist):
+    """The partner. A guard that only ever asserts an absence passes against a
+    function that returns nothing, and this one runs over strings that are
+    mostly short -- so prove it fires on the phrasing it exists to stop, and
+    that it permits the cited-fact phrasing that ships."""
+    at_ist(12)
+    shipped = forecast.best_window(250, dominant_pollutant="pm25")
+    whole = f"{shipped['window']} {shipped['note']}".lower()
+    assert not any(w.lower() in whole for w in SUPERLATIVES), whole
+    assert "past by then" in whole, "the cited-fact phrasing must be permitted"
+    for banned in ("Today, the calmest hours left", "आज सबसे कम ख़राब समय"):
+        assert any(w.lower() in banned.lower() for w in SUPERLATIVES), banned
 
 
 def test_no_hour_is_ever_named_before_the_hour_it_is_read(at_ist):
@@ -280,21 +360,21 @@ GOLDEN_WINDOWS = """
 06 1-4 PM 9 AM-12 PM 6-9 AM 11 AM-3 PM
 07 1-4 PM 9 AM-12 PM 7-9 AM 11 AM-3 PM
 08 1-4 PM 9 AM-12 PM 8-9 AM 11 AM-3 PM
-09 1-4 PM 9 AM-12 PM none 11 AM-3 PM
-10 1-4 PM 10 AM-12 PM none 11 AM-3 PM
-11 1-4 PM 11 AM-12 PM none 11 AM-3 PM
-12 1-4 PM none none 12-4 PM
-13 1-4 PM none none 1-5 PM
-14 2-4 PM none none 2-6 PM
-15 3-4 PM none none 3-6 PM
-16 none none none 4-6 PM
-17 none none none 5-6 PM
-18 none none none none
-19 none none none none
-20 none none none none
-21 none none none none
-22 none none none none
-23 none none none none
+09 1-4 PM 9 AM-12 PM before 12 PM 11 AM-3 PM
+10 1-4 PM 10 AM-12 PM before 12 PM 11 AM-3 PM
+11 1-4 PM 11 AM-12 PM before 12 PM 11 AM-3 PM
+12 1-4 PM after 6 PM after 6 PM 12-4 PM
+13 1-4 PM after 6 PM after 6 PM 1-5 PM
+14 2-4 PM after 6 PM after 6 PM 2-6 PM
+15 3-4 PM after 6 PM after 6 PM 3-6 PM
+16 alike after 6 PM after 6 PM 4-6 PM
+17 alike after 6 PM after 6 PM 5-6 PM
+18 alike alike alike after 10 PM
+19 alike alike alike after 10 PM
+20 alike alike alike after 10 PM
+21 alike alike alike after 10 PM
+22 alike alike alike alike
+23 alike alike alike alike
 """
 
 
@@ -313,8 +393,14 @@ def test_the_shipped_window_table_is_what_a_reader_gets(at_ist):
         for _driver, dominant, winter in DRIVERS:
             at_ist(hour, month=12 if winter else 8)
             window = forecast.best_window(168, dominant_pollutant=dominant)["window"]
-            cells.append(window.replace("Today, about ", "")
-                         if "Today" in window else "none")
+            for prefix, short in (("Today, about ", ""),
+                                  ("Today, after about ", "after "),
+                                  ("Today, before about ", "before ")):
+                if window.startswith(prefix):
+                    cells.append(short + window[len(prefix):])
+                    break
+            else:
+                cells.append("alike")
         rows.append(f"{hour:02d} " + " ".join(cells))
     wanted = "\n".join(l for l in GOLDEN_WINDOWS.strip().splitlines()
                         if not l.startswith("##"))
@@ -415,17 +501,20 @@ BAR_AT_250 = {
                 "Air is already Poor, so keep any outdoor activity short and wear an N95."),
     (6, "hi"): ("आज, क़रीब सुबह 9 से दोपहर 12 बजे तक",
                 "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (12, "en"): ("The daily pattern points to no calmer hour from here.",
+    (12, "en"): ("Today, after about 6 PM",
+                 "The afternoon peak is past by then. Air is already Poor, so keep "
+                 "any outdoor activity short and wear an N95."),
+    (12, "hi"): ("आज, क़रीब शाम 6 बजे के बाद",
+                 "दोपहर का चढ़ाव तब तक बीत चुका होता है। हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
+    (17, "en"): ("Today, after about 6 PM",
+                 "The afternoon peak is past by then. Air is already Poor, so keep "
+                 "any outdoor activity short and wear an N95."),
+    (17, "hi"): ("आज, क़रीब शाम 6 बजे के बाद",
+                 "दोपहर का चढ़ाव तब तक बीत चुका होता है। हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
+    (23, "en"): ("The hours left today look much alike — waiting will not buy "
+                 "cleaner air.",
                  "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (12, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
-                 "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (17, "en"): ("The daily pattern points to no calmer hour from here.",
-                 "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (17, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
-                 "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
-    (23, "en"): ("The daily pattern points to no calmer hour from here.",
-                 "Air is already Poor, so keep any outdoor activity short and wear an N95."),
-    (23, "hi"): ("यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
+    (23, "hi"): ("आज बचे घंटे लगभग एक जैसे हैं — इंतज़ार करने से हवा साफ़ नहीं होगी।",
                  "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 पहनें।"),
 }
 
@@ -480,20 +569,26 @@ def test_the_answer_card_has_never_carried_the_window():
 # --- Owner's rule 4, and the partner for the lever --------------------------
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-@pytest.mark.parametrize("hour,dominant", STILL_A_CALM_STRETCH_LEFT)
-def test_a_named_hour_always_says_which_day_it_belongs_to(
-        at_ist, hour, dominant, lang):
+def test_a_named_hour_always_says_which_day_it_belongs_to(at_ist, lang):
     """Owner's rule 4. A bare clock time is ambiguous the moment today's window
     has passed, and "9 AM-12 PM" read at 5pm is the defect this package exists
-    to fix wearing a different hat.
+    to fix wearing a different hat. Every hour and every driver, so the two
+    span shapes that name a boundary rather than a range are covered too.
 
-    Turns red when: the day word is dropped from window/today_window, at any
-    hour, in either language."""
-    at_ist(hour)
-    win = forecast.best_window(168, dominant_pollutant=dominant, lang=lang)
-    if CLOCK_TIME.search(win["window"]):
-        today = "आज" if lang == "hi" else "Today"
-        assert today in win["window"], (hour, lang, dominant, win["window"])
+    Turns red when: the day word is dropped from any of the three window
+    templates, at any hour, in either language."""
+    today = "आज" if lang == "hi" else "Today"
+    seen = 0
+    for _driver, dominant, winter in DRIVERS:
+        for hour in range(24):
+            at_ist(hour, month=12 if winter else 8)
+            win = forecast.best_window(168, dominant_pollutant=dominant, lang=lang)
+            if CLOCK_TIME.search(win["window"]):
+                seen += 1
+                assert today in win["window"], (hour, lang, dominant, win["window"])
+    # The partner for a loop whose body is conditional: an implementation that
+    # never names an hour would satisfy every assertion above by running none.
+    assert seen >= 60, f"only {seen} of 96 driver-hours named a time"
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)

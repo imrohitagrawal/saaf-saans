@@ -128,6 +128,19 @@ def _hour12(hour: int) -> int:
     return (hour % 12) or 12
 
 
+def clock_hour(lang: str, hour: int) -> str:
+    """A single clock time -- the edge of a stretch, not a span.
+
+    Used where the honest claim is a boundary ("after about 6 PM") rather than
+    a window, so it carries no "from" and no "to".
+    """
+    if lang != "hi":
+        if hour % 24 == 0:
+            return "midnight"
+        return f"{_hour12(hour)} {'AM' if hour % 24 < 12 else 'PM'}"
+    return f"{_hi_daypart(hour)} {_hour12(hour)} बजे"
+
+
 def clock_range(lang: str, start: int, end: int) -> str:
     """A half-open hour range as a reader of ``lang`` would say it.
 
@@ -1057,7 +1070,17 @@ HI: dict = {
         # is how the four hand-written window strings this replaces framed
         # the same range.
         "today_window": "आज, क़रीब {range} तक",
-        "no_named_hour": "यहाँ से आगे यह पैटर्न किसी घंटे की हवा को ज़्यादा शांत नहीं बताता।",
+        "today_after": "आज, क़रीब {time} के बाद",
+        "today_before": "आज, क़रीब {time} से पहले",
+        # No hour here is called calm -- only the stretch beside it is called
+        # bad, and that is all these say. A superlative ("सबसे शांत", "सबसे कम
+        # ख़राब") would rank hours the sentences do not rank, and "ख़राब" is a
+        # reserved CPCB band word besides.
+        "o3_edge_before": "दोपहर की ओज़ोन इसके बाद बढ़ने लगती है।",
+        "o3_edge_after": "दोपहर की ओज़ोन तब तक बीत चुकी होती है।",
+        "no2_edge_after": "शाम की भीड़ तब तक बीत चुकी होती है।",
+        "pm_edge_after": "दोपहर का चढ़ाव तब तक बीत चुका होता है।",
+        "hours_alike": "आज बचे घंटे लगभग एक जैसे हैं — इंतज़ार करने से हवा साफ़ नहीं होगी।",
         "none_rationale": "अभी AQI बहुत ख़राब/गंभीर श्रेणी में है, इसलिए प्रदूषण पूरे दिन "
                           "ख़तरनाक बना रहेगा। सबसे अच्छा यही है कि घर के अंदर रहें और "
                           "खिड़कियाँ बंद रखें। यह एक मोटा नियम है, हर घंटे का स्टेशन "

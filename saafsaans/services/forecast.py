@@ -223,6 +223,33 @@ def _best_run(tiers, first_hour: int):
     return start, min(end + 1, start + _MAX_RUN_HOURS), best
 
 
+def _edge_sentence(pollutant: str, winter: bool, shape: str, lang: str) -> str:
+    """The fact a shipped sentence licenses about the stretch beside this span.
+
+    A tier-2 hour is one nothing describes, so nothing can be said about the
+    hour itself -- "the calmest left" would rank hours the sentences do not
+    rank. What the sentences DO license is a statement about the tier-3 stretch
+    next to it: that it is over, or that it starts. That is a cited exclusion,
+    not a recommendation, and it is the only claim made here.
+
+    Empty when the driver has no sentence for that edge. The caller then says
+    the remaining hours are alike rather than inventing a reason.
+    """
+    if pollutant == "o3" and shape == "before":
+        return i18n.t(lang, "window", "o3_edge_before",
+                      "The afternoon build-up starts after that.")
+    if pollutant == "o3" and shape == "after":
+        return i18n.t(lang, "window", "o3_edge_after",
+                      "The afternoon build-up is past by then.")
+    if pollutant == "no2" and shape == "after":
+        return i18n.t(lang, "window", "no2_edge_after",
+                      "The evening rush is past by then.")
+    if pollutant == "pm" and not winter and shape == "after":
+        return i18n.t(lang, "window", "pm_edge_after",
+                      "The afternoon peak is past by then.")
+    return ""
+
+
 def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "en") -> dict:
     """Return ``{window, rationale, note}`` for the hours a reader has left.
 
@@ -328,26 +355,39 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
             "before the afternoon peak.")
 
     tiers = _hour_tiers(pollutant, winter)
-    start, end, tier = _best_run(tiers, _first_useful_hour(clock.now_ist()))
+    first = _first_useful_hour(clock.now_ist())
+    start, end, tier = _best_run(tiers, first)
+    remaining = range(first, _DAY_LAST_HOUR + 1)
+    edge = ""
     if tier == _TIER_CALM:
         window = i18n.t(
             lang, "window", "today_window", "Today, about {range}").replace(
                 "{range}", i18n.clock_range(lang, start, end))
     else:
-        # Every hour this app names is one a shipped sentence calls calm. Once
-        # those are behind us the honest answer is that there is no calmer hour
-        # left, not the least bad of the hours nothing describes: ranking an
-        # unwritten-about hour above one a sentence calls bad would turn the
-        # absence of evidence into a recommendation.
-        #
-        # Not window/none, which asserts that no time is SAFE. That is a
-        # severity claim, true above 300 and false at AQI 45, where the reading
-        # is Good and only the hour-to-hour ranking has run out.
-        window = i18n.t(
-            lang, "window", "no_named_hour",
-            "The daily pattern points to no calmer hour from here.")
+        # A tier-3 run still ahead gives this span a cited edge: the span sits
+        # either before that stretch starts or after it has passed, and either
+        # is a fact a shipped sentence states. Prefer the earlier edge, which
+        # is the sooner answer. With no tier-3 left there is nothing to cite,
+        # and the honest reply is that the hours are alike.
+        bad_ahead = any(tiers[h] == _TIER_BAD for h in remaining if h >= end)
+        bad_behind = any(tiers[h] == _TIER_BAD for h in remaining if h < start)
+        shape = "before" if bad_ahead else ("after" if bad_behind else "")
+        edge = _edge_sentence(pollutant, winter, shape, lang) if shape else ""
+        if edge and shape == "before":
+            window = i18n.t(
+                lang, "window", "today_before", "Today, before about {time}").replace(
+                    "{time}", i18n.clock_hour(lang, end))
+        elif edge:
+            window = i18n.t(
+                lang, "window", "today_after", "Today, after about {time}").replace(
+                    "{time}", i18n.clock_hour(lang, start))
+        else:
+            window = i18n.t(
+                lang, "window", "hours_alike",
+                "The hours left today look much alike — waiting will not buy "
+                "cleaner air.")
 
-    parts = []
+    parts = [edge] if edge else []
     # The band is the one that was measured, stated in the present. A band for
     # the hour being suggested would be a modelled figure wearing a
     # measurement's clothes, which the evidence checklist forbids (D4). Both
