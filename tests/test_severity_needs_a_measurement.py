@@ -176,7 +176,13 @@ def test_no_reading_means_no_number_on_today(monkeypatch, lang):
             # assumed AQI ("A healthy adult ... would be at 79. Your 91 ...").
             # Suppressing the chip alone left that second route open.
             assert 'class="compare"' not in body, (lang, loc)
-            assert 'class="scale-mark"' not in body, (lang, loc)
+            # No closing quote. The marker renders `class="scale-mark p34"` --
+            # the step class carries its position -- so the quoted form could
+            # never appear and this assertion could never fail, with or without
+            # a reading behind it. Its partner, proving the string exists to be
+            # found, is test_csp_geometry.py's caret test, which reads
+            # `class="scale-mark ([^"]+)"` off a page that has one.
+            assert 'class="scale-mark' not in body, (lang, loc)
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)

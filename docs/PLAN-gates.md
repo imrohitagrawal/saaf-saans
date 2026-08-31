@@ -722,6 +722,133 @@ plumbing — real uvicorn server, real headless Chrome, a CDP session,
 `Emulation.setDeviceMetricsOverride` — but no code in this repo calls `Runtime.evaluate` or
 reads `getBoundingClientRect()`. The exit criterion below cannot be met without adding that.
 
+---
+
+**BUILT AND MEASURED, 2026-08-31 — and the remedy above is refuted. Read this before
+acting on anything above it.**
+
+The height measurement now exists (`_Devtools.call`/`evaluate` and two guards in
+`tests/test_viewport_browser.py`). The first thing it did was contradict the item that
+asked for it. Every figure below is Chrome 151, persona applied, live reading, no
+five-day outlook — `grid-duo`, the state a CPCB reading produces and so almost every
+reader's. Signed **reading minus persona**, so the sign says which card ends lower.
+
+Keyed by TRACK width, not by viewport: two viewports that lay the same track render the
+same cards. Thirteen distinct tracks, sampled at fifteen viewports; the band lays more
+between them, and the sweep does not claim to have seen every one.
+
+| track | viewport | persona en | reading en | en | persona hi | reading hi | hi |
+|---|---|---|---|---|---|---|---|
+| 332px | 720 | 455.8 | 440.7 | **−15.2** | 513.2 | 397.8 | **−115.5** |
+| 352px | 760 | 455.8 | 418.2 | −37.6 | 468.7 | 397.8 | −70.9 |
+| 372px | 800 | 455.8 | 418.2 | −37.6 | 468.7 | 397.8 | −70.9 |
+| 392px | 840 | 418.3 | 418.2 | −0.1 | 435.3 | 397.8 | −37.6 |
+| 412px | 880 | 387.3 | 401.2 | +13.9 | 397.9 | 375.3 | −22.6 |
+| 422px | 900 | 366.4 | 401.2 | +34.8 | 375.4 | 375.3 | **−0.1** |
+| 442px | 940 | 349.8 | 382.4 | +32.6 | 375.4 | 375.3 | −0.1 |
+| 452px | 960 | 349.8 | 359.9 | +10.1 | 353.1 | 375.3 | +22.1 |
+| 462px | 980 | 327.4 | 359.9 | +32.6 | 353.1 | 375.3 | +22.1 |
+| 472px | 1000 | 308.6 | 359.9 | +51.3 | 353.1 | 342.9 | **−10.2** |
+| 482px | 1020 | 308.6 | 359.9 | +51.3 | 330.9 | 342.9 | +12.1 |
+| 502px | 1060 | 308.6 | 359.9 | +51.3 | 330.9 | 342.9 | +12.1 |
+| 532px | 1120–1600 | 308.6 | 359.9 | **+51.3** | 297.5 | 342.9 | **+45.4** |
+
+The foot does not cross once and settle. English crosses between 392px and 412px; Hindi
+crosses between 442px and 452px, crosses BACK to −10.2 at 472px, and returns positive at
+482px. Any claim about this curve from two samples is a guess.
+
+**Three claims above are wrong.**
+
+1. **"narrowing to 13px at 900px" is refuted.** Measured +34.8 (en) and −0.1 (hi) at
+   900px, in four states and both languages. This section already contradicted itself four
+   lines later with "366 vs 401 at 900" — that figure (34.8) is the true one. A ~13px foot
+   does exist, at 880px in English (+13.9); it is not at 900px and not in Hindi.
+2. **"in both languages — identical" is false.** 309/360 English against 297/343 Hindi at
+   1120; at 900 the two languages differ by 35px of foot.
+3. **"the row this fix moves into does not exist" is backwards.** `532px 532px` is
+   `grid-duo`, which the template emits only at `narrow_cards == 2`. That is reachable two
+   ways: persona closed with no outlook, and persona editor OPEN with an outlook present —
+   but in the second the persona card is itself `wide` (rendered and checked), so it cannot
+   be the 309-vs-360 narrow pair. The measured state is therefore the first, and
+   `{% if not outlook and has_reading %}` renders there. The wide row exists precisely
+   where the fix was said to have nowhere to go. (The literal `tests/test_declutter.py`
+   pins, and a second at `:393` matching `class="caveat">` on the rendered body, are real.)
+
+**The remedy itself does not survive measurement.** Action item 1 reads the 1120px end
+alone, concludes the reading card is the taller one, and prescribes moving a block out of
+it. Across the band the persona card sheds 147px (en) and 216px (hi) between 332px and
+532px tracks while the reading card sheds 81px and 55px, so **the two heights cross** —
+near 840px in English, 940px in Hindi — and the foot changes sign. A block moved out of
+the reading card is a constant subtraction that shifts the whole curve down: it fixes the
+1120px end and drives everything below it further apart. Measured both ways, by removing
+the WHO comparison line from the live DOM at every layout in the band:
+
+| | distinct tracks improved | mean foot | worst foot |
+|---|---|---|---|
+| English | 7 of 13 | 32.3px → 39.4px | 51.3px → **101.9px** |
+| Hindi | **1 of 13** | 34.0px → **69.0px** | 115.5px → **168.0px** |
+
+Moving the CPCB scale bar instead has the same shape and a worse landing. It is a
+constant 58.05px (en) / 60.38px (hi) at every one of the thirteen tracks — it never
+rewraps — so it is the same constant subtraction, and at 1120px it overshoots to −15.0px
+in Hindi, outside the ~10px this item asks for and outside the ~15px its exit criterion
+asked for.
+
+**One claim made in the first draft of this section is withdrawn.** It said the moved
+scale bar puts 1px of horizontal document overflow on the page at 320/360/375/414px, an
+SC 1.4.10 failure. That came from one reviewing lens and was written down without being
+re-measured. A second lens then tried six constructions — a real template patch and four
+live-DOM moves, two languages, two AQIs, four widths, 112 cells — and read
+`scrollWidth - clientWidth == 0` every time. **Treat it as unsupported.** The refusal does
+not rest on it; the constant-subtraction argument above stands on its own.
+
+**So no content move was made.** Constraint (h) settles it on its own: Hindi improves in
+one layout of twelve and its worst foot rises by 52px. There is no single block whose
+height rises with track width, which is what a correction to this curve would have to be,
+so this is not a matter of choosing a different block.
+
+**What shipped instead**
+
+1. The measurement, as two guards rather than a one-off number.
+   `test_no_card_in_the_today_grid_is_padded_out_to_its_neighbour` forces `align-self:
+   start` on each card and compares — it refuses a card sized by its neighbour, and turns
+   red on `align-items: stretch` at five of its eight cells, naming the 115.47px of empty
+   surface that would buy. Not all eight: at 900px in Hindi the two cards already agree to
+   0.11px, so stretch has nothing to add there. It also refuses `min-height` on the cards,
+   which levels the feet by the same means and went undetected until a reviewer mutated
+   it in. `test_the_ragged_foot_..._is_no_worse_than_measured` is a
+   ratchet, not a pin: it holds each measured foot plus 26px of headroom (one wrapped
+   `.caveat` line is 18.75px English, 22.27px Devanagari), so it refuses a change that
+   spreads the pair and stays green for one that closes them. Pinning the foot instead
+   would be a check that goes red when the defect is fixed.
+2. The reason for `start` over `stretch`, in `app.css`, with the measurement in it.
+
+**Hosted parity cost two things the local run could not have told us**, both found by the
+guards failing loudly on the first CI run rather than by reasoning:
+
+- **The runner lays a different page at the same width.** macOS draws overlay scrollbars;
+  Ubuntu draws a classic one 15px wide inside the layout viewport, and
+  `Emulation.setDeviceMetricsOverride` does not sit above it. A 720px window is 680px of
+  content here and 665px there — and at 665px `.grid-duo`'s 330px floor beats `50% - 8px`,
+  so the row falls to a single 665px column. The same stylesheet, a different layout, and a
+  card height that means something different on each machine. `--hide-scrollbars` makes the
+  two agree. Any future browser-measured test in this repo needs that flag.
+- **Two `@font-face` rules are expected to fail on Linux.** `fonts.css` gives each
+  metric-matched fallback `src: local("Arial")` or `local("Courier New")`, so the runner
+  reported `['IBM Plex Sans Fallback', 'IBM Plex Mono Fallback']` in `error` while every
+  self-hosted woff2 had loaded. Whether a machine has Arial is not a fact about this
+  deploy, so the face check exempts them by name.
+
+**What is still open.** The ragged foot is real and is NOT fixed. Within the two-card row
+this item is about, it is worst at **115px, at 720px, in Hindi** — more than double the
+51px this item was written about, in the direction nobody looked. Scope that to
+`grid-duo`: with the outlook present the row holds three cards and the spread across it is
+**220px (en) / 223px (hi)** at 1120px, set by the persona card against the outlook card,
+and nothing here addresses it. It cannot be closed by moving one block; closing it means the two
+cards carrying comparable amounts of content, which is a copy and information-architecture
+change to the persona card, not a layout tweak. That is Gate 2/4 work and it needs the
+owner's call on whether an uneven foot is worth spending copy on at all.
+
 **Exit criteria**
 
 - [ ] At 06:00, 12:00, 17:00 and 23:00 IST the named window is never in the past, always
@@ -730,7 +857,22 @@ reads `getBoundingClientRect()`. The exit criterion below cannot be met without 
 - [x] No `band_advice` or `headline` string is prohibition-only, in either language. Gate 1b widened this to `presenters._VERDICTS` as well — the set a reader actually meets — and made it executable: `tests/test_i18n.py::test_no_band_keyed_sentence_opens_with_a_prohibition`, over all fifteen band-keyed sentences in both languages, with a partner that proves the rule fires on the four it replaced.
 - [x] `window_none` names a lever, and deliberately names **no** hour. Amended by Gate 1b, 2026-08-31. "A least-bad hour" cannot be delivered: Gate 1a's floor forbids naming an hour on the severe and no-reading branches at all, and "least bad" is itself one of the ten superlatives `tests/test_window_at_the_hour.py` bans, in both languages. The reader's actual problem — a refusal and nothing else — is fixed by the lever. `window/none` ("No safe outdoor window today") is left as it stands: it is accurate, and with a lever beside it it is no longer empty-handed.
 - [x] Every new sentence checked against the evidence checklist; the check is recorded in the Gate 1b pull request, per sentence, per language, with the D-item that licenses it. `tests/test_health_claims.py` sweeps all of it mechanically (corpus 640 strings).
-- [ ] Card height delta at 1120px is under ~15px, measured in a real browser.
+- [x] **A real browser measures a rendered card height, and two guards keep it honest.**
+      *(Written by this gate for itself, replacing the criterion below. A gate that can add
+      a criterion and tick it in the same commit is weaker than one that cannot; it is
+      named here rather than left to be noticed.)*
+      `tests/test_viewport_browser.py` now calls `Runtime.evaluate` and reads
+      `getBoundingClientRect()` at 720, 900 and 1120px in both languages. Each guard was
+      driven RED by a stated mutation: `align-items: stretch` for the padding guard,
+      `.meaning`'s top margin for the ratchet, and the refuted remedy itself for the
+      premise that the reading card still carries the WHO comparison.
+- [ ] ~~Card height delta at 1120px is under ~15px~~ — **NOT MET, and withdrawn as
+      written.** It is satisfiable only by a change that measures as a regression: it
+      names the one width where the foot is at its worst, so meeting it doubles the worst
+      foot across the rest of the band and takes Hindi from 35px mean to 70px. The
+      measurement above replaces it. A criterion that survives the evidence would bound
+      the foot across the two-column band in both languages, and nothing in this gate's
+      scope can meet that one either. Carried to Gate 2/4 with the reason.
 - [ ] Full suite green on master; count recorded.
 
 ---
@@ -928,6 +1070,24 @@ resets it · `--chart` is absent from DESIGN.md's frontmatter (it is now in the 
 provenance chip's `●`/`◌` glyph is spoken as part of the freshness text · City Pulse's
 21-station rail is a bare div, so list structure and worst-first rank are not
 programmatically determinable · no `aria-controls` on the term disclosures.
+
+**From Gate 1c (2026-08-31), found by measurement and left unfixed.**
+
+· **Two thirds of the scale bar's `aria-hidden` is unguarded.**
+`tests/test_web.py::test_the_scale_marker_is_hidden_from_assistive_technology` reads the
+`.scale-mark` tag alone. Dropping `aria-hidden` from `.scale` and `.scale-ends` was
+mutated in and the whole suite stayed green — a screen reader would then announce a
+six-segment severity ramp and the words "0 good … severe 500" as if they described this
+reading. Pre-existing; 1c moved nothing, so it neither created nor touched it.
+· **The scale block's `{% if is_current %}` guard is protected by a translation
+collision, not by a test.** Removing it was caught only by
+`test_no_reading_means_no_severity_language_anywhere_on_today[hi]`, tripping on `0 अच्छी`. English passed:
+`scale_low` renders lowercase "0 good" while the forbidden list holds the capitalised band
+label "Good".
+· **"What do these numbers mean? ›" renders twice, 41px apart**, once at the foot of the
+reading card and once in the outlook-absent wide row below it, whenever a reading has no
+forecast — which is every CPCB reading, so almost every page. Measured at 1120px.
+Declutter debt, not an alignment question.
 
 **Responsive:** Hindi pill buttons drop to a 29px target outside both pointer media
 queries (clears WCAG 2.1 AA's 24px; misses DESIGN.md's own stated rule).

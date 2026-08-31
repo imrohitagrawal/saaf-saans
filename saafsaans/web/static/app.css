@@ -210,7 +210,20 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    reflow width the shell offers 288px, and a bare 330px minimum forced every
    page 42px past the viewport. min(330px, 100%) keeps the two-column threshold
    exactly where it was and lets the track give way when the container is the
-   narrower of the pair. tests/test_a11y.py sums track minimums at 320. */
+   narrower of the pair. tests/test_a11y.py sums track minimums at 320.
+
+   `start`, not `stretch`, and the difference is not cosmetic. Today's two
+   narrow cards never end level: measured in Chrome 151 across the whole
+   two-column band, the foot between them runs from 0.1px to 115px, and WHICH
+   card is the taller one changes near 840px in English and 940px in Hindi.
+   Between 332px and 532px tracks the persona card sheds 147px against the
+   reading card's 81px in English, and 216px against 55px in Hindi, so the two
+   heights cross rather than converge. `stretch` would level every one of those
+   feet by padding the SHORTER card with exactly that much empty surface --
+   115px of it at 720px in Hindi -- claiming room for content that is not
+   there. tests/test_viewport_browser.py measures both properties in a real
+   browser: one guard refuses a card sized by its neighbour, the other refuses
+   a change that spreads the pair further apart than they already are. */
 .grid { display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
         gap: 16px; align-items: start; }
