@@ -87,7 +87,9 @@ DEMOTED = [
                        " chosen for the persona above — change it to get the guidance for"
                        " someone else.", ("en", "hi")),
     ("ui", "answered_for", "Answered for", ("en", "hi")),
-    ("ui", "refusal_audit", "blocked pre-model · audited in security-events", ("en", "hi")),
+    # The suite runs with es=none, so the refusal card's default render is the
+    # unaudited branch -- see test_refusal_card_does_not_claim_an_audit_that_did_not_happen.
+    ("ui", "refusal_no_audit", "blocked pre-model · not recorded (no database index answering)", ("en", "hi")),
     ("ui", "disclaimer", "general guidance, not medical advice.", ("en",)),
 ]
 

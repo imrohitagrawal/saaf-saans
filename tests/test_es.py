@@ -29,6 +29,72 @@ def test_none_mode_logging_is_noop():
     es.log_security(None, {"event_type": "y"})
 
 
+# --- index_answers: the three properties its own docstring/comments assert
+# but nothing exercised (2s timeout, 60s failure cache, 300s success cache).
+class _PingClient:
+    def __init__(self, ok=True, calls=None):
+        self.ok = ok
+        self.calls = calls if calls is not None else []
+        self.pings = 0
+
+    def options(self, **kwargs):
+        self.calls.append(kwargs)
+        return self
+
+    def ping(self):
+        self.pings += 1
+        if isinstance(self.ok, Exception):
+            raise self.ok
+        return self.ok
+
+
+def test_index_answers_bounds_the_ping_at_two_seconds():
+    es.answer_cache_clear()
+    client = _PingClient(ok=True)
+    es.index_answers(client)
+    assert client.calls == [{"request_timeout": es._ANSWER_TIMEOUT}]
+    assert es._ANSWER_TIMEOUT == 2
+    es.answer_cache_clear()
+
+
+def test_index_answers_caches_a_failure_for_sixty_seconds_then_repings(monkeypatch):
+    es.answer_cache_clear()
+    client = _PingClient(ok=TimeoutError("down"))
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(es.time, "monotonic", lambda: clock["t"])
+
+    assert es.index_answers(client) is False
+    assert client.pings == 1
+
+    clock["t"] += es._ANSWER_TTL_FAILURE - 1
+    assert es.index_answers(client) is False
+    assert client.pings == 1, "still inside the 60s failure TTL -- must not re-ping"
+
+    clock["t"] += 2
+    assert es.index_answers(client) is False
+    assert client.pings == 2, "past the 60s failure TTL -- must re-ping"
+    es.answer_cache_clear()
+
+
+def test_index_answers_caches_a_success_for_three_hundred_seconds(monkeypatch):
+    es.answer_cache_clear()
+    client = _PingClient(ok=True)
+    clock = {"t": 2000.0}
+    monkeypatch.setattr(es.time, "monotonic", lambda: clock["t"])
+
+    assert es.index_answers(client) is True
+    assert client.pings == 1
+
+    clock["t"] += es._ANSWER_TTL - 1
+    assert es.index_answers(client) is True
+    assert client.pings == 1, "still inside the 300s success TTL -- must not re-ping"
+
+    clock["t"] += 2
+    assert es.index_answers(client) is True
+    assert client.pings == 2, "past the 300s success TTL -- must re-ping"
+    es.answer_cache_clear()
+
+
 class FakeESClient:
     def __init__(self, responses):
         # responses: list of dicts returned by successive .search calls

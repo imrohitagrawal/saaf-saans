@@ -488,7 +488,17 @@
           <div class="refusal">
             <b>{{ T('ui', 'refusal_title', 'Not processed.') }}</b>
             <p>{{ T('ui', 'refusal_body', 'That looked like an attempt to change how the assistant works, so it was stopped before reaching the model. Air, precautions, masks, timing — all fair game.') }}</p>
+            {#- t.audited reflects whether the index answered a ping AT ASK TIME,
+                not whether this turn's write actually landed (log_security
+                swallows its own exceptions) -- the same ceiling /system's
+                has_index already accepts. A turn stored before this field
+                existed is falsy here and gets the honest, not the claimed,
+                text. -#}
+            {% if t.audited %}
             <p class="caveat on-tint mono">{{ T('ui', 'refusal_audit', 'blocked pre-model · audited in security-events') }}</p>
+            {% else %}
+            <p class="caveat on-tint mono">{{ T('ui', 'refusal_no_audit', 'blocked pre-model · not recorded (no database index answering)') }}</p>
+            {% endif %}
           </div>
         {% else %}
           <div class="answer">

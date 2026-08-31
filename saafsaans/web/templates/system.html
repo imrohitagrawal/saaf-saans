@@ -21,7 +21,10 @@
 {% if view == 'observability' %}
   <div class="kpis">
     {% for k in kpis %}
-    <div class="kpi"><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
+    {#- "--" alone is a bare em dash to a screen reader; the group name says
+        what the tile is and that it has nothing to report, so it is never
+        read as a literal zero or an error. #}
+    <div class="kpi"{% if k.v == '--' %} role="group" aria-label="{{ k.l }}: {{ T('ui', 'sys_not_measured', 'not measured') }}"{% endif %}><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
     {% endfor %}
   </div>
 
@@ -69,8 +72,12 @@
           </div>
           {% endfor %}
         </div>
-      {% else %}
+      {% elif has_index %}
         <p class="empty">{{ T('ui', 'sys_empty_localities', 'No locality data yet.') }}</p>
+      {% else %}
+        {#- The one empty state on this page that used to read the same
+            "yet" whether the index was down or genuinely empty. -#}
+        <p class="empty">{{ T('ui', 'sys_empty_localities_no_index', 'Not a measured zero: no database index is answering, so locality data is not being recorded.') }}</p>
       {% endif %}
     </section>
 
@@ -123,7 +130,7 @@
 {% else %}
   <div class="kpis">
     {% for k in sec_kpis %}
-    <div class="kpi"><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
+    <div class="kpi"{% if k.v == '--' %} role="group" aria-label="{{ k.l }}: {{ T('ui', 'sys_not_measured', 'not measured') }}"{% endif %}><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
     {% endfor %}
   </div>
 
@@ -143,8 +150,10 @@
       {% elif has_index %}
         <p class="empty">{{ T('ui', 'sys_empty_blocked_7d', 'No blocked attempts recorded in the last 7 days.') }}</p>
       {% else %}
-        {#- The KPI above reads 0 in both states, and they are different facts:
-            nothing got past the guard, or nothing is being written down. -#}
+        {#- The KPI above reads -- here too, not 0: main.py gates last_7 on
+            whether THIS query answered, so the tile and this empty state
+            agree on the same fact instead of one saying 0 and the other
+            saying unrecorded. -#}
         <p class="empty">{{ T('ui', 'sys_empty_blocked_7d_no_index', 'Not a measured zero: no database index is answering, so blocked attempts are not recorded.') }}</p>
       {% endif %}
     </section>
