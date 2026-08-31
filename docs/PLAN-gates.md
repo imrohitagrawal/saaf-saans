@@ -1111,6 +1111,24 @@ one collision seam becomes two); and `.hero-advice` runs the full 676px column, 
 measure against the craft floor's 65-75ch. Both are container properties this change did not
 touch.
 
+· **`llm._rule_based` still emits the mask off the composite band.** At AQI 0 with a
+COPD child on a school run the hero is now clean, but the answer card — which a reader
+sees only after asking a question — still prints "Wear a well-fitted N95/FFP2 mask
+outdoors" because `precaution_mask_high` is gated on the VERDICT token, and the band
+ladder raises that to NO-GO off the same composite score this package moved the mask away
+from. Pre-existing and unchanged here; the fix is to gate that precaution on the AQI the
+way the lever now is, which is a change to the answer path.
+· **Three guards this package hardened are still lexical, and say so.** The lever's
+time check is a word list (clock forms, hour ranges, dayparts); the no-reading lever's
+severity check is a word list; the hero's duplication check is a six-token marker list per
+language. Each is proven to fire on the phrasings that defeated its predecessor and each
+names its own limit in its docstring. A synonym nobody listed still gets through. Making
+any of them semantic is not a copy change.
+· **The prohibition rule is clause-level, not sentence-level.** It asks whether any
+clause OPENS with a prohibition. A prohibition buried mid-clause ("Head out but skip the
+run") is not caught. Widening it needs a way to tell "do not exercise outdoors" from
+"keep any trip short" that a word list does not have.
+
 **Rejected, with reasons — do not resurrect without new evidence:** the
 largest-text-is-a-number arithmetic (DESIGN.md prescribes both values) · stripping
 26KB of design-rationale comments from `app.css` (needs a build pipeline) · the
