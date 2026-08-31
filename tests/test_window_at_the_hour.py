@@ -22,7 +22,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from saafsaans.services import clock, forecast, i18n
+from saafsaans.services import clock, forecast, i18n, normalize
 from saafsaans.web import presenters
 from saafsaans.web.main import app
 
@@ -113,7 +113,16 @@ def test_a_normal_reading_is_never_told_what_severe_air_is_told(at_ist, hour, la
     assert normal["window"] != severe["window"], (hour, lang, normal["window"])
     assert normal["window"] != missing["window"], (hour, lang, normal["window"])
     assert "N95" in normal["note"], (hour, lang, normal["note"])
-    assert severe["note"] == "" and missing["note"] == ""
+    # Each of the three gets its OWN lever, and no two of them share one. This
+    # line read `severe["note"] == "" and missing["note"] == ""` until
+    # 2026-08-31. The property it was protecting is that severe air and a
+    # missing reading are never told there is a good hour -- and that property
+    # is asserted by hour, not by emptiness, in the two tests at the top of
+    # this file, which run CLOCK_TIME over `window + note` for exactly these
+    # two branches. Emptiness protected it only by accident, at the cost of
+    # handing the reader in the worst air the least help on the page.
+    assert severe["note"] and missing["note"], (hour, lang)
+    assert len({normal["note"], severe["note"], missing["note"]}) == 3, (hour, lang)
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -281,8 +290,11 @@ SUPERLATIVES = ("calmest", "cleanest", "best time", "least bad", "safest",
                 "सबसे शांत", "सबसे साफ़", "सबसे कम ख़राब", "सबसे अच्छा", "सबसे बेहतर")
 
 
+# 380 and None joined this list on 2026-08-31, when those two branches stopped
+# returning an empty note. A guard over `window + note` reads nothing from a
+# note that is "", so until they carried copy they were being swept vacuously.
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
-@pytest.mark.parametrize("aqi", (45, 168, 250))
+@pytest.mark.parametrize("aqi", (45, 168, 250, 380, None))
 def test_no_window_ranks_the_hours_it_cannot_rank(at_ist, lang, aqi):
     """Turns red when: any window or note string starts calling a named span
     the calmest, cleanest or least bad of what is left, in either language."""
@@ -607,3 +619,213 @@ def test_clean_air_is_not_handed_a_lever_it_does_not_need(at_ist, lang):
     assert win["note"] == "", (lang, win["note"])
     poor = forecast.best_window(250, dominant_pollutant="pm25", lang=lang)
     assert poor["note"] != "", lang
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("hour", HOURS)
+def test_the_two_branches_that_name_no_hour_still_hand_over_a_lever(
+        at_ist, hour, lang):
+    """Severe air and a missing reading refuse to name an hour, and still say
+    something a reader can act on.
+
+    Both branches returned `note: ""` until 2026-08-31, so `.hero-window`
+    rendered "IF YOU MUST GO OUT" over "No safe outdoor window today" and
+    stopped -- a label promising help to the reader who must go out anyway,
+    above nothing at all. The reader in the worst air on the page was getting
+    the least help on the page.
+
+    A lever is not a window: it says what to do, never when. So both halves are
+    asserted together here -- the lever exists, and it still names no hour and
+    ranks no hours.
+
+    Turns red when: either branch stops carrying a lever, or a lever starts
+    naming a time or ranking the hours."""
+    at_ist(hour)
+    for aqi in (380, None):
+        note = forecast.best_window(aqi, dominant_pollutant="pm25",
+                                    lang=lang)["note"]
+        assert note.strip(), (hour, lang, aqi)
+        # `_names_a_time`, not `CLOCK_TIME`. These two levers carry no cited
+        # edge sentence -- unlike the normal branch, whose note opens with one
+        # and therefore does name a daypart -- so they may point at no time by
+        # any means: a clock, an hour range, or a daypart word.
+        assert not _names_a_time(note, lang), (hour, lang, aqi, note)
+        for word in SUPERLATIVES:
+            assert word.lower() not in note.lower(), (hour, lang, aqi, word)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_only_the_branch_with_a_reading_names_the_band_in_its_lever(at_ist, lang):
+    """The two levers above are not interchangeable, and the difference is the
+    whole reason the missing-reading branch needs its own string.
+
+    Severe air may name the band it measured: 380 IS in the Very Poor to Severe
+    range, and this branch's own rationale has said so since before the lever
+    existed. A missing reading may not, because nobody knows the air -- that is
+    the same rule `answer/why_unknown` follows one panel down, and the whole-
+    page sweep in test_severity_needs_a_measurement enforces it on the rendered
+    output.
+
+    The two assertions are partners: the absence below would be satisfied by a
+    lever that said nothing at all, so the presence above proves a band word in
+    a lever is reachable and is being looked for in the right place.
+
+    Turns red when: the missing-reading lever starts asserting a band, or the
+    severe lever stops naming the one it measured."""
+    at_ist(12)
+    bands = ("Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe")
+    labels = [i18n.t(lang, "band_label", b, b) for b in bands]
+
+    # The two the branch is entitled to, not any of the six. "Air is already
+    # Poor" satisfies "some band label is present" at AQI 380 and names the
+    # wrong band; above 300 the reading is in Very Poor or Severe and the
+    # rationale has always said so.
+    licensed = [i18n.t(lang, "band_label", b, b) for b in ("Very Poor", "Severe")]
+    severe = forecast.best_window(380, dominant_pollutant="pm25", lang=lang)["note"]
+    for label in licensed:
+        assert label in severe, (lang, label, severe)
+
+    missing = forecast.best_window(None, dominant_pollutant="pm25", lang=lang)["note"]
+    named = [label for label in labels if label in missing]
+    assert not named, (lang, named, missing)
+    # A band label is a word list, and a word list is not a semantic check: it
+    # does not stop "The air is probably hazardous" / "हवा शायद जानलेवा है",
+    # which asserts a severity in prose with no label in it. So the severity
+    # adjectives this app actually uses are refused here too. What this still
+    # cannot catch is a sentence that invents a new way to say it -- stated
+    # rather than papered over, and the reason the no-reading branch keeps its
+    # own key instead of reusing the severe one.
+    for word in SEVERITY_WORDS[lang]:
+        assert word not in missing.lower(), (lang, word, missing)
+
+
+# Severity asserted without a band label. Read off the strings the app already
+# ships -- aqi_meaning, the answer card's precautions, the verdicts -- plus the
+# plain negations of "safe", which are the obvious way to say it and were the
+# hole an adversarial pass walked through ("The air outside is unsafe to
+# breathe right now" on a page whose h1 says nobody knows what the air is).
+SEVERITY_WORDS = {
+    "en": ("hazardous", "unhealthy", "dangerous", "harmful", "toxic",
+           "emergency", "unsafe", "not safe", "bad for"),
+    "hi": ("ख़तरनाक", "जानलेवा", "हानिकारक", "ज़हरीली", "आपातकाल",
+           "सुरक्षित नहीं", "साँस लेने लायक़ नहीं"),
+}
+
+# Times of day written as words rather than as a clock. `CLOCK_TIME` is a
+# two-token lexical matcher (`\d` then AM/PM/बजे) and reads none of these, so
+# "go between 10 and 11 in the morning, not after dark" named an hour to a
+# reader in severe air and passed every guard in this file.
+DAYPART = {
+    "en": ("morning", "afternoon", "evening", "night", "noon", "midnight",
+           "dawn", "dusk", "sunrise", "sunset", "o'clock"),
+    "hi": ("सुबह", "दोपहर", "शाम", "रात", "तड़के", "साँझ"),
+}
+_HOUR_RANGE = re.compile(r"\b\d{1,2}\s*(?:and|to|-|–|से|तक)\s*\d{1,2}\b", re.I)
+
+
+def _names_a_time(text: str, lang: str) -> bool:
+    """True when the text points at a time of day by any means this file knows."""
+    return bool(CLOCK_TIME.search(text) or _HOUR_RANGE.search(text)
+                or any(w in text.lower() for w in DAYPART[lang]))
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_severity_word_list_would_notice_one(lang):
+    """The partner for the loop above. A word list that matches nothing passes
+    against every sentence there is.
+
+    The words are checked against copy this app already ships, so the list is
+    grounded in the vocabulary the app actually uses rather than invented for
+    the test."""
+    shipped = " ".join([
+        i18n.t(lang, "aqi_meaning", "Severe", normalize.AQI_MEANING["Severe"]),
+        i18n.t(lang, "verdict", "Extreme", presenters.verdict_for("Extreme")),
+    ]).lower()
+    assert any(w in shipped for w in SEVERITY_WORDS[lang]), (lang, shipped)
+
+
+# --- The presence -----------------------------------------------------------
+# Everything above asserts an absence -- no hour, no superlative, no repeated
+# instruction. A page that said nothing at all to anybody would satisfy every
+# one of them. This is the other side.
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("aqi", (101, 150, 200, 250, 380, None))
+def test_a_reader_who_must_go_out_is_told_what_to_wear(at_ist, lang, aqi):
+    """From CPCB Moderate upwards the lever names the mask, and it is the only
+    surface that does.
+
+    The threshold is the advisory corpus's own: data/advisories.py carries
+    "AQI 101-200 with COPD: ... Consider an N95 for essential trips"
+    (GOLD-guidance) and an N95 row for a pregnancy commute in the same range.
+    Until 2026-08-31 the hero delivered that instruction from `BAND_ADVICE`,
+    keyed on the persona-adjusted band, which put it in front of a reader at
+    AQI 0 and -- once the band stopped carrying it -- took it away from a COPD
+    senior at AQI 150 whose own risk chip read 64/100, Very High.
+
+    Turns red when: any lever from 101 up, or the missing-reading lever, stops
+    naming the mask."""
+    at_ist(12)
+    note = forecast.best_window(aqi, dominant_pollutant="pm25", lang=lang)["note"]
+    assert "N95" in note, (aqi, lang, note)
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+@pytest.mark.parametrize("hour", (6, 12))
+def test_air_the_scale_calls_clean_is_told_no_such_thing(at_ist, hour, lang):
+    """The partner. An implementation that appends the mask to every lever
+    passes the test above and is wrong here, on air the CPCB scale calls Good
+    or Satisfactory -- which is the defect being repaired, in the other
+    direction: `BAND_ADVICE["High"]` said "wear an N95 outside" at AQI 0, over
+    a band meaning reading "Air is clean. Outdoor activity is fine for
+    everyone."
+
+    Both hours matter. At 6 the lever is empty; at 12 it carries the edge
+    sentence, so this also proves the check is reading a lever that exists
+    rather than passing on an empty string.
+
+    Turns red when: the mask stops being conditional on the reading."""
+    at_ist(hour)
+    for aqi in (0, 60, 100):
+        note = forecast.best_window(aqi, dominant_pollutant="pm25",
+                                    lang=lang)["note"]
+        assert "N95" not in note, (aqi, hour, lang, note)
+    at_ist(12)
+    assert forecast.best_window(60, dominant_pollutant="pm25",
+                                lang=lang)["note"].strip(), (
+        lang, "the empty-string case would satisfy the loop above by itself")
+
+
+# Sentences that name a time of day without using a clock. Written out because
+# each one passed `CLOCK_TIME` and the whole suite.
+_TIMES_WITHOUT_A_CLOCK = {
+    "en": ("If the errand can wait, go between 10 and 11 in the morning.",
+           "Better after dark than in the afternoon.",
+           "The evening is the one to aim for."),
+    "hi": ("अगर काम टल सकता है तो सुबह निकलिए।",
+           "दोपहर के बजाय शाम बेहतर रहेगी।",
+           "रात में निकलना ठीक रहेगा।"),
+}
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_time_guard_sees_an_hour_written_as_a_word(lang):
+    """The partner for the two levers that must name no time.
+
+    `CLOCK_TIME` matches a digit followed by AM, PM or बजे and nothing else, so
+    every sentence below named an hour to a reader in severe air and passed the
+    entire suite. An absence guard that a plain-English hour walks through is
+    an absence guard over nothing.
+
+    The other direction matters as much: the normal branch's lever DOES open
+    with a daypart, because the cited edge sentence that earns the span its
+    boundary says one. So the guard is proven to fire on these, and proven not
+    to be applied where it would be wrong.
+
+    Turns red when: the time guard goes back to reading clock digits only."""
+    for sentence in _TIMES_WITHOUT_A_CLOCK[lang]:
+        assert _names_a_time(sentence, lang), (lang, sentence)
+    assert not _names_a_time(
+        i18n.t(lang, "window", "note_poor",
+               "Air is already Poor, so keep any outdoor activity short and "
+               "wear an N95."), lang), lang
