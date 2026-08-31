@@ -4,7 +4,9 @@
 # deselected, or path-filtered. 19 of the 37 test files reference i18n.py, so
 # any scoped subset is a claim about coupling that would have to stay true on
 # every future commit rather than being verified once -- and the whole suite is
-# 46 seconds against a job that spends 40 of its seconds installing.
+# 63 seconds against a job that spends 40 of its seconds installing. 53 of those
+# 63 are tests/test_viewport_browser.py: one headless Chrome, 15 page loads, and
+# the only assertions here that a layout engine has to answer.
 name: CI
 
 on:
