@@ -220,7 +220,7 @@ _HEADLINE = {
     "Moderate": "Moderate risk -- ease the hard outdoor parts",
     "High": "High risk -- move exertion indoors",
     "Very High": "Very high risk -- keep the day indoors, purifier on",
-    "Extreme": "Extreme risk -- indoors all day, windows shut, purifier on",
+    "Extreme": "Extreme risk -- stay in all day, windows shut, purifier on",
 }
 
 # Plain "what to do" line per band, so the score is actionable for lay readers.

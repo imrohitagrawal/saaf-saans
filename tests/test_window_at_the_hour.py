@@ -645,7 +645,11 @@ def test_the_two_branches_that_name_no_hour_still_hand_over_a_lever(
         note = forecast.best_window(aqi, dominant_pollutant="pm25",
                                     lang=lang)["note"]
         assert note.strip(), (hour, lang, aqi)
-        assert not CLOCK_TIME.search(note), (hour, lang, aqi, note)
+        # `_names_a_time`, not `CLOCK_TIME`. These two levers carry no cited
+        # edge sentence -- unlike the normal branch, whose note opens with one
+        # and therefore does name a daypart -- so they may point at no time by
+        # any means: a clock, an hour range, or a daypart word.
+        assert not _names_a_time(note, lang), (hour, lang, aqi, note)
         for word in SUPERLATIVES:
             assert word.lower() not in note.lower(), (hour, lang, aqi, word)
 
@@ -696,11 +700,33 @@ def test_only_the_branch_with_a_reading_names_the_band_in_its_lever(at_ist, lang
 
 
 # Severity asserted without a band label. Read off the strings the app already
-# ships: aqi_meaning, the answer card's precautions, and the verdicts.
+# ships -- aqi_meaning, the answer card's precautions, the verdicts -- plus the
+# plain negations of "safe", which are the obvious way to say it and were the
+# hole an adversarial pass walked through ("The air outside is unsafe to
+# breathe right now" on a page whose h1 says nobody knows what the air is).
 SEVERITY_WORDS = {
-    "en": ("hazardous", "unhealthy", "dangerous", "harmful", "toxic", "emergency"),
-    "hi": ("ख़तरनाक", "जानलेवा", "हानिकारक", "ज़हरीली", "आपातकाल"),
+    "en": ("hazardous", "unhealthy", "dangerous", "harmful", "toxic",
+           "emergency", "unsafe", "not safe", "bad for"),
+    "hi": ("ख़तरनाक", "जानलेवा", "हानिकारक", "ज़हरीली", "आपातकाल",
+           "सुरक्षित नहीं", "साँस लेने लायक़ नहीं"),
 }
+
+# Times of day written as words rather than as a clock. `CLOCK_TIME` is a
+# two-token lexical matcher (`\d` then AM/PM/बजे) and reads none of these, so
+# "go between 10 and 11 in the morning, not after dark" named an hour to a
+# reader in severe air and passed every guard in this file.
+DAYPART = {
+    "en": ("morning", "afternoon", "evening", "night", "noon", "midnight",
+           "dawn", "dusk", "sunrise", "sunset", "o'clock"),
+    "hi": ("सुबह", "दोपहर", "शाम", "रात", "तड़के", "साँझ"),
+}
+_HOUR_RANGE = re.compile(r"\b\d{1,2}\s*(?:and|to|-|–|से|तक)\s*\d{1,2}\b", re.I)
+
+
+def _names_a_time(text: str, lang: str) -> bool:
+    """True when the text points at a time of day by any means this file knows."""
+    return bool(CLOCK_TIME.search(text) or _HOUR_RANGE.search(text)
+                or any(w in text.lower() for w in DAYPART[lang]))
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -768,3 +794,38 @@ def test_air_the_scale_calls_clean_is_told_no_such_thing(at_ist, hour, lang):
     assert forecast.best_window(60, dominant_pollutant="pm25",
                                 lang=lang)["note"].strip(), (
         lang, "the empty-string case would satisfy the loop above by itself")
+
+
+# Sentences that name a time of day without using a clock. Written out because
+# each one passed `CLOCK_TIME` and the whole suite.
+_TIMES_WITHOUT_A_CLOCK = {
+    "en": ("If the errand can wait, go between 10 and 11 in the morning.",
+           "Better after dark than in the afternoon.",
+           "The evening is the one to aim for."),
+    "hi": ("अगर काम टल सकता है तो सुबह निकलिए।",
+           "दोपहर के बजाय शाम बेहतर रहेगी।",
+           "रात में निकलना ठीक रहेगा।"),
+}
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUAGES)
+def test_the_time_guard_sees_an_hour_written_as_a_word(lang):
+    """The partner for the two levers that must name no time.
+
+    `CLOCK_TIME` matches a digit followed by AM, PM or बजे and nothing else, so
+    every sentence below named an hour to a reader in severe air and passed the
+    entire suite. An absence guard that a plain-English hour walks through is
+    an absence guard over nothing.
+
+    The other direction matters as much: the normal branch's lever DOES open
+    with a daypart, because the cited edge sentence that earns the span its
+    boundary says one. So the guard is proven to fire on these, and proven not
+    to be applied where it would be wrong.
+
+    Turns red when: the time guard goes back to reading clock digits only."""
+    for sentence in _TIMES_WITHOUT_A_CLOCK[lang]:
+        assert _names_a_time(sentence, lang), (lang, sentence)
+    assert not _names_a_time(
+        i18n.t(lang, "window", "note_poor",
+               "Air is already Poor, so keep any outdoor activity short and "
+               "wear an N95."), lang), lang

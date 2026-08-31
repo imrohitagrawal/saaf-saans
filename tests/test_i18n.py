@@ -647,11 +647,17 @@ _ALSO_PROHIBITIONS = {
     "en": ("Head out, but do not exercise outdoors.",
            "Refrain from outdoor exertion.",
            "Steer clear of the roadside today.",
-           "Stay off the main roads this afternoon."),
+           "Stay off the main roads this afternoon.",
+           # After the dash, which is where every verdict puts its instruction.
+           "Today is dangerous for you — do not go out, never exercise "
+           "outdoors, and avoid the roadside.",
+           "High risk -- avoid the roadside"),
     "hi": ("बाहर जाने से बचें, घर के अंदर रहें।",
            "बाहर कसरत छोड़ दीजिए।",
            "आज बाहर का काम टाल दें।",
-           "बाहर की मेहनत से बचिए।"),
+           "बाहर की मेहनत से बचिए।",
+           "आज का दिन आपके लिए ख़तरनाक है — बाहर मत निकलिए।",
+           "अत्यधिक ख़तरा -- बाहर मेहनत वाला काम न करें"),
 }
 
 
@@ -674,27 +680,40 @@ def _band_keyed_sentences(lang):
             yield group, band, i18n.t(lang, group, band, source[band])
 
 
+def _clauses(text: str):
+    """Every clause in the sentence, in order.
+
+    EVERY clause, not the first. Two earlier drafts judged only the opening and
+    both were blind in the same place: the em dash separates the situation from
+    the instruction in all ten verdicts, so a rule that stops at the dash never
+    reads a single verdict's instruction. "Today is dangerous for you -- do not
+    go out, never exercise outdoors, and avoid the roadside." passed, as the
+    <h1> and as the share card description, carrying the literal sentence this
+    package removed.
+
+    No comma in the split set. A draft had one, and it cut the clause so short
+    that "Head out, but do not exercise outdoors." was judged on "Head out".
+    """
+    body = text.replace("--", "—")
+    return [c.strip() for c in re.split(r"[.।;—]", body) if c.strip()]
+
+
 def _opening(text: str) -> str:
-    """The clause a reader meets first, with any band name in front of it cut."""
-    body = text.split("--", 1)[1] if "--" in text else text
-    # No comma in the split set. An earlier draft had one, and it cut the
-    # clause so short that "Head out, but do not exercise outdoors." was judged
-    # on the words "Head out" and passed. The em dash stays: it separates the
-    # situation from the instruction in every verdict, and the sentence this
-    # rule was written against put the prohibition on its left.
-    return re.split(r"[.।—]", body)[0].strip()
+    """The clause a reader meets first. Reporting only -- the rule reads all."""
+    clauses = _clauses(text)
+    return clauses[0] if clauses else ""
 
 
 def _is_prohibition(text: str, lang: str) -> bool:
     pattern = _HI_PROHIBITION if lang == "hi" else _EN_PROHIBITION
-    return bool(pattern.search(_opening(text)))
+    return any(pattern.search(clause) for clause in _clauses(text))
 
 
 @pytest.mark.parametrize("lang", ("en", "hi"))
 def test_no_band_keyed_sentence_opens_with_a_prohibition(lang):
     """Turns red when: any of the fifteen sentences a band can put in front of a
     reader starts by naming what not to do instead of what to do."""
-    offenders = [f"{group}/{band}: {_opening(text)}"
+    offenders = [f"{group}/{band}: {text}"
                  for group, band, text in _band_keyed_sentences(lang)
                  if _is_prohibition(text, lang)]
     assert not offenders, "opens with a prohibition:\n  " + "\n  ".join(offenders)
@@ -782,3 +801,50 @@ def test_the_imperative_rule_rejects_a_sentence_that_only_describes(description)
     Turns red when: the rule goes back to matching an ending anywhere in the
     string instead of at the end of a word."""
     assert not carries_an_imperative(description), description
+
+
+# --- The ramp, pinned -------------------------------------------------------
+# A REGRESSION GUARD, not a bite-proof, and labelled so on purpose -- the same
+# form and the same reason as GOLDEN_WINDOWS in test_window_at_the_hour.py.
+#
+# `presenters._VERDICTS` claims to be monotone in words as well as in colour,
+# and nothing could check it: an adversarial pass reversed all five English
+# verdicts, so Extreme printed "Today is an easy one for you", and the whole
+# suite stayed green. Severity order in prose is not decidable by machine, and
+# no rule here pretends to decide it. What this does is make any change to the
+# ten sentences a reader meets first show up as a diff a person has to read,
+# with the bands in order beside them.
+GOLDEN_VERDICTS = """
+Low        | Today is an easy one for you — go and use it.
+Moderate   | Today is manageable for you — take it at an easy pace.
+High       | Today is hard on lungs like yours — cut the exertion.
+Very High  | Today is a serious strain for you — keep it to what has to be done.
+Extreme    | Today is dangerous for you — let only the unavoidable take you outside.
+"""
+
+GOLDEN_VERDICTS_HI = """
+Low        | आज का दिन आपके लिए आसान है — बाहर निकलिए और दिन का फ़ायदा उठाइए।
+Moderate   | आज का दिन आपके लिए ठीक-ठाक है — रफ़्तार आराम की रखिए।
+High       | आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम कीजिए।
+Very High  | आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Extreme    | आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+"""
+
+
+@pytest.mark.parametrize("lang,golden",
+                         (("en", GOLDEN_VERDICTS), ("hi", GOLDEN_VERDICTS_HI)),
+                         ids=("en", "hi"))
+def test_the_verdict_ramp_is_what_a_reader_gets(lang, golden):
+    """Turns red when: any of the five verdicts a reader meets first changes, in
+    either language, including a change that only reorders them.
+
+    It cannot see whether the new order is monotone -- that is a reading, and it
+    is the reviewer's, not this file's. It can refuse to let the order change
+    without a person seeing it."""
+    from saafsaans.services import risk
+    from saafsaans.web import presenters
+
+    rows = [f"{band:<10} | {i18n.t(lang, 'verdict', band, presenters._VERDICTS[band])}"
+            for band in risk.RISK_BANDS]
+    assert "\n".join(rows) == golden.strip(), (
+        "the verdict ramp changed; bands are in RISK_BANDS order")

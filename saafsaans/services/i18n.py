@@ -214,8 +214,9 @@ HI: dict = {
         "Low": "कम ख़तरा -- दिन की योजना वैसी ही रहने दें",
         "Moderate": "मध्यम ख़तरा -- बाहर के मेहनत वाले कामों में आराम बरतें",
         "High": "ज़्यादा ख़तरा -- मेहनत वाला काम घर के अंदर करें",
-        "Very High": "बहुत ज़्यादा ख़तरा -- पूरा दिन घर के अंदर, प्यूरीफ़ायर चलता रहे",
-        "Extreme": "अत्यधिक ख़तरा -- दिन भर घर के अंदर, खिड़कियाँ बंद, प्यूरीफ़ायर चालू",
+        "Very High": "बहुत ज़्यादा ख़तरा -- पूरा दिन घर के अंदर रहें, प्यूरीफ़ायर चलाते रहें",
+        "Extreme": "अत्यधिक ख़तरा -- दिन भर घर के अंदर रहें, खिड़कियाँ बंद रखें और "
+                   "प्यूरीफ़ायर चलाते रहें",
     },
     # normalize.AQI_MEANING -- what each CPCB band means for a person.
     "aqi_meaning": {
@@ -1121,8 +1122,8 @@ HI: dict = {
         # The two branches that name no hour. Both said nothing at all until
         # 2026-08-31, so `.hero-window` printed "अगर बाहर जाना ही पड़े" over
         # "आज बाहर के लिए कोई सुरक्षित समय नहीं" and stopped.
-        "note_severe": "हवा बहुत ख़राब से गंभीर श्रेणी में है, इसलिए बाहर का कोई भी काम "
-                       "कम समय का और धीमा रखें और N95 पहनें।",
+        "note_severe": "हवा बहुत ख़राब से लेकर गंभीर तक की श्रेणी में है, इसलिए बाहर "
+                       "का कोई भी काम कम समय का और धीमा रखें और N95 पहनें।",
         # No band word here, in either language: with no reading nobody knows
         # the air, and the whole-page sweep in
         # test_severity_needs_a_measurement forbids every band label on this

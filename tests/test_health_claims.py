@@ -123,14 +123,22 @@ RULES = [
         # until 2026-08-31 neither was caught. Widened, not loosened: the
         # 640-string corpus gains no hit, and the allowed twin below still
         # passes, so nothing honest was blocked to close it.
+        # Third person, passive and the Hindi plural are here for the same
+        # reason as the present tense: "a respirator protects the lungs",
+        # "your lungs are protected", "मास्क आपके फेफड़ों को बचाते हैं" are the
+        # same promise as the second-person singular, and each shipped green
+        # under an adversarial pass on 2026-08-31.
         re.compile(
             r"(?:will|going to)\s+(?:protect|prevent|stop|cure|heal|fix)\b"
-            r"|(?:protects?|prevents?|shields?|safeguards?)\s+(?:you|your)\b"
+            r"|(?:protects?|prevents?|shields?|safeguards?)"
+            r"\s+(?:the|his|her|their|you|your)\b"
+            r"|(?:are|is)\s+(?:protected|shielded|safeguarded)\b"
+            r"|will\s+thank\s+you\b"
             r"|keeps?\s+(?:you|your)\b" + _NEAR + r"{0,30}"
             r"\b(?:safe|healthy|clear|protected)\b"
             r"|guarantee(?:s|d)?\b|ensures?\s+(?:you|your)\b"
-            r"|बचाएगा|बचाएगी|सुरक्षित\s+रखेगा|सुरक्षित\s+रखत[ीा]|रोकेगा"
-            r"|ठीक\s+कर\s+देगा|रक्षा\s+कर|बचात[ीा]",
+            r"|बचाएगा|बचाएगी|सुरक्षित\s+रखेगा|सुरक्षित\s+रखत[ेीा]|रोकेगा"
+            r"|ठीक\s+कर\s+देगा|रक्षा\s+कर|बचात[ेीा]|बचाव\s+करत[ेीा]",
             re.IGNORECASE),
         "An N95 will protect your lungs from damage.",
         "Wear an N95 outdoors.",
@@ -320,6 +328,13 @@ D1_PRESENT_TENSE = (
     "This mask shields you from fine particles.",
     "प्यूरीफ़ायर चलाइए, यह आपके फेफड़ों की रक्षा करता है।",
     "N95 आपको बचाता है।",
+    # Third person, passive and the Hindi plural. All five shipped green under
+    # an adversarial pass before these branches existed.
+    "A respirator protects the lungs on a day like this.",
+    "Your lungs are protected by a good mask.",
+    "Your lungs will thank you for it.",
+    "मास्क आपके फेफड़ों को बचाते हैं।",
+    "अच्छे मास्क आपके फेफड़ों की रक्षा करते हैं।",
 )
 # The nearest compliant sentences to those five: the same actions, with the
 # outcome taken out. If one of these ever fails, D1 has been tightened into
