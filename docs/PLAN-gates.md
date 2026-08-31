@@ -86,6 +86,52 @@ writes serialize, or use `isolation: "worktree"` across genuinely disjoint files
    Never `git push --force`. Never `git branch -D` (safe delete only).
 10. **Hand back** to the main orchestrator with the gate's exit evidence.
 
+### Merging, mechanically — learned the hard way on 2026-08-31
+
+The protocol above says "merge into master". Four things about doing that are not obvious,
+and three of them nearly shipped a mistake.
+
+**A sub-orchestrator never merges.** It hands back at a green PR; one coordinator holds a
+serialized queue. Not a style preference: with several lanes green at once, each was tested
+against the master it branched from, so merging in parallel lands at least one commit that
+nothing tested against what the others just merged.
+
+**`gh pr checks --watch` will hand you the previous commit's green run.** Called soon after a
+push, before GitHub has created a check run on the new head, it reports the *old* run and
+exits 0. This happened: a Hindi fix was pushed, `--watch` returned green for the commit
+before it, and the merge was one command away. Wait for a check run to *exist* on the actual
+head SHA:
+
+```bash
+HEAD_OID=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+gh api "repos/<owner>/<repo>/commits/$HEAD_OID/check-runs" --jq '.check_runs[].name'
+```
+
+**Merge pinned to the commit that was tested**, so anything pushed in between refuses rather
+than merging untested:
+
+```bash
+gh pr merge "$PR" --squash --delete-branch --match-head-commit "$HEAD_OID"
+```
+
+**`--delete-branch` abandons the remote deletion if the local delete fails**, and the local
+delete fails whenever a worktree still holds the branch. The remote branch is then silently
+left behind — `git ls-remote --heads origin` is the check, not the absence of an error. And
+after a squash merge `git branch -d` always refuses, because the branch tip is not an
+ancestor of master; confirm the content landed before forcing:
+
+```bash
+git diff --stat master <branch>   # empty output = every line is in master
+git worktree remove <path>        # worktree FIRST -- a branch in use cannot be deleted
+git branch -D <branch>
+```
+
+`branch_protection` on this repo carries `enforce_admins: true`, so there is no bypass and
+`--admin` fails for everyone including the owner. That is deliberate: with it false, a direct
+push to master succeeded while GitHub printed `Required status check "suite" is expected`.
+
+---
+
 ### How to report a stop
 
 When a gate hits a checkpoint that belongs to the owner, do not guess and do not
@@ -543,6 +589,24 @@ The current strings, verified in `saafsaans/services/i18n.py`:
 Three of five advice bands lead with a prohibition, and the worst-case window leaves a
 person with a school run holding nothing.
 
+**Correction, 2026-08-31 — two of these targets are the wrong objects.**
+
+`risk._HEADLINE` is rendered **nowhere**. No template references it; it exists only in
+`compute_risk()`'s return contract. The headline a reader meets is a third five-string set,
+`presenters._VERDICTS` (`presenters.py:39-45`), which carries *"Don't go out unless you must
+— this air is dangerous for you."* If the goal is that no prohibition-leading sentence
+reaches a reader, `_VERDICTS` is the set that matters, and it is in neither item 1 nor the
+`test_health_claims.py` corpus.
+
+The `window_none` quoted below is `llm.py:476-479`, reachable only when `best_window` is
+falsy — and `forecast.best_window()` always returns a non-empty `window`, so that branch is
+**dead on the live path** and no test covers it. The live string is `forecast`'s
+`window/none` (`i18n.py:1067`).
+
+Item 1 must also be authored together with Gate 1a's `window.note`: `.hero-advice` and
+`.hero-window .lever` already say "keep it short" and "wear an N95" in the same hero, gated
+on different variables, so rewriting one alone produces a third phrasing of the same advice.
+
 **Action items**
 
 1. Rewrite `band_advice` (×5), `headline` (×5), and `window_none` — **in both
@@ -590,9 +654,17 @@ timing one:
    "running takes in about four times the air that walking does."
 10. The **timing** number ("7pm saves you 84 ug") is deferred to Gate 4 — see the risk
     register. It cannot be computed honestly today.
-11. Check that no caller passes a spaced activity string: `inhalation_ratio("child",
-    "school run")` silently returns the sedentary fallback because the keys are
-    underscored (`school_run`). A silent fallback would understate a child's intake.
+11. **Checked 2026-08-31: latent, not live.** `inhalation_ratio` does fall back to sedentary
+    for any unrecognised key, and the understatement is large — `("child", "outdoor exercise")`
+    returns 1.14 where `("child", "outdoor_exercise")` returns 10.0. But no caller passes a
+    spaced string: `main.py` routes every activity through `normalize.norm_activity()`, which
+    maps the UI's `"School run"` to `"school_run"` before it reaches `risk.py`. There is one
+    production path in and it is pre-normalised.
+
+    So this is not a defect to repair; it is a hazard for the code **item 9 is about to
+    write**. A new call site with a hardcoded `"school run"` is exactly how it becomes live.
+    Make the fallback loud at that boundary, and keep `tests/test_risk.py:218`, which
+    exercises the fallback deliberately and asserts it returns 1.0.
 
 #### 1d note carried from Gate 0.5
 
@@ -611,18 +683,39 @@ reading card's **360px**: a **51px** ragged foot, narrowing to 13px at 900px. Ca
 `align-items: start` on `.grid` (`app.css:208`), which is deliberate and correct —
 stretching would inflate a card with meaningless empty padding.
 
-**Note from Gate 0.5:** the System observability grid now holds **three** cards, not two
-(the viewport breakdown joined events and localities). Same `.grid` rule, so it forms three
-tracks from about 1030px and a 2+1 row below that. Card-alignment work inherits it.
+~~**Note from Gate 0.5:** the System observability grid now holds three cards~~ —
+**wrong when written, corrected 2026-08-31.** The viewport card is `class="card wide"`
+(`system.html:96`), made wide in `6416b42` — the same commit that introduced it, the same day
+this note was written, with a comment measuring exactly the three-track problem the note
+predicts. The Observability grid lays **two** narrow tracks, not three. Card-alignment work
+inherits a two-card match, the same shape as Today's.
 
 **Action items**
 
 1. Fix the asymmetry **at the source, not by stretching**: the reading card is taller
-   because it carries the CPCB scale bar *and* the WHO comparison line. Move one into
-   the full-width caveat row that already sits below, so the two cards land within
-   ~10px naturally.
-2. Do **not** set `align-items: stretch`.
+   because it carries the CPCB scale bar *and* the WHO comparison line. Move one below the
+   pair, so the two cards land within ~10px naturally.
+2. Do **not** set `align-items: stretch` (`app.css:216` — this line was recorded as 208 and
+   has moved). Put the reason in the CSS while you are there: the argument for `start` over
+   `stretch` exists only in this document, and anyone reading the stylesheet cold has none.
 3. Repair the tests that pin card structure; add one that pins the new placement.
+
+**Correction, 2026-08-31 — the row this fix moves into does not exist.** Item 1 said "the
+full-width caveat row that already sits below". The only `.caveat.wide` on the page is
+`today.html:342`, gated `{% if not outlook and has_reading %}` — it renders only when the
+five-day outlook is **absent**, and disappears the moment the outlook is present, which is
+the state the 51px measurement was taken in. The `.caveat.wide` *convention* exists and works;
+the row does not. Whoever implements this creates one, or makes that conditional row
+unconditional. Only one test is genuinely fragile: `tests/test_declutter.py:379-380` pins the
+literal `'<p class="caveat">{{ who_line }}'`, so changing that class attribute breaks it. The
+`.scale`, `.scale-mark` and remaining `who_line` tests search the whole body and survive a
+relocation — but if `.scale-mark` leaves the `aria-hidden` `.scale-wrap`, its own
+`aria-hidden` must travel with it.
+
+**And nothing here measures a rendered height yet.** `tests/test_viewport_browser.py` has the
+plumbing — real uvicorn server, real headless Chrome, a CDP session,
+`Emulation.setDeviceMetricsOverride` — but no code in this repo calls `Runtime.evaluate` or
+reads `getBoundingClientRect()`. The exit criterion below cannot be met without adding that.
 
 **Exit criteria**
 
@@ -800,7 +893,7 @@ Ranked by expected damage, not by likelihood.
 | R5 | Browser-measured tests make the suite slow or flaky | 2a | The Devanagari sweep needs headless Chrome over CDP. A flaky gate is worse than no gate | Keep it a separate marked suite; assert determinism by running it three times before merging |
 | R6 | Gate 0.5 ships a device signal that quietly misleads | 0.5 | Zero JS means there is no viewport on the server. A user-agent proxy answers a different question than the one asked | State the method and its limits in the System view; never present the proxy as a viewport measurement |
 | R7 | A usage limit kills a run mid-flight | any | Already happened once this project: a run died between build and merge, leaving ten branches unmerged | One gate per run; progress recorded in this file as it completes |
-| R8 | Manual deploy drifts from master | 1d | There is no CI. Production sat months behind master until 2026-08-10 and nobody knew | Verify every deploy by asset-hash identity against local master, never by `/health` |
+| R8 | Manual deploy drifts from master | 1d | There is no CI. Production sat months behind master until 2026-08-10 and nobody knew | **Superseded 2026-08-31.** `/health` now reports the commit the image was built from, so a deploy is verified by comparing that against `origin/master`. The asset-hash check this row recommended is the *weaker* one: it hashes `app.css` alone, and on 2026-08-31 it reported "parity OK" against an instance nine files behind master, because the release that day changed fonts, `main.py` and a template and touched no CSS. Keep it as a second signal; never as the only one |
 | R9 | The card fix breaks tests that pin card structure | 1c | Several tests assert the reading card's contents and order | Expected and cheap; repair them in the same commit |
 | R10 | The timing counterfactual gets built anyway | 4 | It is the most attractive idea in the backlog and the least defensible without hourly data | It is written down as deferred, with the reason. Revisit only alongside a data-layer decision |
 
