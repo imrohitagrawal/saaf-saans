@@ -157,6 +157,10 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    text-underline-offset keeps it off the Devanagari descenders. */
 .caveat a { color: var(--accent); }
 .caveat.on-tint { color: var(--text-2); }
+/* The CSP migration deleted `style="margin-top:16px"` from the Guide's
+   closing paragraph, so it fell to the base 8px above. A modifier, not a
+   change to `.caveat`: the spacing is a one-off, the voice is not. */
+.caveat-wide-gap { margin-top: 16px; }
 /* The window is a baseline-aligned flex row, and a flex item is blockified, so
    .caveat's top margin would push this one out of the alignment it shares with
    the label and the value. */
@@ -368,6 +372,15 @@ select, input[type="text"] {
 .scale-mark { position: absolute; top: 0; left: var(--p, 0%); transform: translateX(-50%);
               white-space: nowrap;
               font-family: var(--mono); font-size: 11px; font-weight: 600; }
+/* Split from the label: centring one string ("325 ▾") on `--p` put the
+   pointer past the bar at AQI 500, up to half the STRING's width off. This
+   glyph rides `--p` alone, centred on its own ~7px. Anchored to the foot of
+   the label's existing 15px band, not a taller `.scale-wrap`: that padding
+   is load-bearing -- test_viewport_browser.py measures the reading card's
+   foot against it with 26px of headroom. */
+.scale-tick { position: absolute; top: 15px; left: var(--p, 0%);
+              transform: translate(-50%, -100%);
+              font-family: var(--mono); font-size: 11px; line-height: 1; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
 /* The legend reuses .band-g1..g6, which already expose --ink, rather than
    repeating the six hexes a second time. Widths mirror the CPCB ranges each
@@ -545,6 +558,11 @@ select, input[type="text"] {
 /* Deliberately mono-heavy and flat: this register must not sound like advice. */
 .kpis { margin-top: 14px; display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+/* Security's two-tile grid, uncapped, stretched to 353px tiles against the
+   System view's 172px -- the CSP migration deleted `style="max-width:640px"`
+   rather than moving it. A class, not `.kpis` itself: System's many tiles
+   are meant to fill the row. */
+.kpis-narrow { max-width: 640px; }
 .kpi { background: var(--surface); border: 1px solid var(--border);
        border-radius: 14px; padding: 12px 14px; }
 .kpi .v { font-family: var(--mono); font-weight: 600; font-size: 22px; }
@@ -554,20 +572,28 @@ select, input[type="text"] {
 .sysbar .l { color: var(--text-2); }
 .sysbar .v { text-align: right; font-weight: 600; }
 .cols { margin-top: 12px; display: flex; align-items: flex-end; gap: 8px; height: 74px; }
-/* Grid, not a flex column: the bar's height is a percentage, and in a flex
-   column it resolves against the whole 74px and is then shrunk to fit around
-   the count and the day label -- measured 31.91px for 75% and 31.91px again
-   for 100%, two different days drawn the same height. The 1fr row is the bar
-   area itself, so the percentage is linear across it. */
-.col { flex: 1; display: grid; grid-template-rows: auto 1fr auto; gap: 4px;
+/* Grid, not flex: a percentage height needs a definite track, not the
+   whole 74px shrunk around neighbours -- measured 31.91px for both 75% and
+   100% under flex, one bar. 1fr is the bar's own track, linear across it.
+   Row 1 is a fixed 15px spacer, not `auto`: the count sat there, pinned to
+   the top regardless of the bar's height, up to 35.6px above a short one.
+   It now lives inside `.b` (`bottom: 100%`), tracking the bar's own top;
+   the spacer caps how tall the always-present p100 bar grows, so its count
+   can never clear `.cols`' own top edge. */
+.col { flex: 1; display: grid; grid-template-rows: 15px 1fr auto; gap: 4px;
        justify-items: center; align-self: stretch; }
-.col .n { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
-.col .b { width: 100%; height: var(--p, 0%); align-self: end;
-          background: var(--chart); border-radius: 4px 4px 0 0; }
-/* A day with nothing blocked still draws a baseline, so the column reads as
-   measured-and-zero rather than as a column that failed to render. */
+/* `.n` moved inside `.b`, leaving two grid items for three rows; without an
+   explicit row each, auto-placement puts the bar in the spacer. */
+.col .b { grid-row: 2; position: relative; width: 100%; height: var(--p, 0%);
+          align-self: end; background: var(--chart); border-radius: 4px 4px 0 0; }
+/* Measured-and-zero, not failed-to-render. */
 .col .b-nil { height: 2px; }
-.col .d { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+/* A count rounding to p0 must still clear the baseline; skips `.b-nil`. */
+.col .b:not(.b-nil) { min-height: 3px; }
+.col .n { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+          margin-bottom: 2px; font-family: var(--mono); font-size: 11px;
+          color: var(--text-2); white-space: nowrap; }
+.col .d { grid-row: 3; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 /* Pushes the red-team simulation button to the row's far edge, same idiom as
    .prov-count/.trend-val. */
 .sim-form { margin-left: auto; }
@@ -643,10 +669,9 @@ body::after { content: ""; position: fixed; top: 0; left: 0; width: 1px;
 /* Every Guide table sits in one of these. The EPA rate table is five columns
    of mono figures and cannot shrink below them, so without its own scroll
    container it forced the PAGE to scroll sideways at narrow widths
-   (WCAG 1.4.10). The wrapper scrolls; the page never does. Three of the four
-   also open with the same gap below the text above them, so that is this
-   rule's default too -- the bands table (12px) is the one exception and
-   keeps writing its own inline margin rather than being forced onto it. */
+   (WCAG 1.4.10). The wrapper scrolls; the page never does. All four now
+   open with the same gap; the bands table's own inline 12px margin folded
+   in with the CSP migration. */
 .table-scroll { overflow-x: auto; margin-top: 8px; }
 
 .faq { margin: 12px 0 0; display: flex; flex-direction: column; gap: 14px; }
@@ -654,9 +679,9 @@ body::after { content: ""; position: fixed; top: 0; left: 0; width: 1px;
 .faq dd { margin: 3px 0 0; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .faq em { font-style: italic; }
 
-/* h3.kicker is used only inside the Guide's sub-sections, and three of its
-   four headings there open the same gap above them, so the fourth (the
-   score-words heading, 18px) is the one that keeps writing its own margin. */
+/* h3.kicker: all four Guide sub-headings share this gap now; the
+   score-words heading's own inline 18px margin folded in with the CSP
+   migration. */
 h3.kicker { margin-top: 20px; }
 /* The band table's "what it means for you" cell. font-family dropped: the
    cell already inherits --body from <body>, so naming it again said nothing. */

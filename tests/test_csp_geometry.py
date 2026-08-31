@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 
 from saafsaans.web import presenters as pr
 from saafsaans.web.main import app
+from tests.test_viewport_browser import browser, served  # noqa: F401 -- fixtures
 
 CSS_PATH = Path(__file__).resolve().parents[1] / "saafsaans/web/static/app.css"
 TEMPLATES = Path(__file__).resolve().parents[1] / "saafsaans/web/templates"
@@ -246,6 +247,128 @@ def test_the_system_bars_and_day_columns_carry_their_own_geometry(monkeypatch):
     assert len({b for b in bars if b != "b-nil"}) == 5, bars
 
 
+def test_a_nonzero_day_never_draws_shorter_than_the_zero_baseline():
+    """`.col .b` rounds a count's percentage of the day's max to a whole-percent
+    step class (p0..p100). A count as small as 1 against a large day max rounds
+    to p0, drawing `height:0%` -- shorter than `.b-nil`'s 2px zero baseline, so
+    the day with SOME pollution drew a shorter bar than the day with none.
+    `.col .b:not(.b-nil)` needs a floor above 2px so no real count can ever
+    round to a bar this short; `.b-nil` itself must stay untouched, or the
+    zero baseline stops being the shortest thing on the chart."""
+    assert _declares(".col .b-nil", "height") == "2px", (
+        "the zero-day baseline height changed; the floor below is sized against it")
+    floor = _declares(".col .b:not(.b-nil)", "min-height")
+    assert floor is not None, "no floor keeps a rounded-to-p0 real count above the baseline"
+    assert float(floor.rstrip("px")) > 2.0, (
+        floor, "the floor must clear the 2px baseline, not just match it")
+
+
+def test_the_system_day_columns_render_a_real_pixel_taller_than_the_baseline(served, browser):
+    """The assertion above reads declarations; a declaration can be shadowed,
+    overridden, or never resolve the way the cascade suggests. This renders
+    both classes for real, off the page's own loaded stylesheet, and measures
+    the boxes a browser actually paints -- the only check nothing else in the
+    suite performs. Deleting `.col .b-nil{height:2px}` collapses the baseline
+    to 0px and turns `nil_h == 2` red; reintroducing the old flat percentage
+    height (no floor) turns `p1_h > nil_h` red the moment day_max is large
+    enough to round a real count to p0."""
+    session = browser
+    session.load(f"{served}/?probe=geometry", 400)
+    heights = session.evaluate("""
+        (function () {
+          return document.fonts.ready.then(function () {
+            var cols = document.createElement('div'); cols.className = 'cols';
+            var mk = function (cls) {
+              var col = document.createElement('div'); col.className = 'col';
+              var b = document.createElement('span'); b.className = 'b ' + cls;
+              col.appendChild(b);
+              return {col: col, b: b};
+            };
+            var nil = mk('b-nil'), p1 = mk('p1'), p50 = mk('p50');
+            cols.appendChild(nil.col); cols.appendChild(p1.col); cols.appendChild(p50.col);
+            document.body.appendChild(cols);
+            var out = [nil.b.getBoundingClientRect().height,
+                       p1.b.getBoundingClientRect().height,
+                       p50.b.getBoundingClientRect().height];
+            document.body.removeChild(cols);
+            return out;
+          });
+        })();
+    """)
+    nil_h, p1_h, p50_h = heights
+    assert nil_h == 2, (heights, "the zero baseline itself moved")
+    assert p1_h > nil_h, (heights, "a day rounded to p0 still drew no taller than zero")
+    assert p50_h > p1_h, (heights, "the floor must not flatten every nonzero step to one height")
+
+
+def test_the_scale_tick_carries_the_same_position_as_its_label():
+    """The caret used to be the last character of the label string, centred
+    with it via one `translateX(-50%)` -- so the marker's true position
+    drifted by up to half the label's own width. Splitting them only fixes
+    anything if both still ride the identical step class; if the tick fell
+    out of sync with `pos(scale_pos)` it would mark a position the label
+    does not."""
+    steps = _steps()
+    with TestClient(app) as client:
+        from saafsaans.services import waqi
+        from tests.conftest import LIVE_READING
+        real = waqi.get_aqi
+        waqi.get_aqi = lambda loc, es_client=None: ({**LIVE_READING, "station": loc}, "ok")
+        try:
+            body = client.get("/", params={"locality": "Anand Vihar", "age": "Adult",
+                                           "condition": "Asthma",
+                                           "activity": "Outdoor exercise"}).text
+        finally:
+            waqi.get_aqi = real
+
+    mark = re.search(r'<div class="scale-mark ([^"]+)"', body)
+    tick = re.search(r'<div class="scale-tick ([^"]+)"', body)
+    assert mark and tick, "both the label and the tick must render"
+    assert mark.group(1).strip() == tick.group(1).strip(), (
+        mark.group(1), tick.group(1), "the tick drifted from the label it marks")
+    assert tick.group(1).strip() in steps
+
+
+def test_the_scale_tick_is_centred_on_its_own_position_in_a_real_browser(served, browser):
+    """A shared class only proves both ride the same `--p`; it does not prove
+    the rendered pixel is where `--p` says, because the pre-split bug also
+    shared one class and still centred the wrong box. This measures the
+    tick's own rendered centre-x against the scale bar's own left edge plus
+    `--p` percent of its width, at the low, middle and high end of the scale
+    -- where a whole-string centring bug shows up worst."""
+    from saafsaans.services import waqi
+    from tests.conftest import LIVE_READING
+
+    session = browser
+    real = waqi.get_aqi
+    waqi.get_aqi = lambda loc, es_client=None: ({**LIVE_READING, "station": loc}, "ok")
+    waqi.cache_clear()
+    try:
+        session.load(f"{served}/?locality=Anand+Vihar&age=Adult&condition=Asthma"
+                     f"&activity=Outdoor+exercise", 400)
+    finally:
+        waqi.get_aqi = real
+        waqi.cache_clear()
+    result = session.evaluate("""
+        (function () {
+          return document.fonts.ready.then(function () {
+            var scale = document.querySelector('.scale');
+            var tick = document.querySelector('.scale-tick');
+            if (!scale || !tick) { return null; }
+            var sr = scale.getBoundingClientRect();
+            var tr = tick.getBoundingClientRect();
+            var pct = parseFloat(getComputedStyle(tick).getPropertyValue('--p')) || 0;
+            var wanted = sr.left + sr.width * pct / 100;
+            var got = tr.left + tr.width / 2;
+            return {wanted: wanted, got: got, drift: Math.abs(wanted - got)};
+          });
+        })();
+    """)
+    assert result is not None, "no tick rendered on the live reading, so this proved nothing"
+    assert result["drift"] <= 2.0, (
+        result, "the tick centre drifted more than 2px from the position it marks")
+
+
 def test_the_caret_label_holds_one_line_at_the_top_of_the_scale():
     """`left` reaching the caret is what makes wrapping possible: an absolutely
     positioned box with `left` and no `right` shrinks to fit the space that
@@ -268,3 +391,88 @@ def test_the_caret_label_holds_one_line_at_the_top_of_the_scale():
     # against a 304px card edge at the 320px reflow width).
     assert _declares(".scale-mark", "transform") == "translateX(-50%)", (
         "the caret is no longer centred on the position it marks")
+
+
+def test_the_day_count_sits_near_its_own_bar_at_every_height(served, browser):
+    """`.col`'s count used to sit in its own fixed row at the top of the 74px
+    band regardless of the bar beneath it -- up to 35.6px above a short bar.
+    Nesting the count inside the bar (`bottom: 100%` of `.b`) makes it track
+    the bar's OWN rendered top, for a short bar and a full-height one alike --
+    and a reserved spacer row keeps even a p100 bar's count from escaping the
+    band above `.cols` entirely, which an unbounded float would do on every
+    render (the tallest of seven days is always p100 by construction)."""
+    session = browser
+    session.load(f"{served}/?probe=geometry2", 400)
+    result = session.evaluate("""
+        (function () {
+          return document.fonts.ready.then(function () {
+            var cols = document.createElement('div'); cols.className = 'cols';
+            var mk = function (cls) {
+              var col = document.createElement('div'); col.className = 'col';
+              var n = document.createElement('span'); n.className = 'n'; n.textContent = '4';
+              var b = document.createElement('span'); b.className = 'b ' + cls;
+              b.appendChild(n);
+              var d = document.createElement('span'); d.className = 'd'; d.textContent = 'Mon';
+              col.appendChild(b); col.appendChild(d);
+              return {col: col, b: b, n: n};
+            };
+            var short = mk('p5'), tall = mk('p100');
+            cols.appendChild(short.col); cols.appendChild(tall.col);
+            document.body.appendChild(cols);
+            var colsTop = cols.getBoundingClientRect().top;
+            var out = {
+              short_gap: short.b.getBoundingClientRect().top -
+                         short.n.getBoundingClientRect().bottom,
+              tall_gap: tall.b.getBoundingClientRect().top -
+                        tall.n.getBoundingClientRect().bottom,
+              tall_n_top: tall.n.getBoundingClientRect().top,
+              cols_top: colsTop
+            };
+            document.body.removeChild(cols);
+            return out;
+          });
+        })();
+    """)
+    assert abs(result["short_gap"]) <= 3.0, (
+        result, "the count no longer sits immediately above its own short bar")
+    assert abs(result["tall_gap"]) <= 3.0, (
+        result, "the count no longer sits immediately above the tallest bar")
+    assert result["tall_n_top"] >= result["cols_top"] - 1.0, (
+        result, "the tallest bar's count escaped above the .cols band entirely")
+
+
+def test_the_security_kpi_grid_keeps_its_own_max_width():
+    """The CSP migration deleted `style="max-width:640px"` from the Security
+    KPI grid rather than moving it to a class, so a two-or-three-tile row
+    stretched to fill the full 1120px shell -- 353px tiles measured against
+    the System view's 172px. `.kpis` itself must stay uncapped (the System
+    grid legitimately fills its row with many tiles); only the Security
+    grid's own class takes the cap back."""
+    assert _declares(".kpis-narrow", "max-width") == "640px", (
+        "no class restores the width the inline style used to carry")
+    assert _declares(".kpis", "max-width") is None, (
+        "the cap leaked onto the System grid, which never had one")
+
+    from saafsaans.services import metrics
+    with TestClient(app) as client:
+        body = client.get("/system", params={"view": "security"}).text
+    assert re.search(r'<div class="kpis kpis-narrow">', body), (
+        "the Security KPI grid does not carry the class that caps its width")
+
+    body = client.get("/system").text
+    assert 'class="kpis"' in body and "kpis-narrow" not in body, (
+        "the System KPI grid must not carry the Security-only cap")
+
+
+def test_the_guides_closing_paragraph_keeps_its_16px_gap():
+    """The CSP migration deleted `style="margin-top:16px"` from the Guide's
+    closing paragraph without moving the value anywhere, so it fell back to
+    `.caveat`'s base 8px -- half the gap it shipped with, right where the
+    page hands the reader off after the last citation on it."""
+    assert _declares(".caveat-wide-gap", "margin-top") == "16px", (
+        "no class restores the 16px the inline style used to carry")
+
+    with TestClient(app) as client:
+        body = client.get("/guide").text
+    assert re.search(r'<p class="caveat caveat-wide-gap">', body), (
+        "the Guide's closing paragraph does not carry the wider gap")
