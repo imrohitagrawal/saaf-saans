@@ -7,6 +7,13 @@ presentation concerns.
 
 The voice here is deliberate: human and direct, never softening a severe
 reading and never dramatising a mild one. See design_handoff_saafsaans/README.md.
+
+Which surface may claim what is decided by what its gate can see. The five band
+verdicts below are keyed on the persona-adjusted risk band, so they speak about
+the reader's day; the band meaning beside them is keyed on the measurement, so
+it speaks about the air. Two sentences on one page disagreeing about the same
+thing is this project's recurring defect, and keeping the subjects apart is how
+this file avoids it.
 """
 import math
 
@@ -36,12 +43,44 @@ def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
 # --- Verdict ---------------------------------------------------------------
 # One headline per risk band. risk.py has its own drier `headline` for the API
 # contract; this is the editorial voice the hero speaks in.
+#
+# Each names the situation first and gives the direction second. The Extreme
+# line opened "Don't go out unless you must" until 2026-08-31 -- the first
+# substantive sentence on the page, and a prohibition. Its hedge was also looser
+# than the band advice directly beneath it ("Do not go outdoors"), so the hero
+# got weaker as the reader went down it.
+#
+# The ramp is monotone in words as well as colour: an easy one -> manageable ->
+# hard on -> a serious strain -> dangerous. That is the copy-layer form of
+# DESIGN.md's Monotone Severity rule, and the defect it guards against has
+# already happened here once, in the Hindi (see
+# test_every_hindi_verdict_tells_the_reader_what_to_do).
+#
+# The subject is "Today", not "Today's air". This dict is keyed on the
+# persona-adjusted band, which knows the reader and not the air, so a sentence
+# opening "Today's air is ..." asserts the one thing its gate cannot see: at
+# AQI 0 a child with COPD on a school run scores band High, and a draft h1
+# reading "Today's air is hard on lungs like yours" sat directly above a band
+# meaning reading "Air is clean. Outdoor activity is fine for everyone."
 _VERDICTS = {
-    "Low": "A good day to breathe — enjoy it outside.",
-    "Moderate": "Manageable for you today — just pace yourself.",
-    "High": "Today isn't kind to your lungs — keep it indoors.",
-    "Very High": "Your lungs need you indoors today.",
-    "Extreme": "Don't go out unless you must — this air is dangerous for you.",
+    "Low": "Today is an easy one for you — go and use it.",
+    "Moderate": "Today is manageable for you — take it at an easy pace.",
+    # None of the five says "indoors". Placement is the advice line's job, and
+    # a first draft of this set ended three of them on the same word the advice
+    # directly beneath opened on -- measured in a real browser at High, Very
+    # High and Extreme, in both languages. The verdict says HOW MUCH to do; the
+    # advice says WHERE to do it. Both still carry an instruction, because a
+    # verdict that only describes is the weaker-at-the-top defect
+    # test_every_hindi_verdict_tells_the_reader_what_to_do was written for.
+    "High": "Today is hard on lungs like yours — cut the exertion.",
+    "Very High": "Today is a serious strain for you — keep it to what has to "
+                 "be done.",
+    # Not "treat going out as the exception": that hedge is looser than Very
+    # High's line directly above it, and a ramp that reverses is weakest exactly
+    # where it matters most. The exception is named with a bar on it instead of
+    # left open.
+    "Extreme": "Today is dangerous for you — let only the unavoidable take "
+               "you outside.",
 }
 
 
@@ -53,10 +92,11 @@ def verdict_for(band: str) -> str:
 def no_reading_verdict(locality: str, lang: str = "en") -> str:
     """The hero headline when the app has no reading for this place.
 
-    Not one of the five band verdicts. Each of those asserts something about
-    the air ("this air is dangerous for you"), and the whole point of this
-    branch is that nobody knows what the air is. It names the place so a reader
-    can tell "we could not measure here" from "the site is broken".
+    Not one of the five band verdicts. Each of those is keyed on a risk band,
+    and a band with no measurement behind it is computed from an assumed AQI --
+    the whole point of this branch is that nobody knows what the air is. It
+    names the place so a reader can tell "we could not measure here" from "the
+    site is broken".
     """
     return _fmt(lang, "hero", "no_reading",
                 "We have no air reading for {place} right now.",
@@ -70,8 +110,8 @@ def held_verdict(locality: str, lang: str = "en") -> str:
     measurement with its own observation time -- saying "we have no air
     reading" over a number printed further down the same page would be the
     two-surfaces-disagree defect in miniature. But it is not the air now
-    either, so it earns none of the five band verdicts, each of which asserts
-    something about the air ("this air is dangerous for you").
+    either, so it earns none of the five band verdicts, each of which rests on
+    a risk band worked out from a current reading.
     """
     return _fmt(lang, "hero", "held",
                 "We are holding an earlier reading for {place}.",

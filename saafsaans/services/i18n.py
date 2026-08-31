@@ -169,11 +169,17 @@ def clock_range(lang: str, start: int, end: int) -> str:
 HI: dict = {
     # presenters._VERDICTS -- the hero headline, the first line anyone reads.
     "verdict": {
-        "Low": "साँस लेने के लिए आज अच्छा दिन है — बाहर घूम आइए।",
-        "Moderate": "आज आपके लिए ठीक-ठाक है — बस ज़्यादा भागदौड़ मत कीजिए।",
-        "High": "आज की हवा आपके फेफड़ों के लिए ठीक नहीं है — अंदर ही रहिए।",
-        "Very High": "आज की हवा आपके फेफड़ों पर भारी पड़ेगी — घर के अंदर ही रहिए।",
-        "Extreme": "बहुत ज़रूरी न हो तो बाहर मत निकलिए — यह हवा आपके लिए ख़तरनाक है।",
+        "Low": "आज का दिन आपके लिए आसान है — बाहर निकलिए और दिन का फ़ायदा उठाइए।",
+        "Moderate": "आज का दिन आपके लिए ठीक-ठाक है — रफ़्तार आराम की रखिए।",
+        "High": "आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम कीजिए।",
+        # "आप पर", not "आपके फेफड़ों पर". The English at this band says "for
+        # you" and deliberately stops naming the organ; a Hindi line asserting
+        # a present effect on the reader's lungs would be a stronger claim than
+        # its English twin, off the same unvalidated susceptibility score.
+        "Very High": "आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो "
+                     "ज़रूरी हैं।",
+        "Extreme": "आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल "
+                   "ही न सकें।",
     },
     # presenters.no_reading_verdict -- the hero headline when there is no
     # reading at all. Its own group, not a sixth entry in "verdict": the five
@@ -186,24 +192,30 @@ HI: dict = {
         # none would make the page disagree with itself.
         "held": "{place} के लिए हम एक पुरानी रीडिंग सहेजे हुए हैं।",
     },
-    # risk.BAND_ADVICE -- the "what to do" line under the verdict.
+    # risk.BAND_ADVICE -- the "what to do" line under the verdict. It names no
+    # mask and no trip length in either language, for the reason written out
+    # over the English dict: those belong to the window's lever, which is keyed
+    # on the measured AQI. The Hindi carried the duplication too -- "N95 मास्क
+    # पहनिए" here against "N95 पहनें" in the lever, in the same hero.
     "band_advice": {
-        "Low": "अपने काम आराम से कीजिए। कोई ख़ास सावधानी की ज़रूरत नहीं है।",
-        "Moderate": "आप बाहर जा सकते हैं, लेकिन ज़ोर वाली कसरत थोड़ी देर की ही रखिए, और अगर "
-                    "आप संवेदनशील समूह में हैं तो मास्क साथ रखिए।",
-        "High": "बाहर कसरत मत कीजिए। बाहर जाना कम रखिए और बाहर N95 मास्क पहनिए।",
-        "Very High": "हो सके तो घर के अंदर रहिए। कोई ज़रूरी काम हो तभी बाहर जाइए और तब N95 "
-                     "मास्क पहनिए, और घर में एयर प्यूरीफ़ायर चलाइए।",
-        "Extreme": "बाहर मत निकलिए। खिड़कियाँ बंद रखिए, प्यूरीफ़ायर चलाते रहिए, और तबीयत "
-                   "ख़राब लगे तो डॉक्टर को दिखाइए।",
+        "Low": "जो दिन आपने सोचा था वैसा ही बिताइए, बाहर वाले काम भी उसी में रखिए।",
+        "Moderate": "दिन की योजना वैसी ही रखिए। जो काम अंदर भी उतनी ही आसानी से हो "
+                    "सकता है, उसे अंदर ही कर लीजिए।",
+        "High": "आज की कसरत घर के अंदर कर लीजिए, और घर में प्यूरीफ़ायर हो तो चलाइए।",
+        "Very High": "जो हो सके वह घर के अंदर कर लीजिए — दफ़्तर, कसरत, छोटे-मोटे बाहरी "
+                     "काम — और जिस कमरे में आप ज़्यादातर रहते हैं वहाँ प्यूरीफ़ायर चलाइए।",
+        "Extreme": "दिन घर के अंदर ही बिताइए, खिड़कियाँ बंद रखिए और प्यूरीफ़ायर चलाते "
+                   "रहिए। तबीयत ठीक न लगे तो डॉक्टर को दिखाइए।",
     },
-    # risk._HEADLINE -- the drier API-contract headline.
+    # risk._HEADLINE -- the drier API-contract headline. The -ें register here
+    # rather than the band advice's -इए, which is the split already in force
+    # between these two groups.
     "headline": {
-        "Low": "कम ख़तरा -- आज रोज़ के काम ठीक हैं",
-        "Moderate": "मध्यम ख़तरा -- संवेदनशील लोग आराम से चलें",
-        "High": "ज़्यादा ख़तरा -- आज बाहर मेहनत वाला काम न करें",
-        "Very High": "बहुत ज़्यादा ख़तरा -- घर के अंदर रहें, बाहर मास्क पहनें",
-        "Extreme": "अत्यधिक ख़तरा -- घर पर रहें, एयर प्यूरीफ़ायर चलाते रहें",
+        "Low": "कम ख़तरा -- दिन की योजना वैसी ही रहने दें",
+        "Moderate": "मध्यम ख़तरा -- बाहर के मेहनत वाले कामों में आराम बरतें",
+        "High": "ज़्यादा ख़तरा -- मेहनत वाला काम घर के अंदर करें",
+        "Very High": "बहुत ज़्यादा ख़तरा -- पूरा दिन घर के अंदर, प्यूरीफ़ायर चलता रहे",
+        "Extreme": "अत्यधिक ख़तरा -- दिन भर घर के अंदर, खिड़कियाँ बंद, प्यूरीफ़ायर चालू",
     },
     # normalize.AQI_MEANING -- what each CPCB band means for a person.
     "aqi_meaning": {
@@ -1081,10 +1093,14 @@ HI: dict = {
         "no2_edge_after": "शाम की भीड़ तब तक बीत चुकी होती है।",
         "pm_edge_after": "दोपहर का चढ़ाव तब तक बीत चुका होता है।",
         "hours_alike": "आज बचे घंटे लगभग एक जैसे हैं — इंतज़ार करने से हवा साफ़ नहीं होगी।",
+        # "सबसे अच्छा यही है" stood in the middle sentence until 2026-08-31 --
+        # one of the ten superlatives this module's own guard forbids, standing
+        # in the one window string the guard never reads, because it sweeps
+        # `window + note` and no template renders `rationale`.
         "none_rationale": "अभी AQI बहुत ख़राब/गंभीर श्रेणी में है, इसलिए प्रदूषण पूरे दिन "
-                          "ख़तरनाक बना रहेगा। सबसे अच्छा यही है कि घर के अंदर रहें और "
-                          "खिड़कियाँ बंद रखें। यह एक मोटा नियम है, हर घंटे का स्टेशन "
-                          "पूर्वानुमान नहीं।",
+                          "ख़तरनाक बना रहेगा। खिड़कियाँ बंद रखें, प्यूरीफ़ायर हो तो चलाएँ, "
+                          "और जो काम टल न सके उसे कम समय का रखें। यह एक मोटा नियम है, "
+                          "हर घंटे का स्टेशन पूर्वानुमान नहीं।",
         "o3_rationale": "आज की हवा में मुख्य चीज़ ओज़ोन है, जो दोपहर की धूप में बनती जाती है — "
                         "इसलिए सुबह-सुबह का समय ज़्यादा साफ़ रहता है और दोपहर सबसे ख़राब।",
         "no2_rationale": "आज की हवा में मुख्य चीज़ गाड़ियों की गैसें (जैसे NO2) हैं, जो सुबह "
@@ -1100,7 +1116,19 @@ HI: dict = {
         "general_note": "यह एक सामान्य पैटर्न है, हर घंटे का स्टेशन पूर्वानुमान नहीं।",
         "note_poor": "हवा पहले ही ख़राब है, इसलिए बाहर का कोई भी काम कम समय का रखें और N95 "
                      "पहनें।",
-        "note_moderate": "हवा मध्यम है, इसलिए ज़ोर वाली मेहनत कम कर दें।",
+        "note_moderate": "हवा मध्यम है, इसलिए ज़ोर वाली मेहनत कम कर दें और ज़रूरी काम से "
+                         "बाहर जाना हो तो N95 पहनने पर विचार करें।",
+        # The two branches that name no hour. Both said nothing at all until
+        # 2026-08-31, so `.hero-window` printed "अगर बाहर जाना ही पड़े" over
+        # "आज बाहर के लिए कोई सुरक्षित समय नहीं" and stopped.
+        "note_severe": "हवा बहुत ख़राब से गंभीर श्रेणी में है, इसलिए बाहर का कोई भी काम "
+                       "कम समय का और धीमा रखें और N95 पहनें।",
+        # No band word here, in either language: with no reading nobody knows
+        # the air, and the whole-page sweep in
+        # test_severity_needs_a_measurement forbids every band label on this
+        # state. It names the condition that ends it instead.
+        "note_no_reading": "जब तक कोई रीडिंग न मिले, बाहर का कोई भी काम कम समय का रखें "
+                           "और N95 पहनें।",
     },
     # llm._rule_based -- the answer a reader actually gets, sentence by
     # sentence. This is the copy the whole feature exists to deliver, so the

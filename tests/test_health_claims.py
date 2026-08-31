@@ -116,10 +116,21 @@ RULES = [
         # A promise about the reader's body. Not "wear a mask" (an action) but
         # "this will protect your lungs" (an outcome). D1: personal protective
         # measures showed no lung-function benefit in the RCTs.
+        #
+        # The present tense is here because the future tense alone left a hole
+        # the size of the rule. "It protects your lungs" and "यह आपके फेफड़ों की
+        # रक्षा करता है" are the same promise as "it will protect them", and
+        # until 2026-08-31 neither was caught. Widened, not loosened: the
+        # 640-string corpus gains no hit, and the allowed twin below still
+        # passes, so nothing honest was blocked to close it.
         re.compile(
             r"(?:will|going to)\s+(?:protect|prevent|stop|cure|heal|fix)\b"
-            r"|guarantee(?:s|d)?\b|keeps?\s+you\s+safe\b|ensures?\s+(?:you|your)\b"
-            r"|बचाएगा|बचाएगी|सुरक्षित\s+रखेगा|रोकेगा|ठीक\s+कर\s+देगा",
+            r"|(?:protects?|prevents?|shields?|safeguards?)\s+(?:you|your)\b"
+            r"|keeps?\s+(?:you|your)\b" + _NEAR + r"{0,30}"
+            r"\b(?:safe|healthy|clear|protected)\b"
+            r"|guarantee(?:s|d)?\b|ensures?\s+(?:you|your)\b"
+            r"|बचाएगा|बचाएगी|सुरक्षित\s+रखेगा|सुरक्षित\s+रखत[ीा]|रोकेगा"
+            r"|ठीक\s+कर\s+देगा|रक्षा\s+कर|बचात[ीा]",
             re.IGNORECASE),
         "An N95 will protect your lungs from damage.",
         "Wear an N95 outdoors.",
@@ -298,3 +309,45 @@ def test_both_languages_are_swept_for_every_band():
           or p.startswith("i18n.HI.headline")}
     assert len(en) == 10, f"expected 5 advice + 5 headline in English, got {len(en)}"
     assert len(hi) == 10, f"expected 5 advice + 5 headline in Hindi, got {len(hi)}"
+
+
+# D1's present tense, added 2026-08-31. The RULES table carries one violation
+# per rule, and D1's is future-tense, so the branch that closes the present-
+# tense hole would otherwise ship with nothing proving it fires.
+D1_PRESENT_TENSE = (
+    "Run a purifier in the room you use most; it protects your lungs.",
+    "An N95 keeps your lungs safe.",
+    "This mask shields you from fine particles.",
+    "प्यूरीफ़ायर चलाइए, यह आपके फेफड़ों की रक्षा करता है।",
+    "N95 आपको बचाता है।",
+)
+# The nearest compliant sentences to those five: the same actions, with the
+# outcome taken out. If one of these ever fails, D1 has been tightened into
+# something that blocks the copy this app has to write.
+D1_STILL_ALLOWED = (
+    "Run a purifier in the room you use most.",
+    "Wear a well-fitted N95 outdoors.",
+    "A purifier lowers indoor PM2.5.",
+    "जिस कमरे में आप ज़्यादातर रहते हैं वहाँ प्यूरीफ़ायर चलाइए।",
+    "बाहर N95 पहनें।",
+)
+
+
+def _d1():
+    return next(pattern for name, pattern, _v, _a in RULES if name.startswith("D1"))
+
+
+@pytest.mark.parametrize("sentence", D1_PRESENT_TENSE)
+def test_d1_catches_a_promise_made_in_the_present_tense(sentence):
+    """Turns red when: D1 loses its present-tense branch, at which point
+    "it protects your lungs" ships as freely as "it will protect your lungs"
+    was blocked."""
+    assert _d1().search(sentence), sentence
+
+
+@pytest.mark.parametrize("sentence", D1_STILL_ALLOWED)
+def test_d1_still_permits_the_action_without_the_outcome(sentence):
+    """The partner against over-reach. Widening a rule until it blocks honest
+    copy is worse than not widening it: the next author deletes the rule rather
+    than argue with it."""
+    assert not _d1().search(sentence), sentence

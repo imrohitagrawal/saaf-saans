@@ -64,10 +64,13 @@ DISCLAIMER = "This is general guidance, not medical advice."
 # band says; it may never be more permissive than the hero above it.
 _STRICTNESS = {"GO": 0, "CAUTION": 1, "NO-GO": 2}
 
-# risk.compute_risk's band -> the verdict that band amounts to. Read against
-# risk.BAND_ADVICE, which is the sentence the hero prints for the same band:
-# "Go ahead with your plans" is a GO, "keep intense activity short" is a
-# CAUTION, and from "Skip outdoor exercise" upwards the hero is saying no.
+# risk.compute_risk's band -> the verdict that band amounts to. The mapping is
+# to the BAND, not to the wording of the sentence: from 2026-08-31 the band
+# advice speaks only about the placement of the day, so "Keep the day as
+# planned. Where a part of it can happen indoors just as well, let it" reads
+# permissively on its own and still belongs to CAUTION, because what a Moderate
+# band means for the outing is carried by the window's lever ("ease off intense
+# exertion and consider an N95 for essential trips") on the same page.
 _BAND_VERDICT = {
     "Low": "GO",
     "Moderate": "CAUTION",

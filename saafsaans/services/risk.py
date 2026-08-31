@@ -216,23 +216,49 @@ _BAND_TABLE = [
 ]
 
 _HEADLINE = {
-    "Low": "Low risk -- normal activity is fine today",
-    "Moderate": "Moderate risk -- sensitive groups take it easy",
-    "High": "High risk -- avoid outdoor exertion today",
-    "Very High": "Very high risk -- stay indoors and mask outside",
-    "Extreme": "Extreme risk -- stay home, keep air purifiers on",
+    "Low": "Low risk -- your plans stand",
+    "Moderate": "Moderate risk -- ease the hard outdoor parts",
+    "High": "High risk -- move exertion indoors",
+    "Very High": "Very high risk -- keep the day indoors, purifier on",
+    "Extreme": "Extreme risk -- indoors all day, windows shut, purifier on",
 }
 
 # Plain "what to do" line per band, so the score is actionable for lay readers.
+#
+# This line is keyed on the PERSONA-ADJUSTED band, so it knows the reader and
+# not the air. The window's lever, twelve elements down the same hero, is keyed
+# on the measured AQI and knows the air and not the reader. Until 2026-08-31
+# both said "keep it short and wear an N95", and because they are gated on
+# different variables they were not even guaranteed to agree: across AQI 0-500 x
+# 60 personas, 11,400 of the 12,000 cells that print both gave two different
+# instruction strengths, and the lever was never the stricter of the two.
+#
+# So each line now carries only what its own gate licenses. This one owns the
+# PLACEMENT of the day and the air at home -- which activities happen, where,
+# and the purifier. The mask, the trip length and the pace belong to the lever,
+# because a mask is worth wearing for a measured concentration, not for a
+# composite score: band High is reachable at AQI 0 (a child with COPD on a
+# school run), where this line used to say "wear an N95 outside" beneath a
+# band meaning reading "Air is clean. Outdoor activity is fine for everyone."
+#
+# All five open with a verb of doing. Three of them opened with a prohibition.
+# No apostrophes, deliberately: tests/test_unknown_aqi.py counts these strings
+# in escaped HTML, where "you're" is "you&#39;re" and matches nothing.
 BAND_ADVICE = {
-    "Low": "Go ahead with your plans. No special precautions needed.",
-    "Moderate": "You can go out, but keep intense activity short and carry a mask "
-                "if you're in a sensitive group.",
-    "High": "Skip outdoor exercise. Keep trips short and wear an N95 outside.",
-    "Very High": "Stay indoors if you can. Wear an N95 for any essential trip and "
-                 "run an air purifier at home.",
-    "Extreme": "Do not go outdoors. Seal windows, keep a purifier running, and "
-               "seek care if you feel unwell.",
+    "Low": "Go ahead with the day you planned, outdoor parts included.",
+    "Moderate": "Keep the day as planned. Where a part of it can happen indoors "
+                "just as well, let it.",
+    # No "the rest of your plans can stand" clause here, though it read well:
+    # band High is reachable from AQI 0 to AQI 300, so a sentence granting the
+    # day's outdoor plans would be an affirmative claim about air this line
+    # cannot see, and at 300 it would be looser than the lever beside it. That
+    # is the original defect with the sign flipped.
+    "High": "Move exercise indoors today, and run a purifier at home if you "
+            "have one.",
+    "Very High": "Move what you can indoors — work, exercise, errands — and run a "
+                 "purifier in the room you use most.",
+    "Extreme": "Keep the day indoors, windows shut and a purifier running. If you "
+               "feel unwell, see a doctor.",
 }
 
 

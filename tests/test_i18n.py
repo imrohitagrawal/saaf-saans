@@ -512,9 +512,45 @@ def test_the_share_card_placeholders_survive_translation():
         assert set(_PLACEHOLDER.findall(value)) == fields, (key, value)
 
 
-# Polite-imperative endings in Hindi. A verdict that lacks one is describing a
-# state rather than telling the reader what to do.
-_IMPERATIVE = ("िए", "िये", "एँ", "ें")
+# Polite-imperative endings in Hindi. A line that carries none of them is
+# describing a state rather than telling the reader what to do.
+#
+# Matched at the END OF A TOKEN, not anywhere in the string. Substring matching
+# was the rule until 2026-08-31, and it was blind: "में" ends in "ें" and "लिए"
+# ends in "िए", so "आज की हवा बाहर मेहनत वाले कामों में भारी है।" -- a pure
+# description with no instruction in it -- satisfied the check. Those two words
+# and their spelling variants are the exclusions; the -ाइए forms (चलाइए,
+# बिताइए) are added because the polite imperative takes the independent vowel
+# after a vowel stem and the matra "िए" does not appear in them at all.
+# "आइए"/"आइये" are the same ending after a stem that leaves the vowel
+# independent ("बाहर घूम आइए"); without them the rule rejects a real
+# imperative, which is the mirror of the hole it was written to close.
+_IMPERATIVE = ("िए", "िये", "ाइए", "ाइये", "आइए", "आइये",
+               "एँ", "ाएँ", "ें", "ाएं")
+# Common words that end in an imperative ending and are not imperatives.
+_NOT_IMPERATIVE = {"में", "लिए", "लिये", "नहीं", "कहीं", "यहीं", "वहीं",
+                   "किए", "किये"}
+
+
+def carries_an_imperative(text: str) -> bool:
+    """True when some whole word in ``text`` is a polite imperative."""
+    for token in re.split(r"[\s।,;:—\-]+", text):
+        token = token.strip("।.,;:!?()")
+        if not token or token in _NOT_IMPERATIVE:
+            continue
+        if any(token.endswith(ending) for ending in _IMPERATIVE):
+            return True
+    return False
+
+
+# Descriptions with no instruction in them. Three of these passed the substring
+# rule; they are kept as data so the rule cannot quietly go back to it.
+_DESCRIPTIONS_NOT_INSTRUCTIONS = (
+    "आज की हवा बाहर मेहनत वाले कामों में भारी है।",
+    "आज की हवा बाहर मेहनत वाले काम के लिए भारी है।",
+    "आज हवा बहुत ख़राब है।",
+    "यह हवा आपके फेफड़ों के लिए ठीक नहीं है।",
+)
 
 
 def test_every_hindi_verdict_tells_the_reader_what_to_do():
@@ -531,7 +567,7 @@ def test_every_hindi_verdict_tells_the_reader_what_to_do():
     from saafsaans.services import risk
     for band in risk.RISK_BANDS:
         verdict = i18n.HI["verdict"][band]
-        assert any(m in verdict for m in _IMPERATIVE), (band, verdict)
+        assert carries_an_imperative(verdict), (band, verdict)
 
 
 def test_the_hindi_verdicts_are_all_different():
@@ -539,3 +575,210 @@ def test_the_hindi_verdicts_are_all_different():
     from saafsaans.services import risk
     verdicts = [i18n.HI["verdict"][b] for b in risk.RISK_BANDS]
     assert len(set(verdicts)) == len(verdicts)
+
+
+# --- What to do, not only what to avoid ------------------------------------
+# Three of the five band-advice lines opened with a prohibition, in both
+# languages, and so did the High headline and the Extreme verdict -- the first
+# substantive sentence on the page. A reader with a school run to do was told
+# what not to do and left to work out the rest.
+#
+# "Prohibition-only" is not decidable by machine. What is decidable is whether
+# the sentence OPENS with one, which is the shape the defect actually took and
+# is where a reader in a hurry stops reading. The opening is the first clause:
+# everything before the first band separator, danda, full stop, em dash or
+# comma. Both languages are searched the same way -- an earlier draft matched
+# English at the start of the clause and Hindi anywhere inside it, which is two
+# rules wearing one name.
+# No bare "no" in the list. It flagged "There is no need to change your plans
+# today." -- a positive instruction -- and none of the sentences this rule was
+# written against needs it.
+_EN_PROHIBITION = re.compile(
+    r"\b(?:do not|don'?t|never|avoid|skip|refrain from|steer clear|stay off)\b",
+    re.I)
+# मत and नहीं are unambiguous. A bare न is the negator only as its own word --
+# inside a word (रहने, कने) it is an ordinary consonant, so it is matched only
+# when neither neighbour is Devanagari. The avoid-verbs are listed because
+# Hindi has no single word for English's "avoid": बचें, छोड़ दें and टाल दें each
+# carry it, and without them the Hindi half of this rule was weaker than the
+# English half over the same defect.
+# The bare न is matched only when the verb after it makes the clause a
+# prohibition. Hindi puts the negator before the verb, not at the front of the
+# sentence, so "any standalone न" flagged well-formed positive instructions --
+# "जब तक कोई रीडिंग न मिले, ... N95 पहनें।" (the shipped no-reading lever),
+# "बाहर वही काम रखिए जो टाला न जा सके।", "तबीयत ठीक न लगे तो डॉक्टर को दिखाइए।"
+# All three tell the reader to do something.
+_HI_PROHIBITION = re.compile(
+    r"(?:मत|नहीं|बच(?:ें|िए|ना)|छोड़\s*द|टाल\s*द"
+    r"|(?<![\u0900-\u097F])न\s+"
+    r"(?:करें|कीजिए|कीजिये|करिए|जाएँ|जाएं|जाइए|निकलें|निकलिए|रखें|रखिए|पहनें))")
+
+# The sentences this rule was written against, quoted rather than imported:
+# they no longer exist in the source, so importing them is impossible, and
+# reading the rule's own input off the shipped strings would make the partner
+# test below circular.
+_REPLACED_PROHIBITIONS = {
+    "en": ("Skip outdoor exercise. Keep trips short and wear an N95 outside.",
+           "Do not go outdoors. Seal windows, keep a purifier running, and "
+           "seek care if you feel unwell.",
+           "High risk -- avoid outdoor exertion today",
+           "Don't go out unless you must — this air is dangerous for you."),
+    "hi": ("बाहर कसरत मत कीजिए। बाहर जाना कम रखिए और बाहर N95 मास्क पहनिए।",
+           "बाहर मत निकलिए। खिड़कियाँ बंद रखिए, प्यूरीफ़ायर चलाते रहिए, और तबीयत "
+           "ख़राब लगे तो डॉक्टर को दिखाइए।",
+           "ज़्यादा ख़तरा -- आज बाहर मेहनत वाला काम न करें",
+           "बहुत ज़रूरी न हो तो बाहर मत निकलिए — यह हवा आपके लिए ख़तरनाक है।"),
+}
+
+
+# Rephrasings that mean the same thing and dodged an earlier draft of the rule.
+# Kept as data next to the rule so widening it stays honest: each of these must
+# be caught, and every shipped sentence must still pass.
+_NOT_PROHIBITIONS = {
+    "en": ("There is no need to change your plans today.",
+           "Keep the day as planned.",
+           "Move exercise indoors today."),
+    "hi": ("जब तक कोई रीडिंग न मिले, बाहर का कोई भी काम कम समय का रखें और N95 पहनें।",
+           "बाहर वही काम रखिए जो टाला न जा सके।",
+           "तबीयत ठीक न लगे तो डॉक्टर को दिखाइए।"),
+}
+
+_ALSO_PROHIBITIONS = {
+    "en": ("Head out, but do not exercise outdoors.",
+           "Refrain from outdoor exertion.",
+           "Steer clear of the roadside today.",
+           "Stay off the main roads this afternoon."),
+    "hi": ("बाहर जाने से बचें, घर के अंदर रहें।",
+           "बाहर कसरत छोड़ दीजिए।",
+           "आज बाहर का काम टाल दें।",
+           "बाहर की मेहनत से बचिए।"),
+}
+
+
+def _band_keyed_sentences(lang):
+    """Every sentence a risk band can put in front of a reader, by group.
+
+    All three groups, not two. `presenters._VERDICTS` is the <h1> and is also
+    the share card's og:description, and it was changed by the same package
+    that added this rule -- a rule over the two invisible-to-the-reader sets
+    and not over the visible one would be the exact hole PLAN-gates.md's
+    2026-08-31 correction is about.
+    """
+    from saafsaans.services import risk
+    from saafsaans.web import presenters
+
+    for band in risk.RISK_BANDS:
+        for group, source in (("verdict", presenters._VERDICTS),
+                              ("band_advice", risk.BAND_ADVICE),
+                              ("headline", risk._HEADLINE)):
+            yield group, band, i18n.t(lang, group, band, source[band])
+
+
+def _opening(text: str) -> str:
+    """The clause a reader meets first, with any band name in front of it cut."""
+    body = text.split("--", 1)[1] if "--" in text else text
+    # No comma in the split set. An earlier draft had one, and it cut the
+    # clause so short that "Head out, but do not exercise outdoors." was judged
+    # on the words "Head out" and passed. The em dash stays: it separates the
+    # situation from the instruction in every verdict, and the sentence this
+    # rule was written against put the prohibition on its left.
+    return re.split(r"[.।—]", body)[0].strip()
+
+
+def _is_prohibition(text: str, lang: str) -> bool:
+    pattern = _HI_PROHIBITION if lang == "hi" else _EN_PROHIBITION
+    return bool(pattern.search(_opening(text)))
+
+
+@pytest.mark.parametrize("lang", ("en", "hi"))
+def test_no_band_keyed_sentence_opens_with_a_prohibition(lang):
+    """Turns red when: any of the fifteen sentences a band can put in front of a
+    reader starts by naming what not to do instead of what to do."""
+    offenders = [f"{group}/{band}: {_opening(text)}"
+                 for group, band, text in _band_keyed_sentences(lang)
+                 if _is_prohibition(text, lang)]
+    assert not offenders, "opens with a prohibition:\n  " + "\n  ".join(offenders)
+
+
+@pytest.mark.parametrize("lang", ("en", "hi"))
+def test_the_prohibition_rule_catches_the_sentences_it_replaced(lang):
+    """The partner. The rule above asserts an ABSENCE, and an absence is
+    satisfied by a pattern that matches nothing -- replace either regex with
+    `(?!)` and it passes for ever over a corpus it never judged.
+
+    So it is run against the four sentences per language that shipped until
+    2026-08-31, one from each of the three groups plus the Extreme verdict,
+    all of which it must catch; and against the fifteen that ship now, none of
+    which it may.
+
+    What it does NOT claim: a prohibition moved out of the opening clause is
+    not caught. "Keep trips short and wear an N95 outside. Skip outdoor
+    exercise." passes. The rule is about the sentence a reader meets first,
+    and it says so in its name."""
+    for old in _REPLACED_PROHIBITIONS[lang]:
+        assert _is_prohibition(old, lang), (lang, old)
+    # Four more per language, none of which the rule caught in an earlier
+    # draft: three because the opening was cut at a comma, and the Hindi
+    # avoid-verbs because the word list had no equivalent of "avoid".
+    for phrasing in _ALSO_PROHIBITIONS[lang]:
+        assert _is_prohibition(phrasing, lang), (lang, phrasing)
+    # And the other direction, which is where a widened rule does its damage:
+    # positive instructions that happen to contain a negator. Hindi puts the
+    # negator before the verb, so a rule matching any standalone न flagged the
+    # shipped no-reading lever.
+    for positive in _NOT_PROHIBITIONS[lang]:
+        assert not _is_prohibition(positive, lang), (lang, positive)
+    for group, band, text in _band_keyed_sentences(lang):
+        assert not _is_prohibition(text, lang), (lang, group, band)
+
+
+def test_every_hindi_band_advice_tells_the_reader_what_to_do():
+    """The sibling of test_every_hindi_verdict_tells_the_reader_what_to_do.
+
+    Not leading with a prohibition is not the same as saying anything. A Hindi
+    line that only describes the air would pass the rule above and leave the
+    reader with nothing, so the advice line carries the same polite-imperative
+    floor the verdict already carries.
+
+    Turns red when: a Hindi band advice becomes a description rather than an
+    instruction."""
+    from saafsaans.services import risk
+    for band in risk.RISK_BANDS:
+        advice = i18n.HI["band_advice"][band]
+        assert carries_an_imperative(advice), (band, advice)
+
+
+def test_no_band_advice_carries_a_character_html_escaping_changes():
+    """tests/test_unknown_aqi.py counts `risk.BAND_ADVICE[band]` in the page
+    body WITHOUT unescaping it, so an apostrophe turns that assertion into a
+    search for a string the page cannot contain and the test passes having
+    matched nothing.
+
+    That was live until 2026-08-31: `BAND_ADVICE["Moderate"]` contained
+    "you're", and the count assertion was green only because its fixtures land
+    on High and Extreme. A constraint kept by luck is not a constraint.
+
+    Turns red when: any band advice gains ' " & < or >."""
+    from markupsafe import escape
+    from saafsaans.services import risk
+    unsafe = {band: text for band, text in risk.BAND_ADVICE.items()
+              if str(escape(text)) != text}
+    assert not unsafe, f"escaping changes these, so the count test goes blind: {unsafe}"
+    # The partner: prove the check can see one. Without this, an escape() that
+    # stopped escaping anything would leave the sweep above green for ever.
+    assert str(escape("Skip it, you're done.")) != "Skip it, you're done."
+
+
+@pytest.mark.parametrize("description", _DESCRIPTIONS_NOT_INSTRUCTIONS)
+def test_the_imperative_rule_rejects_a_sentence_that_only_describes(description):
+    """The partner both imperative tests need.
+
+    They assert a PRESENCE, and a presence is satisfied by a check that returns
+    True for everything -- which is what the substring rule did. Three of these
+    four sentences passed it, because "में" and "लिए" carry the endings it was
+    looking for. Swapping a Hindi band advice for one of them left the whole
+    file green.
+
+    Turns red when: the rule goes back to matching an ending anywhere in the
+    string instead of at the end of a word."""
+    assert not carries_an_imperative(description), description

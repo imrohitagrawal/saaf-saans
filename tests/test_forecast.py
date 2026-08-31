@@ -151,6 +151,30 @@ def test_the_window_leaves_no_english_sentence_in_hindi(monkeypatch, at_ist, aqi
     assert not stray, f"still written in English: {sorted(set(stray))}"
 
 
+def test_the_missing_reading_window_leaves_no_english_sentence_in_hindi(
+        monkeypatch, at_ist):
+    """The one branch the parametrisation above cannot reach.
+
+    With no reading the rationale is looked up in the `answer` group, not
+    `window`, so stubbing `window` alone leaves an English sentence standing
+    that has nothing to do with the lever. Both groups are stubbed here, which
+    is what makes the lever beside it the thing being proved.
+
+    Turns red when: the missing-reading lever is typed inline in forecast.py
+    instead of being looked up, which is how a Hindi page would end up printing
+    an English sentence under a Devanagari window."""
+    at_ist(6)
+    _stub_hindi(monkeypatch, "window", "answer")
+    w = forecast.best_window(None, dominant_pollutant="pm25", lang="hi")
+    stray = LATIN_RUN.findall(
+        " ".join((w["window"], w["rationale"], w["note"])))
+    assert not stray, f"still written in English: {sorted(set(stray))}"
+    # The partner both stray-Latin tests need. They assert an ABSENCE, and an
+    # absence is satisfied by a pattern that matches nothing: replace LATIN_RUN
+    # with `(?!)` and both stay green for ever over strings they never judged.
+    assert LATIN_RUN.findall("Keep any trip outside short and wear an N95.")
+
+
 @pytest.mark.parametrize("aqi,dominant", [(350, "pm25"), (250, "o3"), (60, "no2")])
 def test_the_window_is_unchanged_english_by_default(at_ist, aqi, dominant):
     at_ist(6)

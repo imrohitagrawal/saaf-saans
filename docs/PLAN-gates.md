@@ -722,9 +722,9 @@ reads `getBoundingClientRect()`. The exit criterion below cannot be met without 
 - [ ] At 06:00, 12:00, 17:00 and 23:00 IST the named window is never in the past, always
       carries its day, and always offers a today option with its risk stated.
 - [ ] The clock-freezing fixture exists and bites: the pre-fix code goes RED at 17:00.
-- [ ] No `band_advice` or `headline` string is prohibition-only, in either language.
-- [ ] `window_none` names a least-bad hour and a lever.
-- [ ] Every new sentence checked against the evidence checklist; the check is recorded.
+- [x] No `band_advice` or `headline` string is prohibition-only, in either language. Gate 1b widened this to `presenters._VERDICTS` as well — the set a reader actually meets — and made it executable: `tests/test_i18n.py::test_no_band_keyed_sentence_opens_with_a_prohibition`, over all fifteen band-keyed sentences in both languages, with a partner that proves the rule fires on the four it replaced.
+- [x] `window_none` names a lever, and deliberately names **no** hour. Amended by Gate 1b, 2026-08-31. "A least-bad hour" cannot be delivered: Gate 1a's floor forbids naming an hour on the severe and no-reading branches at all, and "least bad" is itself one of the ten superlatives `tests/test_window_at_the_hour.py` bans, in both languages. The reader's actual problem — a refusal and nothing else — is fixed by the lever. `window/none` ("No safe outdoor window today") is left as it stands: it is accurate, and with a lever beside it it is no longer empty-handed.
+- [x] Every new sentence checked against the evidence checklist; the check is recorded in the Gate 1b pull request, per sentence, per language, with the D-item that licenses it. `tests/test_health_claims.py` sweeps all of it mechanically (corpus 640 strings).
 - [ ] Card height delta at 1120px is under ~15px, measured in a real browser.
 - [ ] Full suite green on master; count recorded.
 
@@ -1051,6 +1051,65 @@ follow-up. · `tests/test_hindi_completeness.py` never freezes the clock and its
 needs three characters, so a bare `AM`/`PM` leaking into Hindi would not match; the literal
 hero-bar pins cover that today. · `forecast.py` carries an unused `import datetime` that
 predates this change.
+
+**From Gate 1b — the advice copy (2026-08-31).** Six lenses ran; nothing below reproduced
+as a blocker, and each is recorded rather than fixed because the fix belongs to another
+package or another kind of change.
+
+· **Band `High` is reachable at AQI 0.** `compute_risk(0, "copd", "school_run", "child")`
+returns `High`, so the persona-keyed advice line says "Move exercise indoors today, and run
+a purifier at home if you have one" on a page whose own band meaning reads "Air is clean.
+Outdoor activity is fine for everyone." This package moved the *mask* out of that line for
+exactly this reason and keyed it to the measurement instead; the purifier and the
+relocation are still keyed to the score. The remaining disagreement is the SCORER's floor
+(`AQI_BASE_PTS` plus the condition and activity weights), not the copy's, and changing
+weights is Gate 2/4 work.
+· **The state of maximum uncertainty is now the strictest surface.** With no reading every
+reader is told to wear an N95; at a measured AQI 120 they are told to *consider* one. That
+is deliberate — an unknown reading must never be friendlier than a known bad one — but it
+is the one place where more data buys weaker protection.
+· **`llm.py`'s `answer/window_none` branch is dead on the live path and was left.**
+`forecast.best_window()` returns a non-empty `window` on every branch (3,400,704 calls
+swept: zero falsy), and `main.py:879` is the only production caller. The `elif` is
+unreachable there. It is NOT unreferenced: `tests/test_llm.py` calls `_rule_based` with the
+`best_window=None` default and takes that arm, and `test_i18n.py`'s corpus test requires the
+Hindi key while the call site stands. Deleting it means deleting a guard on a public helper
+plus three test cases plus `i18n.py`'s key, in one commit, for no change in behaviour.
+· **Above AQI 300 the answer card's raw markdown states the band twice.**
+`llm.py:468-475` concatenates `window + rationale + note`, and `window/none_rationale` and
+`window/note_severe` both name the Very Poor-to-Severe range and both say to keep a trip
+short. `presenters.answer_sections` drops the whole window block, so no reader sees it; it
+reaches the model prompt. The fix is to stop assembling `rationale` into that section, which
+is a change to the answer path, not to copy.
+· **`BAND_ADVICE` is reused verbatim as the answer card's Verdict sentence** (`llm.py:387`)
+whenever the persona band beats the AQI ladder, so a school-run question can be answered
+with "Move exercise indoors today". `llm.py`'s own comment rejects giving the card a third
+sentence of its own ("a third verdict to keep in sync"); resolving it needs a decision about
+that surface, not a reword.
+· **The prohibition rule is "opens with", by design.** A prohibition moved into the second
+sentence is not caught, and the test says so in its name and its docstring. Widening it to
+whole sentences needs a way to tell "do not exercise outdoors" from "keep any trip short"
+that a word list does not have.
+· **The no-reading lever is guarded against severity by two word lists**, the six CPCB band
+labels and six severity adjectives read off shipped copy. A sentence that invents a new way
+to assert severity is not caught. Stated in the test.
+· **Hindi, unverified.** No Hindi speaker has read any of the eighteen new strings; the
+banner stays. Three items a reviewer flagged and this package did not resolve:
+`headline/Moderate`'s "आराम बरतें" (बरतना collocates with सावधानी, not आराम) is a
+pre-existing house phrase that also ships in `aqi_meaning/Moderate`, so fixing it here alone
+would make one page disagree with itself — it needs a corpus-wide pass;
+`band_advice/Moderate`'s "उतनी ही आसानी से" has no stated comparand; and the Hindi is
+slightly stricter than the English at `band_advice/Moderate` and `window/note_severe`
+(stricter, never looser — checked in every cell).
+· **Layout, measured in Chrome 151 and left to Gate 1c.** The copy is longer, so the hero
+grew: at 1120px the window block goes from one row to two wherever a lever appeared
+(`.hero-window` +30 to +34px), and at 390px Hindi the hero grows +85px. Nothing overflows and
+nothing scrolls horizontally at 320/360/390/768/1120. Two inherited items surfaced with it:
+`h1.verdict` has `line-height: 1.08` and no `:lang(hi)` override, so Devanagari lines have no
+zero-ink row between them (the Hindi verdict now sets to three lines where it set to two, so
+one collision seam becomes two); and `.hero-advice` runs the full 676px column, a ~90ch
+measure against the craft floor's 65-75ch. Both are container properties this change did not
+touch.
 
 **Rejected, with reasons — do not resurrect without new evidence:** the
 largest-text-is-a-number arithmetic (DESIGN.md prescribes both values) · stripping

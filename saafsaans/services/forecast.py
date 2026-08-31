@@ -264,14 +264,30 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
     ``window`` never names an hour that has gone, and never names one at all
     unless a shipped rationale sentence calls those hours calm: once the cited
     calm hours are behind us it says so instead of ranking the hours nothing
-    describes. ``note`` carries the band that was actually measured and the
-    lever for it, and is empty when the reading needs no lever.
+    describes. ``note`` carries the lever: what to do about the outing rather
+    than when to take it. On the normal branch it opens with the cited edge
+    sentence that earned the span its boundary, which IS about when -- that
+    sentence is the window's own grounding and is placed here because no
+    template renders ``rationale``. Everything after it is the lever proper.
+    From AQI 101 up that names the mask; ``note`` is empty only on air the CPCB
+    scale calls Good or Satisfactory, and only at the hours where no cited
+    stretch gives the span an edge to state.
 
-    Those two branches are unchanged. When AQI > 300 there is no safe outdoor
-    window regardless of time, and when the AQI is missing no window is named
-    either: an unknown reading must never produce a friendlier answer than a
-    known bad one, and it used to produce the friendliest available, because
-    the unparseable value was read as 0.
+    The window on the two refusing branches is unchanged. When AQI > 300 there
+    is no safe outdoor window regardless of time, and when the AQI is missing
+    no window is named either: an unknown reading must never produce a
+    friendlier answer than a known bad one, and it used to produce the
+    friendliest available, because the unparseable value was read as 0.
+
+    Their ``note`` did change, on 2026-08-31. Both returned "" until then, so
+    the reader in the worst air on the page got the least help on it: the hero
+    printed "IF YOU MUST GO OUT" over "No safe outdoor window today" and
+    stopped, under a label that promises something to exactly the reader who
+    must go out anyway. Both now carry a lever, and a lever is not a window --
+    it names no hour, so the refusal above it survives intact. The two levers
+    are separate strings because only one of them may name a band: 380 is in
+    the Very Poor to Severe range and this module's own rationale has always
+    said so, while a missing reading is a missing reading.
 
     ``forecast`` is still accepted and still unused. It was to have carried a
     "the calmer hours fall here tomorrow" line, which was cut: the daily
@@ -304,7 +320,14 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
                 "confirmed.").replace(
                     "{activity}",
                     i18n.t(lang, "answer", "activity_generic", "outdoor activity")),
-            "note": "",
+            # A lever, not a window: it says what to do and never when, so the
+            # refusal above survives it intact. It asserts no band either --
+            # with no reading nobody knows the air, which is why this is its own
+            # key and not the severe one reused.
+            "note": i18n.t(
+                lang, "window", "note_no_reading",
+                "Keep any trip outside short and wear an N95 until there is a "
+                "reading to go on."),
         }
 
     # The season is Delhi's, so the month must be Delhi's. date.today() is the
@@ -322,10 +345,18 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
             "rationale": i18n.t(
                 lang, "window", "none_rationale",
                 "Current AQI is in the Very Poor/Severe range, so pollution "
-                "stays hazardous across the whole day. It is best to stay "
-                "indoors and keep windows shut. This is a rule of thumb, not "
-                "an hourly station forecast."),
-            "note": "",
+                "stays hazardous across the whole day. Keep windows shut, run "
+                "a purifier if you have one, and keep any unavoidable trip "
+                "short. This is a rule of thumb, not an hourly station "
+                "forecast."),
+            # The band phrase is the one this branch's own rationale has always
+            # used, so the lever asserts nothing new: above 300 the reading
+            # spans CPCB Very Poor and Severe, which is why it is not "Severe"
+            # alone. Duration and pace, not an hour -- the refusal above stands.
+            "note": i18n.t(
+                lang, "window", "note_severe",
+                "Air is in the Very Poor to Severe range, so keep any trip "
+                "outside short and slow, and wear an N95."),
         }
 
     if pollutant == "o3":
@@ -399,9 +430,19 @@ def best_window(aqi: int, dominant_pollutant=None, forecast=None, lang: str = "e
             lang, "window", "note_poor",
             "Air is already Poor, so keep any outdoor activity short and wear an N95."))
     elif aqi_val > 100:
+        # The mask is named from 101, not from 201. This lever is the only
+        # surface that speaks about the outing, and its threshold now matches
+        # the app's own advisory corpus rather than sitting a band above it:
+        # data/advisories.py carries "AQI 101-200 with COPD: ... Consider an N95
+        # for essential trips" (GOLD-guidance), and an N95 row for pregnancy on
+        # a commute in the same range. Until 2026-08-31 the hero delivered that
+        # instruction off the persona band instead, which is how it also reached
+        # a reader at AQI 0 -- and, at AQI 150 with a Very High persona, how it
+        # went missing from the hero entirely once the band stopped carrying it.
         parts.append(i18n.t(
             lang, "window", "note_moderate",
-            "Air is Moderate, so ease off intense exertion."))
+            "Air is Moderate, so ease off intense exertion and consider an N95 "
+            "for essential trips."))
 
     rationale = " ".join([rationale, i18n.t(
         lang, "window", "general_note",
