@@ -52,6 +52,103 @@ def test_activity_ordering():
     assert s("outdoor_exercise") >= s("commute") >= s("stay_home")
 
 
+def test_the_susceptibility_scale_is_proportional_to_the_aqi_base_not_a_constant():
+    """Pins the MECHANISM, not just the outcome.
+
+    A sweep-based test alone can be satisfied by a sloppy implementation that
+    discounts susceptibility by a flat constant (e.g. always halve it)
+    instead of scaling it down proportionally to how little air pollution the
+    base represents -- a flat 0.5 still keeps AQI-0 and unmeasured scores
+    under the forbidden bands by coincidence of the numbers in this table
+    today, without the air actually being the dominant factor the fix
+    requires. This test would catch that: a constant scale is flat across
+    every base, but the real fix must be 0 at AQI 0 and rise with the base.
+
+    Turns red when: ``_susceptibility_scale`` stops being ``base /
+    AQI_BASE_MAX`` -- in particular if it becomes a fixed constant.
+    """
+    assert risk._susceptibility_scale(0) == 0.0
+    assert risk._susceptibility_scale(risk.AQI_BASE_MAX) == 1.0
+    # Strictly increasing across the buckets actually reachable in AQI_BASE_PTS.
+    bases = [pts for _, pts in risk.AQI_BASE_PTS] + [risk.AQI_BASE_MAX]
+    scales = [risk._susceptibility_scale(b) for b in bases]
+    assert scales == sorted(scales) and len(set(scales)) == len(scales), scales
+    # The unknown-reading stand-in base scales identically to a known reading
+    # at the same base -- there is no separate magnitude for "unmeasured".
+    assert risk._susceptibility_scale(risk.AQI_BASE_UNKNOWN) == pytest.approx(
+        risk.AQI_BASE_UNKNOWN / risk.AQI_BASE_MAX)
+
+
+def test_no_persona_scores_high_or_worse_at_aqi_zero():
+    """AQI 0 is the cleanest possible reading; the page's own band meaning at
+    that AQI reads "Air is clean. Outdoor activity is fine for everyone." A
+    senior with COPD on a school run used to score band High there anyway --
+    10 of the 60 reachable persona combinations did -- because susceptibility
+    points (condition + dose + age) rode on the AQI base unscaled, and the
+    base at AQI 0 is only 5. The air itself must be the dominant, gating
+    factor at the low end: no combination of condition, activity and age can
+    push the score into High, Very High or Extreme when there is nothing in
+    the air to be susceptible to.
+
+    Sweeps the whole reachable persona space (5 conditions x 4 activities x 3
+    ages = 60), matching the space tests/test_advisory_relevance.py sweeps
+    from the same normalize.py maps.
+
+    Turns red when: susceptibility points are added to the AQI base without
+    being scaled down as the base falls toward its AQI-0 floor.
+    """
+    import itertools
+
+    from saafsaans.services.normalize import ACTIVITY_MAP, AGE_MAP, CONDITION_MAP
+
+    conditions = sorted(set(CONDITION_MAP.values()))
+    activities = sorted(set(ACTIVITY_MAP.values()))
+    ages = sorted(set(AGE_MAP.values()))
+    assert len(conditions) == 5 and len(activities) == 4 and len(ages) == 3
+
+    bad = []
+    for cond, act, age in itertools.product(conditions, activities, ages):
+        r = compute_risk(0, cond, act, age)
+        if r["band"] not in ("Low", "Moderate"):
+            bad.append((cond, act, age, r["score"], r["band"]))
+    assert not bad, f"{len(bad)} of 60 personas score High or worse at AQI 0: {bad}"
+
+
+def test_an_unmeasured_reading_never_reaches_the_worst_band():
+    """decision 0002: a stand-in figure must never drive a severity band, a
+    risk score or a health instruction. With no reading, ``compute_risk``
+    scores off ``AQI_BASE_UNKNOWN`` -- an ASSUMED AQI, not a measurement --
+    and used to let persona susceptibility stack on top of that assumption at
+    full strength, so a senior with COPD reached 92/100 "Extreme": a
+    maximum-severity, precise-looking score built from two things nobody
+    measured (the AQI, and how much worse this persona's body makes it).
+
+    The presenter layer suppresses the chip in some rendering paths, but that
+    is a rendering choice, not a guarantee -- a future caller that prints
+    ``risk.score``/``risk.band`` without first checking ``aqi is not None``
+    would leak this. The fix belongs in the scorer: no persona, at any
+    combination, may push an UNMEASURED reading into the worst band.
+
+    Turns red when: susceptibility stacks on ``AQI_BASE_UNKNOWN`` unscaled,
+    the same way it stacks on a known AQI base.
+    """
+    from saafsaans.services.risk import (ACTIVITY_INTENSITY, AGE_SUSCEPTIBILITY_PTS,
+                                         CONDITION_PTS)
+
+    worst = None
+    for cond in CONDITION_PTS:
+        for act in ACTIVITY_INTENSITY:
+            for age in AGE_SUSCEPTIBILITY_PTS:
+                r = compute_risk(None, cond, act, age)
+                assert r["band"] != "Extreme", (cond, act, age, r["score"])
+                assert r["score"] < 80, (cond, act, age, r["score"])
+                if worst is None or r["score"] > worst[0]:
+                    worst = (r["score"], cond, act, age)
+    # The sweep must actually exercise the susceptible end, or it proves
+    # nothing: the pre-fix worst case (copd/outdoor_exercise/senior) scored 92.
+    assert worst[0] >= 60, f"sweep never reached a high-susceptibility persona: {worst}"
+
+
 def test_band_boundaries():
     # Band is derived purely from score thresholds: <20,<40,<60,<80,else.
     assert risk._band_for(0)[0] == "Low"

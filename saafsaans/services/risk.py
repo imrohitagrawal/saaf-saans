@@ -10,7 +10,11 @@ keywords fall back to the neutral bucket so a bad label never crashes.
 
 Scoring model
 -------------
-score = aqi_base + dose_pts + susceptibility_pts, clamped to [0, 100].
+score = aqi_base + susceptibility_pts, clamped to [0, 100], where
+susceptibility_pts = round((cond_pts + dose_pts + age_pts) * (aqi_base /
+AQI_BASE_MAX)) -- see ``_susceptibility_scale``. The scaling keeps the AQI the
+dominant, gating factor at the low end: susceptibility cannot alone carry a
+persona into a worse band than the air itself licenses.
 
 Two components, kept separate because their evidence is not the same strength
 and the UI has to be able to say which is which:
@@ -184,6 +188,25 @@ def _aqi_base(aqi: int) -> int:
     return AQI_BASE_MAX
 
 
+# Susceptibility (condition + dose + age) says a persona is hurt worse than a
+# neutral adult BY THIS AIR. It used to be added to the AQI base at full
+# strength no matter how clean the air was, so a senior with COPD scored band
+# High at AQI 0 -- the cleanest possible day -- because 10 to 42 raw points
+# rode on a base of 5 untouched, and the same stacking let an UNMEASURED
+# reading (AQI_BASE_UNKNOWN's assumed base of 50) reach 92/100 "Extreme" --
+# a precise-looking maximum severity built from two things nobody measured.
+#
+# There is close to no pollutant at AQI 0 for a susceptibility to amplify, so
+# the amplifier shrinks with the base that stands in for the air: 0 at AQI 0,
+# full strength only at the same base a Severe reading (AQI > 400) already
+# produces. Because AQI_BASE_UNKNOWN sits at the same 50 points a known AQI
+# 250 (Poor) reading produces, an unknown reading is scaled exactly as that
+# known reading would be -- consistent with the existing, tested design
+# choice that unknown scores like Poor, not with a magnitude of its own.
+def _susceptibility_scale(base: int) -> float:
+    return base / AQI_BASE_MAX
+
+
 # --- Provenance registry --------------------------------------------------
 def weight_table() -> list:
     """Every weight in the scoring model, with where it came from.
@@ -337,7 +360,8 @@ def compute_risk(aqi, condition_kw: str, activity_kw: str, age_kw: str,
     dose_pts = dose_points(age_kw, activity_kw)
     age_pts = AGE_SUSCEPTIBILITY_PTS.get(age_kw, 0)
 
-    score = max(0, min(100, base + cond_pts + dose_pts + age_pts))
+    susceptibility_pts = round((cond_pts + dose_pts + age_pts) * _susceptibility_scale(base))
+    score = max(0, min(100, base + susceptibility_pts))
     band, color = _band_for(score)
 
     # --- Drivers: rank the biggest contributors, AQI always shown first ---
