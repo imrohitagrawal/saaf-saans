@@ -845,6 +845,12 @@ def ask(request: Request, question: str = Form(...)):
 
     ok, pattern = guard.check(question)
     if not ok:
+        # Whether the write above landed anywhere: a ping, not a confirmed
+        # write (log_security swallows its own exceptions, see es.py), so a
+        # reachable-but-write-failing cluster is a residual gap this cannot
+        # see -- the same ceiling /system's has_index already accepts. The
+        # card's claim is honest up to that ceiling, never past it.
+        audited = es.index_answers(client)
         es.log_security(client, {
             "@timestamp": es.now_iso(), "session_hash": hashed,
             "event_type": "prompt_injection", "pattern_matched": pattern,
@@ -862,6 +868,7 @@ def ask(request: Request, question: str = Form(...)):
         add_turn(sid, {"kind": "refusal", "lang": lang,
                        "question": normalize.excerpt(question),
                        "pattern": pattern,
+                       "audited": audited,
                        "persona": dict(persona)})
         return _back(request, sid, theme, lang)
 
@@ -1357,19 +1364,20 @@ def system(request: Request):
         day_max = max((d["count"] for d in daily), default=0)
         # security_stats aggregates the whole index, so the KPI has to come from
         # the same seven-day buckets the chart uses or the label is a lie.
-        last_7 = sum(d["count"] for d in daily)
+        last_7 = sum(d["count"] for d in daily) if daily else None
         # Every blocked prompt the index returned, before the display filter
         # below narrows it: a row nobody may be shown still proves the index
         # answered, which is all this predicate asks.
         events = metrics.recent_security_events(client, limit=40)
         ctx["has_index"] = answers or bool(daily or stats.get("by_pattern") or events)
+        pattern_count = len(stats.get("by_pattern") or []) if ctx["has_index"] else None
         ctx.update({
             "sec_kpis": [
-                {"v": last_7,
+                {"v": _kpi_stat(last_7, 1, "", ""),
                  "l": i18n.t(lang, "ui", "sys_kpi_blocked_7d", "blocked, last 7 days")},
                 {"v": _kpi_stat(stats.get("block_rate"), 100, ".0f", "%"),
                  "l": i18n.t(lang, "ui", "sys_kpi_premodel", "stopped pre-model")},
-                {"v": len(stats.get("by_pattern") or []),
+                {"v": _kpi_stat(pattern_count, 1, "", ""),
                  "l": i18n.t(lang, "ui", "sys_kpi_patterns", "distinct patterns")},
             ],
             # _day_label returns strftime's English abbreviation, which the

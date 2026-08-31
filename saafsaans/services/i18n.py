@@ -615,6 +615,11 @@ HI: dict = {
         # Names the same log the Guide's privacy answer names ("सुरक्षा लॉग"),
         # so a reader who follows one to the other finds the same thing.
         "refusal_audit": "मॉडल तक पहुँचने से पहले रोका गया · सुरक्षा लॉग में दर्ज",
+        # Shown instead of refusal_audit when the index did not answer at ask
+        # time -- the same "no database index is answering" voice the System
+        # view uses, not a manufactured audit trail.
+        "refusal_no_audit": "मॉडल से पहले रोका गया · दर्ज नहीं हुआ "
+                            "(कोई डेटाबेस इंडेक्स जवाब नहीं दे रहा)",
         # today.html, when /ask is rate limited. Deliberately not phrased as
         # an accusation or an error: the reader did nothing wrong, and what
         # they need is the wait, not an apology.
@@ -707,6 +712,10 @@ HI: dict = {
         "sys_kpi_feed_fallback": "फ़ीड नहीं मिली → कोई रीडिंग नहीं",
         "sys_kpi_rule_fallback": "नियम-आधारित जवाब",
         "sys_kpi_tokens": "ख़र्च हुए टोकन",
+        # Read by AT beside "--", which alone is just an em dash. Not "0" and
+        # not "unavailable": the tile has no error, it simply has nothing to
+        # report yet.
+        "sys_not_measured": "मापा नहीं गया",
         "sys_kpi_blocked_7d": "रोकी गईं, पिछले 7 दिन",
         "sys_kpi_premodel": "मॉडल से पहले रुकीं",
         "sys_kpi_patterns": "अलग-अलग पैटर्न",
@@ -727,6 +736,9 @@ HI: dict = {
                               "ऐप इसके बिना भी चलता है; बस ये पैनल नहीं चलते।",
         "sys_h_localities": "इलाक़े के हिसाब से रिक्वेस्ट",
         "sys_empty_localities": "अभी तक इलाक़े का कोई डेटा नहीं है।",
+        "sys_empty_localities_no_index": "यह नापा हुआ शून्य नहीं है: कोई डेटाबेस "
+                                         "इंडेक्स जवाब नहीं दे रहा, इसलिए इलाक़े का "
+                                         "डेटा दर्ज नहीं हो रहा।",
         # The row labels are the pixel ranges themselves, in figures, so they
         # need no translation and cannot drift from app.css in one language
         # only.
