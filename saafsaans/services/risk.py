@@ -117,6 +117,20 @@ def inhalation_ratio(age_kw: str, activity_kw: str) -> float:
     return rates[intensity] / BASELINE_RATE
 
 
+def rate_for(age_kw: str, activity_kw: str) -> float:
+    """EPA Table 6-2 rate for one age and one activity, m3/min. Raises on a key
+    neither table holds.
+
+    ``inhalation_ratio`` falls to adult / sedentary for anything it does not
+    recognise. That is right for a SCORE and wrong for a figure a page PRINTS:
+    the same fall turns ("child", "outdoor_exercise") from 10.0 into 1.14, a
+    factor of 8.75, and prints it as a fact. A spaced keyword is what a
+    hand-written call site produces, and "any" -- which norm_age really can
+    return -- has no row here at all. Both raise instead of resolving.
+    """
+    return INHALATION_RATES[age_kw][ACTIVITY_INTENSITY[activity_kw]]
+
+
 def dose_points(age_kw: str, activity_kw: str) -> int:
     """Points for inhaled dose: 0 for a resting adult, 14 at the EPA maximum."""
     return round(_DOSE_SCALE * log(inhalation_ratio(age_kw, activity_kw)))

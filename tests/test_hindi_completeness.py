@@ -238,6 +238,37 @@ def test_no_untranslated_english_on_a_hindi_page(path, persona):
     )
 
 
+def test_no_untranslated_english_on_the_first_visit_hindi_page(monkeypatch):
+    """The scan above always passes a full persona, so it never renders the
+    first-visit page -- and the sentences that say what the app is, what the two
+    hero chips are, and what the activity picker costs are all gated to exactly
+    that state. Half-English values in those three keys passed the whole suite.
+
+    The feed is stubbed because the hero prints its score chips, and the line
+    labelling them, only when the reading is current.
+
+    Turns red when: any of them is left part-English.
+    """
+    from saafsaans.services import waqi
+    from tests.conftest import LIVE_READING
+
+    monkeypatch.setattr(waqi, "get_aqi", lambda locality, es_client=None: (
+        {**LIVE_READING, "station": locality}, "ok"))
+    with TestClient(app) as client:
+        body = client.get("/", params={"lang": "hi"}).text
+    # The three first-visit-only sentences really are on the page being scanned;
+    # without this the scan could pass by rendering none of them.
+    from saafsaans.web import presenters as pr
+    for line in (pr.orientation_line("hi"), pr.gap_label("hi"),
+                 pr.effort_line("hi")):
+        assert line in body, line
+    stray = _stray_latin(_visible_text(body))
+    assert not stray, (
+        f"the first-visit Hindi page still shows English: {sorted(stray)}. "
+        "Either translate it, or add it to ALLOWED with the reason it is correct."
+    )
+
+
 
 
 @pytest.mark.parametrize("question", [

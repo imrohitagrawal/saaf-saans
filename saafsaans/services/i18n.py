@@ -688,6 +688,9 @@ HI: dict = {
         # in the telemetry and security indices, and this view exists to show
         # what is in them. A translated index value would be a description of
         # the data rather than a view of it.
+        "orient": "AQI सबके लिए एक ही नंबर है। यह पेज उसे आपके शरीर और आपके कामों के हिसाब से आँकता है।",
+        "gap_label": "ये दोनों नंबर एक ही हवा के हैं, बस शरीर अलग-अलग हैं।",
+        "effort": "बाहर कसरत को हम ज़्यादा मेहनत मानते हैं और आने-जाने को हल्की। हर मिनट के हिसाब से यह लगभग चार गुना हवा है।",
         "sys_sub": "ऐप ख़ुद की जाँच करता है — आँकड़ों पर टिका, गड़बड़ी को छिपाता नहीं, और "
                    "पहरे में। यहीं देखिए।",
         "sys_view_label": "सिस्टम व्यू",

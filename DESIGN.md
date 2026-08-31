@@ -226,7 +226,19 @@ do; everything that hedges them shares this one quiet voice.
 A centered shell, max-width 1120px, with 18–20px gutters (14–16px under 560px).
 Content flows in an auto-fit card grid (`minmax(min(330px, 100%), 1fr)`, 16px
 gap) with full-width rows opting in via a `wide` class; the Today page leads
-with the full-width sky hero. Nothing in the layout forces a horizontal
+with the full-width sky hero, preceded on a first visit only by the `page-sub`
+line that says what the page is — the subtitle the other three views carry
+under their `page-h1`, on the one view whose heading is the verdict inside the
+hero. It is withheld once a persona is applied because it answers a question
+only a first reader has, which also keeps the returning reader's page
+unmoved. On the first visit it costs 56–76px: measured in Chrome 151 against
+a 640px fold, the verdict's foot goes 414→490 (English, 320) and 604→661
+(Hindi, 360), the last of which crosses it. The Hindi fold is a Gate 4 item.
+The hero itself gains one prose style, `hero-gap` (13px, the hero's own ink at
+`.hero-advice`'s opacity), which names what the two score chips are on the page
+where the comparison sentence is withheld.
+
+Nothing in the layout forces a horizontal
 scrollbar at the 320px reflow width — track minimums yield to the container,
 and the a11y suite sums every fixed minimum against the space available at 320.
 The header carries wordmark, nav, and the theme/language pill toggles; it is

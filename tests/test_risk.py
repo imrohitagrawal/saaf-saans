@@ -1,3 +1,5 @@
+import pytest
+
 from saafsaans.services import risk
 from saafsaans.services.risk import compute_risk, RISK_BANDS
 
@@ -319,3 +321,80 @@ def test_every_driver_label_has_a_key_a_translator_can_find():
         assert kw in risk.ACTIVITY_INTENSITY
     for kw in risk._AGE_LABEL:
         assert kw in risk.AGE_SUSCEPTIBILITY_PTS
+
+
+def test_a_printed_rate_refuses_a_key_the_tables_do_not_have():
+    """``inhalation_ratio`` falls to sedentary for anything it does not know,
+    which is right for a SCORE -- an unknown persona must never be scored as if
+    it were exercising -- and wrong for a number a page PRINTS. The same fall
+    turns ("child", "outdoor_exercise") from 10.0 into 1.14, and a spaced key is
+    what a hand-written call site produces. ``rate_for`` is the lookup for a
+    printed figure and raises instead.
+
+    Turns red when: rate_for stops raising, or starts accepting "any", which
+    norm_age really can return and INHALATION_RATES has no row for.
+    """
+    for bad in (("child", "outdoor exercise"), ("adult", "school run"),
+                ("adult", "walking"), ("any", "commute"), ("bogus", "bogus")):
+        with pytest.raises(KeyError):
+            risk.rate_for(*bad)
+
+
+def test_the_lenient_lookup_still_swallows_the_key_the_strict_one_rejects():
+    """The partner. Without it the test above passes against a codebase where
+    both lookups raise, and the score's deliberate fallback -- which
+    test_unknown_persona_keywords_are_scored_at_rest_not_exercising pins -- would
+    have been broken to satisfy it. This is the 8.75x the guard exists for."""
+    assert risk.inhalation_ratio("child", "outdoor exercise") == pytest.approx(1.142857, rel=1e-5)
+    assert risk.rate_for("child", "outdoor_exercise") / risk.BASELINE_RATE == pytest.approx(10.0)
+
+
+def test_no_call_site_hands_either_lookup_a_key_the_tables_lack():
+    """The guard the hazard actually needs.
+
+    ``rate_for`` protects the call site that uses it; a future one will reach
+    for ``inhalation_ratio``, which cannot raise. So the package is swept
+    instead: every literal string handed to any of the three lookups must be a
+    key one of the tables holds. ("child", "outdoor exercise") would be caught
+    here whichever function it was passed to, positionally or by keyword.
+
+    Two limits, stated rather than implied, the same way
+    test_health_claims._english_defaults states its own: an argument built from
+    a variable is not a literal and is skipped, and only ``saafsaans/**/*.py``
+    is walked, so a call from a template is invisible. Neither is reachable
+    today -- every dynamic caller routes through ``normalize.norm_activity``,
+    and no template calls these -- and both would be silent if it changed.
+
+    Turns red when: a call site is written with a spaced or misspelled literal
+    keyword.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(risk.__file__).resolve().parent.parent
+    ages = set(risk.INHALATION_RATES) | {"any"}
+    activities = set(risk.ACTIVITY_INTENSITY)
+    checked, bad = 0, []
+    for path in sorted(root.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            if name not in ("inhalation_ratio", "rate_for", "dose_points"):
+                continue
+            supplied = list(enumerate(node.args[:2]))
+            # Keyword form reads the same to a person and was invisible to a
+            # sweep over node.args alone.
+            for kw in node.keywords:
+                if kw.arg in ("age_kw", "activity_kw"):
+                    supplied.append((0 if kw.arg == "age_kw" else 1, kw.value))
+            for index, arg in supplied:
+                if not (isinstance(arg, ast.Constant) and isinstance(arg.value, str)):
+                    continue
+                checked += 1
+                allowed = ages if index == 0 else activities
+                if arg.value not in allowed:
+                    bad.append(f"{path.name}:{node.lineno} {name}({arg.value!r})")
+    assert checked, "the sweep found no literal call sites, so it proves nothing"
+    assert not bad, f"keys neither table holds: {bad}"

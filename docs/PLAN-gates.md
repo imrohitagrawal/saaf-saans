@@ -679,7 +679,12 @@ criterion, and it is now the first time this telemetry will have recorded anythi
 
 **Measured** (Chrome 151 headless, persona applied): the row is full — no dead track
 — `532px 532px` at 1120–1600px. The persona card is **309px** tall against the
-reading card's **360px**: a **51px** ragged foot, narrowing to 13px at 900px. Cause is
+reading card's **360px**: a **51px** ragged foot, narrowing to 13px at 900px.
+
+**Re-measured after 1b-surface landed, 2026-08-31: unchanged.** 309 vs 360 at 1120
+and 366 vs 401 at 900, in both languages — identical to the figures above. 1b added
+a line to the persona card, but inside the `persona_open` branch, so the card in the
+state this item measures does not move. The two figures below it still hold. Cause is
 `align-items: start` on `.grid` (`app.css:208`), which is deliberate and correct —
 stretching would inflate a card with meaningless empty padding.
 
@@ -932,6 +937,61 @@ space before the separator after the PM2.5 unit, which compounds in Hindi.
 
 **Typography:** System KPI labels are set in the body face on the page defined by its
 mono register.
+
+**From Gate 1b-surface (2026-08-31), the orientation line, the chip label and the
+activity ratio.** Measured in Chrome 151 unless stated.
+
+· **The Gate 4 fold item is now larger on a Hindi first visit, by this much.**
+Verdict foot against a 640px fold, first visit: English 414 → 490 at 320 and
+375 → 432 at 360, both still above it. Hindi 652 → 709 at 320, which was already
+12px past it before the orientation line existed, and 604 → 661 at 360, which
+was not. Every persona-applied state is byte-identical to before the change at
+320, 360, 900 and 1120 in both languages — that is what the `not persona_applied`
+gate buys. The remedy is still the header/banner redesign this document defers
+to an owner decision. · **No test sweeps the contrast of small text sitting
+directly on the sky.** `test_the_hero_small_text_is_readable_over_every_sky_in_both_themes`
+is parametrised on two selectors, both inside `.hero-window`'s 85%-opaque panel.
+`.hero-kicker`, `.hero-advice` and now `.hero-gap` sit on the gradient under a
+translucent scrim and are measured by nobody. Sampled by hand off the rendered
+pixels, worst band (g1, light): `.hero-gap` 8.74:1, `.hero-kicker` 7.39:1,
+`.hero-advice` 7.25:1 — all above the 4.5:1 floor. Extending the existing test
+naively fails: pairing every sky hex with the scrim's lightest stop reports
+`.hero-advice` at 4.20:1, a combination that cannot occur because that hex is the
+foot of a 180deg gradient where the scrim is 0.82. The test that would close this
+has to interpolate both ramps by vertical position. · **`.hero-gap`'s rule is
+reachable but not pinned.** Deleting `.hero-gap { … }` leaves the class in the
+markup and the suite green; the line would render at the inherited size.
+`test_no_class_in_the_stylesheet_is_unreachable` catches the opposite direction
+only. · **Two multiples of one activity render on one Hindi page, on undeclared
+baselines.** The driver chip says `कई गुना` (several times, against a sedentary
+adult — the table gives 11.9x) and the effort line says `लगभग चार गुना` (about
+four times, against a commute). They sit about 1,200px apart in the same card and
+neither names its comparand. English is clean: its driver chip carries no figure.
+· **The activity ratio is only visible while the editor is open.** After the first
+Apply it is gone until the reader reopens "Change details" — which is the moment
+the number is about, and is why it sits there, but it does mean the package's one
+honest number is not on the resident page. · **`presenters.EFFORT_MULTIPLE` has no
+production consumer.** The copy spells the multiple as a word, because only a
+literal fourth argument to `i18n.t` reaches the D1–D8 sweep. Its two `rate_for`
+calls are what keep `test_no_call_site_hands_either_lookup_a_key_the_tables_lack`
+non-vacuous, so removing them reds that test for a cleanup reason rather than for
+the hazard it guards. · **That sweep cannot see a key built from a variable, or a
+call from a template.** Both limits are stated in its docstring; neither is
+reachable today. · **`.hero-gap` takes no `:lang(hi)` line-height** (20.15px, 1.55)
+where the Hindi block's pattern is 1.6. Consistent with `.hero-advice`, its
+neighbour on the same surface, which also has none. · **The orientation line is the
+one sentence a heading-navigator never reaches** — it is the only `page-sub` on the
+site placed above its heading rather than below, because Today's only `h1` is the
+verdict inside the hero. No SC requires otherwise; the three other views do not
+have the problem. · **Hindi reading order above the hero.** base.html renders
+`.persona-path` — "set your own age, health and area ›" — 2px above the line that
+says why a reader would, and 16px separates that pair from the hero, so the two
+read as one block. today.html cannot reorder a base.html block. ·
+**`risk.HEURISTIC_NOTICE` under-hedges what the effort line hedges.** It attributes
+the exertion term wholly to published EPA rates, while `ACTIVITY_INTENSITY`'s own
+comment calls the activity-to-effort mapping "the one judgement inside the
+otherwise-grounded dose term". Pre-existing; the new sentence makes it legible by
+saying the truer thing two cards above it.
 
 **From the fonts-and-payload change (2026-08-31):** nothing in the suite pins the
 metric-matched fallback overrides to the face they were measured from.

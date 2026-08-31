@@ -277,6 +277,17 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
 .chip-risk { font-weight: 600; padding: 5px 12px; border-radius: 999px; text-transform: uppercase;
              background: rgba(247,243,236,.18); border: 1px solid rgba(247,243,236,.4); }
 .chip-base { padding: 5px 12px; border-radius: 999px; background: rgba(247,243,236,.12); }
+/* What the two chips above are, on the first-visit page where the comparison
+   sentence is withheld. Same ink and same opacity as .hero-advice, one size
+   step down: at full strength the label read brighter than the instruction it
+   sits under, leaving size to carry the hierarchy alone. Measured over the
+   composited scrim in Chrome 151, sampling the rendered pixels: 8.74:1 at the
+   worst band (g1, light) against 4.5:1 for body text -- .hero-advice measures
+   7.25:1 and .hero-kicker 7.39:1 on the same band. 13px clears the 11px
+   Latin floor and the 12.5px Devanagari one, so it needs no :lang(hi) rule of
+   its own -- tests/test_a11y.py measures that on a first-visit Hindi page with
+   a reading, which is the only state this renders in. */
+.hero-gap { margin: 0; font-size: 13px; opacity: .92; text-wrap: pretty; }
 .hero-window { position: relative; background: rgba(12,13,15,.85); color: #F5F4F0;
                padding: 12px 22px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .hero-window .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; opacity: .7; }

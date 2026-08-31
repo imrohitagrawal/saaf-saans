@@ -705,6 +705,13 @@ def today(request: Request):
         "persona_line": pr.persona_line(persona, lang=lang),
         "compare": pr.comparison_line(data["risk"]["score"], data["baseline"],
                                       persona, lang=lang),
+        # Three sentences whose English default has to sit at a Python call
+        # site: tests/test_health_claims.py reads the fourth positional
+        # argument of i18n.t out of saafsaans/**/*.py only, so a Jinja T()
+        # default would ship checked in Hindi and unchecked in English.
+        "orient": pr.orientation_line(lang),
+        "gap_label": pr.gap_label(lang),
+        "effort": pr.effort_line(lang),
         "scale_pos": pr.scale_position(data["reading"].get("aqi")),
         # A held reading's chip carried _fmt_time alone -- a bare clock time --
         # so a measurement 21 days old rendered "◌ CACHED · 5:26 PM" at 5:26 PM

@@ -19,7 +19,7 @@ import math
 
 from markupsafe import Markup, escape
 
-from saafsaans.services import clock, i18n
+from saafsaans.services import clock, i18n, risk
 
 
 def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
@@ -257,6 +257,82 @@ def _reasons(persona: dict, lang: str = "en") -> str:
     if age in _AGE_REASON:
         bits.append(i18n.t(lang, "compare", _AGE_REASON_KEYS[age], _AGE_REASON[age]))
     return i18n.t(lang, "compare", "reason_join", " + ").join(bits)
+
+
+# --- What the page is, what the gap is, and the one lever with a number ----
+
+# 0.050 / 0.012 for an adult is 4.17; child 3.82 and senior 3.92 round to the
+# same 4, so one sentence is true for every age the picker offers. Divided at
+# import through the strict lookup: a mistyped keyword raises here, before
+# pytest collects and before uvicorn binds, rather than printing 1.14 as 10.
+EFFORT_MULTIPLE = round(risk.rate_for("adult", "outdoor_exercise")
+                        / risk.rate_for("adult", "commute"))
+
+
+def orientation_line(lang: str = "en") -> str:
+    """What the app is, in the register of the other three pages' subtitles.
+
+    The Today page was the only one without one. A reader met the wordmark, an
+    AQI, an EXAMPLE label and an alarming verdict about a stranger before
+    anything said what the page was for -- and "clean breath" is a translation
+    of the name, which PRODUCT.md forbids turning into a description.
+
+    Two clauses because the differentiator is a contrast: the index is one
+    answer for everyone (decision 0004: "one answer for eight million people"),
+    and this page resolves it against a person. It describes the operation and
+    claims no outcome; the app helps a reader decide and must never promise
+    they will be healthier.
+
+    "Body and plans", not the form's three field names: on a Hindi first visit
+    base.html's persona-path renders 2px above this line and already says
+    "अपनी उम्र, सेहत और इलाक़ा" -- the same list, one line up, in the same ink.
+    "Body" is also the word the comparison sentence and the chip label use for
+    the same idea ("the gap is your body, not the air").
+    """
+    return i18n.t(lang, "ui", "orient",
+                  "The AQI is one number for everyone. This page scores it "
+                  "for your body and your plans.")
+
+
+def gap_label(lang: str = "en") -> str:
+    """What the two hero chips are, for the page that withholds the sentence.
+
+    ``comparison_line`` is the reviewed sentence that explains the gap, and it
+    stays gated on persona_applied: it says "Your 56 comes from your asthma"
+    about a persona the visitor never chose. Rendered on a first visit it landed
+    one paragraph under "This page is showing an example" -- adjacent to the
+    disclaimer that denies it -- and 1296-1440px below the chips it names,
+    measured in Chrome 151 at 320 and 360px in both languages, because a first
+    visit renders with the four-field editor open between the two.
+
+    So the claim ships without its owner. Same conclusion as the sentence's own
+    tail ("the gap is your body, not the air"), no second person, and rendered
+    only where the sentence is absent, so the page never states it twice.
+    """
+    return i18n.t(lang, "ui", "gap_label",
+                  "The two numbers are the same air, scored for two different "
+                  "bodies.")
+
+
+def effort_line(lang: str = "en") -> str:
+    """The one lever with a number, and the two qualifications it needs.
+
+    "Minute for minute" because EPA Table 6-2 is m3/MINUTE: a 30-minute run
+    against a 60-minute commute is 2.08x, not 4x, and the bare multiple would
+    overstate for the durations a reader actually plans. "We count" because
+    which planned activity is which effort level is this app's reading and not
+    EPA's -- risk.ACTIVITY_INTENSITY says so and the Guide tells the reader so,
+    and Today may not print the same claim as a published one.
+
+    The multiple is a word, not a substitution. Only a literal fourth argument
+    to i18n.t reaches the D1-D8 sweep in tests/test_health_claims.py, so an
+    f-string would drop this sentence's English out of that corpus;
+    test_presenters checks the word against EFFORT_MULTIPLE instead.
+    """
+    return i18n.t(lang, "ui", "effort",
+                  "We count outdoor exercise as hard effort and a commute as "
+                  "light. Minute for minute, that is about four times as much "
+                  "air.")
 
 
 def comparison_line(score: int, baseline: int, persona: dict, lang: str = "en") -> str:

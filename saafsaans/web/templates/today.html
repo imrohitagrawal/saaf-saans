@@ -18,6 +18,27 @@
 {%- set narrow_cards = (0 if persona_open else 1) + 1 + (1 if outlook else 0) -%}
 <div class="grid{% if narrow_cards == 1 %} grid-solo{% elif narrow_cards == 2 %} grid-duo{% endif %}">
 
+  {#- What the page is. Today was the only view without the page-sub the other
+      three carry, so a first reader met an AQI, an EXAMPLE label and a verdict
+      about a stranger before anything said what any of it was for.
+
+      Gone once a persona is applied -- the same rule base.html's persona-path
+      takes, and for the same reason: it answers a question only a first reader
+      has, and the returning reader's page stays byte-identical to what it was.
+
+      That matters because the line costs the first screen. Verdict foot
+      against a 640px fold, first visit, Chrome 151: English 414 -> 490 at 320
+      and 375 -> 432 at 360, both still above it. Hindi 652 -> 709 at 320,
+      already 12px past it before this line existed, and 604 -> 661 at 360,
+      which was not. The Hindi fold is PLAN-gates' Gate 4 item, deferred to an
+      owner decision; this enlarges it and Appendix B records by how much.
+
+      .page-sub, not a fourth prose style: it is the same job at the same size
+      as the subtitle on /city, /guide and /system. -#}
+  {% if not persona_applied %}
+  <p class="page-sub wide">{{ orient }}</p>
+  {% endif %}
+
   {# --- Sky hero. data-band drives the gradient, so the sky clears or thickens
          with the reading instead of being decoration. --------------------- #}
   <section class="hero wide band-{{ band }}" data-band="{{ band }}" aria-label="{{ T('ui', 'sec_now', "Today's air") }}">
@@ -78,6 +99,23 @@
         <span class="chip-risk">{{ T('ui', 'risk_no_reading', 'NO READING — WE CANNOT SCORE YOUR RISK') }}</span>
         {% endif %}
       </div>
+      {#- What the two numbers ARE. The chips are the product -- the personal
+          delta -- and on a first visit they rendered as a bare pair with
+          nothing naming the distance between them.
+
+          `comparison_line` is the reviewed sentence that names it, and it stays
+          gated on persona_applied below: it says "Your 56 comes from your
+          asthma" about a persona the visitor never chose. Un-gated it landed
+          one paragraph under "This page is showing an example", and 370-476px
+          from these chips -- measured in Chrome 151 at 320 and 360px, both
+          languages -- so it fixed neither honesty nor distance.
+
+          This is the same claim as that sentence's own tail, with no owner and
+          no figures, beside the pair it explains. Rendered only where the
+          sentence is withheld, so the page never states it twice. -#}
+      {% if is_current and not persona_applied %}
+      <p class="hero-gap">{{ gap_label }}</p>
+      {% endif %}
     </div>
 
     {#- The window is keyed off the severity as well as the hour (best_window
@@ -145,6 +183,16 @@
     {% endif %}
 
     {% if persona_open %}
+    {#- The lever, where the choice is made. It qualifies its own mapping
+        ("we count"), so it is a caveat and takes the one qualification style.
+
+        Above the form, not below it: the driver chips at the foot of this card
+        already say "outdoor exertion multiplies dose" -- in Hindi, "कई गुना",
+        several times -- against a sedentary adult, where this one is against a
+        commute. Two multiples of one activity side by side, on two baselines
+        the page does not distinguish, is the defect test_hero_says_it_once
+        exists for, arriving in a card that test does not read. -#}
+    <p class="caveat">{{ effort }}</p>
     <form class="fields" method="get" action="/">
       <input type="hidden" name="theme" value="{{ theme }}">
       {#- The form replaces the whole query string, so the language has to be

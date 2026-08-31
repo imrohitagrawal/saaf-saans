@@ -669,3 +669,121 @@ def test_a_real_pm25_still_produces_the_comparison(lang):
     """And the explanation must not have replaced the sentence it explains."""
     line = p.who_line(90.0, lang, has_index=True)
     assert line and line != p.who_line(None, lang, has_index=True)
+
+
+# --- Orientation, the gap label, and the effort lever -----------------------
+def test_the_orientation_line_describes_the_app_and_promises_nothing():
+    """The page states its own purpose. "clean breath" is a translation of the
+    name, not a description, and PRODUCT.md forbids turning it into one.
+
+    Turns red when: the line starts selling. The forbidden shapes are the
+    wordmark's rejected tagline, a superlative, and any promise about the
+    reader's health -- none of which a description of function needs.
+    """
+    for lang in i18n.LANGUAGES:
+        line = p.orientation_line(lang)
+        assert line and line[-1] in ".।", (lang, line)
+        low = line.lower()
+        assert "breathe clean" not in low, lang
+        for word in ("best", "safest", "cleanest", "सबसे"):
+            assert word not in low, (lang, word)
+    english = p.orientation_line("en")
+    # The differentiator, in the two halves PRODUCT.md states it in: the index
+    # is one answer for everyone, and this page resolves it against a person.
+    assert "one number for everyone" in english
+    # The operation, and the two things it resolves the index against.
+    assert "scores it" in english
+    for field in ("body", "plans"):
+        assert field in english, field
+    assert p.orientation_line("hi") != english
+
+
+def test_the_gap_label_names_the_gap_without_claiming_a_body():
+    """The two hero chips are the product -- 56 beside 44 -- and on a first
+    visit nothing says what the distance between them is. The reviewed sentence
+    that does say it is `comparison_line`, and it says "Your 56 comes from your
+    asthma" about a persona the visitor never chose, so it waits for a persona
+    (today.html gates it on persona_applied and this package keeps that gate).
+    The label carries the same claim with no owner.
+
+    Turns red when: the label starts addressing the reader, which is the whole
+    reason the sentence it stands in for is withheld.
+    """
+    for lang in i18n.LANGUAGES:
+        label = p.gap_label(lang)
+        assert label and label[-1] in ".।", (lang, label)
+        for possessive in ("your", "you ", "आपक", "आपन"):
+            assert possessive not in label.lower(), (lang, possessive)
+    assert "same air" in p.gap_label("en")
+    assert p.gap_label("hi") != p.gap_label("en")
+
+
+def test_the_effort_line_names_the_two_activities_the_picker_offers():
+    """The one lever with a number. It may only compare things a reader can
+    actually choose, in the picker's own words.
+
+    Turns red when: the sentence names an activity the form does not offer --
+    "running" and "walking" are inside ACTIVITY_INTENSITY's comments, not in
+    the picker, and promoting one would make an example stand for a bracket.
+    """
+    from saafsaans.services import normalize
+
+    english = p.effort_line("en")
+    assert "Outdoor exercise" in english or "outdoor exercise" in english
+    assert "commute" in english.lower()
+    for absent in ("running", "walking", "jogging", "cycling"):
+        assert absent not in english.lower(), absent
+    assert "Outdoor exercise" in normalize.ACTIVITY_MAP
+    assert "Commute" in normalize.ACTIVITY_MAP
+    assert p.effort_line("hi") != english
+
+
+def test_the_effort_line_states_a_rate_and_owns_the_mapping_as_ours():
+    """Two corrections the arithmetic forces.
+
+    EPA Table 6-2 is m3/MINUTE, so "four times as much air" is only true for
+    equal durations: a 30-minute run against a 60-minute commute is 2.08x, not
+    4x. And which planned activity counts as which effort level is this app's
+    reading, not EPA's -- risk.py says so, and guide.html tells the reader so.
+    Today may not print the same claim unqualified.
+
+    Turns red when: either qualification is dropped from either language.
+    """
+    english = p.effort_line("en")
+    assert "Minute for minute" in english
+    assert english.lower().startswith("we count")
+    hindi = p.effort_line("hi")
+    assert "हर मिनट" in hindi
+    assert "हम" in hindi
+
+
+def test_the_multiple_the_copy_prints_is_the_one_the_table_gives():
+    """The number is a word in the sentence, not a substitution: only a literal
+    fourth argument to i18n.t reaches the D1-D8 sweep in test_health_claims, and
+    an f-string would drop the English out of that corpus. This is what keeps
+    the word honest instead.
+
+    Turns red when: the EPA rates move and the sentence keeps saying four --
+    the word is looked up from the table's own answer, so the two cannot drift
+    apart in either direction.
+    """
+    from saafsaans.services import risk
+
+    words = {2: ("twice", "दोगुनी"), 3: ("three times", "तीन गुना"),
+             4: ("four times", "चार गुना"), 5: ("five times", "पाँच गुना")}
+    # One sentence has to be true for every age the picker offers, or it is a
+    # claim about an adult printed to a parent. 4.17 / 3.82 / 3.92.
+    for age in risk.INHALATION_RATES:
+        ratio = risk.rate_for(age, "outdoor_exercise") / risk.rate_for(age, "commute")
+        assert round(ratio) == p.EFFORT_MULTIPLE, (age, ratio)
+    english_word, hindi_word = words[p.EFFORT_MULTIPLE]
+    assert english_word in p.effort_line("en")
+    assert hindi_word in p.effort_line("hi")
+    # Rounding alone accepts anything in [3.5, 4.5], so a table edit could put
+    # the true figure 12% away from the printed word and stay green. "About"
+    # covers 4.5%, which is the widest the three ages currently spread; it does
+    # not cover 12%.
+    for age in risk.INHALATION_RATES:
+        ratio = risk.rate_for(age, "outdoor_exercise") / risk.rate_for(age, "commute")
+        drift = abs(ratio - p.EFFORT_MULTIPLE) / p.EFFORT_MULTIPLE
+        assert drift < 0.10, (age, ratio, drift)
