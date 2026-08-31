@@ -304,6 +304,14 @@ def _chrome_session():
         [chrome, "--headless=new", f"--remote-debugging-port={port}",
          "--no-first-run", "--no-default-browser-check",
          "--remote-allow-origins=*",
+         # macOS draws overlay scrollbars and Linux draws a classic one 15px
+         # wide INSIDE the layout viewport, and `setDeviceMetricsOverride` does
+         # not sit above it. So a 720px window laid 680px of content here and
+         # 665px on the CI runner, where `.grid-duo`'s 330px floor then beats
+         # `50% - 8px` and the row falls to a single 665px column: the same
+         # stylesheet, a different layout, and a height measurement that means
+         # something different on each machine. This makes the two agree.
+         "--hide-scrollbars",
          f"--user-data-dir={profile}", "about:blank"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -433,9 +441,20 @@ _CARDS_JS = """
     // "loaded", while a face sits in `error`. Measured with the woff2 files
     // moved aside: every height became fallback metrics and both guards still
     // passed, inside the headroom. Only an error status distinguishes the two.
+    //
+    // The metric-matched fallback faces are exempt, and must be. fonts.css
+    // gives each one `src: local("Arial")` or `local("Courier New")`, so it
+    // resolves only where that font is installed -- present on this machine,
+    // absent on the Ubuntu CI runner, which reported exactly
+    // ['IBM Plex Sans Fallback', 'IBM Plex Mono Fallback'] in error while every
+    // self-hosted woff2 had loaded. Their job is to hold the line while a real
+    // face is in flight; whether the machine has Arial is not a fact about this
+    // deploy.
     var broken = [];
     document.fonts.forEach(function (face) {
-      if (face.status === 'error') { broken.push(face.family); }
+      if (face.status === 'error' && !/ Fallback$/.test(face.family)) {
+        broken.push(face.family);
+      }
     });
     return {innerWidth: window.innerWidth,
             gridClass: grid ? grid.className : null,

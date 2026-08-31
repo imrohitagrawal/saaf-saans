@@ -823,6 +823,22 @@ so this is not a matter of choosing a different block.
    would be a check that goes red when the defect is fixed.
 2. The reason for `start` over `stretch`, in `app.css`, with the measurement in it.
 
+**Hosted parity cost two things the local run could not have told us**, both found by the
+guards failing loudly on the first CI run rather than by reasoning:
+
+- **The runner lays a different page at the same width.** macOS draws overlay scrollbars;
+  Ubuntu draws a classic one 15px wide inside the layout viewport, and
+  `Emulation.setDeviceMetricsOverride` does not sit above it. A 720px window is 680px of
+  content here and 665px there — and at 665px `.grid-duo`'s 330px floor beats `50% - 8px`,
+  so the row falls to a single 665px column. The same stylesheet, a different layout, and a
+  card height that means something different on each machine. `--hide-scrollbars` makes the
+  two agree. Any future browser-measured test in this repo needs that flag.
+- **Two `@font-face` rules are expected to fail on Linux.** `fonts.css` gives each
+  metric-matched fallback `src: local("Arial")` or `local("Courier New")`, so the runner
+  reported `['IBM Plex Sans Fallback', 'IBM Plex Mono Fallback']` in `error` while every
+  self-hosted woff2 had loaded. Whether a machine has Arial is not a fact about this
+  deploy, so the face check exempts them by name.
+
 **What is still open.** The ragged foot is real and is NOT fixed. Within the two-card row
 this item is about, it is worst at **115px, at 720px, in Hindi** — more than double the
 51px this item was written about, in the direction nobody looked. Scope that to
