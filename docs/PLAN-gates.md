@@ -824,6 +824,45 @@ centre-aligned over left-aligned data · the ask chip's accent fill marks a *sta
 question and disappears once it is answered · the selected chip's focus ring is the
 same colour as its own fill.
 
+**From Gate 1a (the window at the hour it is read):** an hour is named when a sentence
+this module ships calls those hours calm, and a span is also named when a stretch a
+sentence calls BAD sits beside it — then the claim is about that stretch ("the afternoon
+peak is past by then"), which is a cited exclusion rather than a ranking of hours nobody
+ranked. Only where no bad stretch is left in the day is no time named; the reply there is
+that the hours are alike and waiting buys nothing, plus the lever.
+
+Driver-hours naming a time, before and after that distinction was drawn:
+
+| driver | first draft | shipped | first silent hour |
+|---|---|---|---|
+| traffic gases (no2) | 18/24 | **22/24** | 22:00 |
+| winter particulates | 16/24 | 16/24 | 16:00 |
+| particulates, other seasons | 12/24 | **18/24** | 18:00 |
+| ozone | 9/24 | **18/24** | 18:00 |
+
+The residual — a span with no cited stretch beside it, where no time can honestly be named
+— is **22 of 96 driver-hours**. An earlier draft of this entry reported the silence as
+"three distinct answers at 00–11, two at 12–14, one at 15–23"; that counted distinct
+strings across four driver columns, which no reader experiences, and was wrong as that
+too. Per driver is the honest form. · **None of the eight `window` rationale strings traces
+to `docs/research/2026-07-exposure-evidence.md`** — the file is silent on the diurnal cycle
+in both directions. Pre-existing and inherited; the tier table is where a diurnal claim
+would land if the evidence file ever gains one. Seven of its eight citations name a daypart
+rather than clock hours, so the hour boundaries are a reading of imprecise prose, and the
+module comment says so. · `window.rationale` is rendered by no template, so
+`window/general_note` survives only in the prompt; the one hedge a reader sees is
+`ui/window_note`, and it now captions a value carrying the word "Today" — consider whether
+that caption should retract the day as well as the hour. · `_edge_sentence` has copy for
+the four (driver, edge) pairs the tier table can currently reach;
+`test_every_edge_the_table_can_reach_has_a_sentence_to_state` fails if a citation change
+makes a fifth reachable. · Owner's rule 5's second clause is Gate 1b's `window_none` item,
+and 1b will have to change `test_severe_air_names_no_hour_whatever_the_time`. · `at_ist`
+freezes the clock only in the tests that call `best_window` directly; suite-wide is the
+follow-up. · `tests/test_hindi_completeness.py` never freezes the clock and its `LATIN_RUN`
+needs three characters, so a bare `AM`/`PM` leaking into Hindi would not match; the literal
+hero-bar pins cover that today. · `forecast.py` carries an unused `import datetime` that
+predates this change.
+
 **Rejected, with reasons — do not resurrect without new evidence:** the
 largest-text-is-a-number arithmetic (DESIGN.md prescribes both values) · stripping
 26KB of design-rationale comments from `app.css` (needs a build pipeline) · the

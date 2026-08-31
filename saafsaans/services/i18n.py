@@ -101,6 +101,68 @@ def t(lang: str, group: str, key: str, english: str) -> str:
     return HI.get(group, {}).get(key) or english
 
 
+# Clock times, written the way each language writes them.
+#
+# English suffixes the meridiem; Hindi names the part of the day before the
+# number and closes with a single "बजे", which is what the four hand-written
+# window strings this replaces already did. The daypart boundaries are taken
+# from those four strings, not invented: they wrote 11 AM as सुबह, 12 and 3 PM
+# as दोपहर, 4 PM as शाम and 11 PM as रात.
+#
+# The words are literals here rather than corpus keys because the AST scanner
+# in test_i18n only sees `i18n.t(group, key)` call sites; keys reached from
+# inside this module would read as orphans and fail the corpus test.
+_HI_DAYPARTS = ((4, 11, "सुबह"), (12, 15, "दोपहर"), (16, 19, "शाम"))
+_HI_NIGHT = "रात"
+
+
+def _hi_daypart(hour: int) -> str:
+    hour %= 24
+    for low, high, word in _HI_DAYPARTS:
+        if low <= hour <= high:
+            return word
+    return _HI_NIGHT
+
+
+def _hour12(hour: int) -> int:
+    return (hour % 12) or 12
+
+
+def clock_hour(lang: str, hour: int) -> str:
+    """A single clock time -- the edge of a stretch, not a span.
+
+    Used where the honest claim is a boundary ("after about 6 PM") rather than
+    a window, so it carries no "from" and no "to".
+    """
+    if lang != "hi":
+        if hour % 24 == 0:
+            return "midnight"
+        return f"{_hour12(hour)} {'AM' if hour % 24 < 12 else 'PM'}"
+    return f"{_hi_daypart(hour)} {_hour12(hour)} बजे"
+
+
+def clock_range(lang: str, start: int, end: int) -> str:
+    """A half-open hour range as a reader of ``lang`` would say it.
+
+    ``end`` is exclusive and may be 24, which English calls midnight and Hindi
+    writes as the 12 of रात. English prints the meridiem once when both ends
+    share it. Hindi repeats the daypart only when the range crosses one, so
+    "सुबह 9 से दोपहर 12 बजे" but "सुबह 6 से 9 बजे".
+    """
+    if lang != "hi":
+        if end == 24:
+            return f"{_hour12(start)} {'AM' if start < 12 else 'PM'}-midnight"
+        start_mer = "AM" if start < 12 else "PM"
+        end_mer = "AM" if end < 12 else "PM"
+        if start_mer == end_mer:
+            return f"{_hour12(start)}-{_hour12(end)} {end_mer}"
+        return f"{_hour12(start)} {start_mer}-{_hour12(end)} {end_mer}"
+    first, second = _hi_daypart(start), _hi_daypart(end)
+    if first == second:
+        return f"{first} {_hour12(start)} से {_hour12(end)} बजे"
+    return f"{first} {_hour12(start)} से {second} {_hour12(end)} बजे"
+
+
 # --- The copy --------------------------------------------------------------
 # Groups mirror the English sources exactly, so the completeness test can walk
 # both and name anything missing.
@@ -1003,23 +1065,35 @@ HI: dict = {
     # Hindi, and the 12-hour marker is not what a Delhi reader says out loud.
     "window": {
         "none": "आज बाहर के लिए कोई सुरक्षित समय नहीं",
+        # forecast.best_window names a run of hours, so the clock time is
+        # composed by clock_range above and dropped in here. "क़रीब ... तक"
+        # is how the four hand-written window strings this replaces framed
+        # the same range.
+        "today_window": "आज, क़रीब {range} तक",
+        "today_after": "आज, क़रीब {time} के बाद",
+        "today_before": "आज, क़रीब {time} से पहले",
+        # No hour here is called calm -- only the stretch beside it is called
+        # bad, and that is all these say. A superlative ("सबसे शांत", "सबसे कम
+        # ख़राब") would rank hours the sentences do not rank, and "ख़राब" is a
+        # reserved CPCB band word besides.
+        "o3_edge_before": "दोपहर की ओज़ोन इसके बाद बढ़ने लगती है।",
+        "o3_edge_after": "दोपहर की ओज़ोन तब तक बीत चुकी होती है।",
+        "no2_edge_after": "शाम की भीड़ तब तक बीत चुकी होती है।",
+        "pm_edge_after": "दोपहर का चढ़ाव तब तक बीत चुका होता है।",
+        "hours_alike": "आज बचे घंटे लगभग एक जैसे हैं — इंतज़ार करने से हवा साफ़ नहीं होगी।",
         "none_rationale": "अभी AQI बहुत ख़राब/गंभीर श्रेणी में है, इसलिए प्रदूषण पूरे दिन "
                           "ख़तरनाक बना रहेगा। सबसे अच्छा यही है कि घर के अंदर रहें और "
                           "खिड़कियाँ बंद रखें। यह एक मोटा नियम है, हर घंटे का स्टेशन "
                           "पूर्वानुमान नहीं।",
-        "o3": "सुबह जल्दी (क़रीब सुबह 6 से 9 बजे तक)",
         "o3_rationale": "आज की हवा में मुख्य चीज़ ओज़ोन है, जो दोपहर की धूप में बनती जाती है — "
                         "इसलिए सुबह-सुबह का समय ज़्यादा साफ़ रहता है और दोपहर सबसे ख़राब।",
-        "no2": "दोपहर (क़रीब सुबह 11 से दोपहर 3 बजे तक)",
         "no2_rationale": "आज की हवा में मुख्य चीज़ गाड़ियों की गैसें (जैसे NO2) हैं, जो सुबह "
                          "और शाम की भीड़ के समय एकदम बढ़ जाती हैं — इसलिए इनके बीच का दोपहर "
                          "वाला ठहराव ज़्यादा शांत रहता है।",
-        "winter": "दोपहर की शुरुआत (क़रीब दोपहर 1 से शाम 4 बजे तक)",
         "winter_rationale": "मुख्य चीज़ बारीक कण हैं। दिल्ली की सर्दी में रात भर का तापमान "
                             "उलटाव धुंध को ज़मीन के पास दबा देता है, इसलिए क़रीब 6 से 10 बजे "
                             "सुबह सबसे ख़राब रहती है और मिश्रण परत ऊपर उठते ही, दोपहर शुरू "
                             "होते-होते, हवा कुछ हल्की हो जाती है।",
-        "default": "देर सुबह (क़रीब सुबह 9 से दोपहर 12 बजे तक)",
         "default_rationale": "मुख्य चीज़ बारीक कण हैं। सर्दी के अलावा दोपहर की धूप ओज़ोन भी "
                              "बढ़ा देती है, इसलिए दोपहर के चढ़ाव से पहले देर सुबह का समय "
                              "ज़्यादा शांत रहता है।",

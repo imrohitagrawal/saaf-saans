@@ -58,32 +58,41 @@ def test_daily_outlook_skips_malformed_rows():
     assert rows[0]["date"] == "2026-07-19"
 
 
-def test_best_window_shape_for_all_severities():
+def test_best_window_shape_for_all_severities(at_ist):
+    at_ist(6)
     for aqi in (80, 250, 380):
         win = forecast.best_window(aqi)
-        assert set(win) == {"window", "rationale"}
+        assert set(win) == {"window", "rationale", "note"}
         assert isinstance(win["window"], str) and win["window"]
         assert isinstance(win["rationale"], str) and win["rationale"]
+        assert isinstance(win["note"], str)
 
 
-def test_best_window_high_aqi_says_no_safe_window():
+def test_best_window_high_aqi_says_no_safe_window(at_ist):
+    at_ist(6)
     win = forecast.best_window(380)
     assert "no safe outdoor window" in win["window"].lower()
 
 
-def test_best_window_works_without_forecast():
+def test_best_window_works_without_forecast(at_ist):
+    at_ist(6)
     win = forecast.best_window(80, forecast=None)
     assert win["window"]
     assert "pattern" in win["rationale"].lower()
 
 
-def test_best_window_varies_by_dominant_pollutant():
+def test_best_window_varies_by_dominant_pollutant(at_ist):
+    at_ist(6)
     ozone = forecast.best_window(180, dominant_pollutant="o3")
     traffic = forecast.best_window(180, dominant_pollutant="no2")
     particulate = forecast.best_window(180, dominant_pollutant="pm25")
-    # Ozone -> morning; traffic -> midday; the three differ from each other.
-    assert "morning" in ozone["window"].lower()
-    assert "midday" in traffic["window"].lower()
+    # Ozone -> its morning; traffic -> the midday lull; particulates -> late
+    # morning. The words "morning" and "midday" used to be in the window itself,
+    # which named a daypart; it names the hours now, so the driver shows up as
+    # three different clock ranges instead.
+    assert "6-9 AM" in ozone["window"]
+    assert "11 AM-3 PM" in traffic["window"]
+    assert "9 AM-12 PM" in particulate["window"]
     windows = {ozone["window"], traffic["window"], particulate["window"]}
     assert len(windows) == 3
     # Rationale explains the pollutant driver in plain terms.
@@ -91,7 +100,8 @@ def test_best_window_varies_by_dominant_pollutant():
     assert "traffic" in traffic["rationale"].lower()
 
 
-def test_best_window_high_aqi_overrides_pollutant():
+def test_best_window_high_aqi_overrides_pollutant(at_ist):
+    at_ist(6)
     for pol in ("o3", "no2", "pm25"):
         win = forecast.best_window(380, dominant_pollutant=pol)
         assert "no safe outdoor window" in win["window"].lower()
@@ -132,26 +142,35 @@ def _stub_hindi(monkeypatch, *groups):
     (150, "no2"),    # traffic-gas clause
     (60, "pm10"),    # no severity tail
 ])
-def test_the_window_leaves_no_english_sentence_in_hindi(monkeypatch, aqi, dominant):
+def test_the_window_leaves_no_english_sentence_in_hindi(monkeypatch, at_ist, aqi, dominant):
+    at_ist(6)
     _stub_hindi(monkeypatch, "window")
     w = forecast.best_window(aqi, dominant_pollutant=dominant, lang="hi")
-    stray = LATIN_RUN.findall(w["window"] + " " + w["rationale"])
+    stray = LATIN_RUN.findall(
+        " ".join((w["window"], w["rationale"], w["note"])))
     assert not stray, f"still written in English: {sorted(set(stray))}"
 
 
 @pytest.mark.parametrize("aqi,dominant", [(350, "pm25"), (250, "o3"), (60, "no2")])
-def test_the_window_is_unchanged_english_by_default(aqi, dominant):
+def test_the_window_is_unchanged_english_by_default(at_ist, aqi, dominant):
+    at_ist(6)
     assert forecast.best_window(aqi, dominant_pollutant=dominant) == \
         forecast.best_window(aqi, dominant_pollutant=dominant, lang="en")
 
 
-def test_the_rationale_sentences_are_joined_with_one_space():
+def test_the_rationale_sentences_are_joined_with_one_space(at_ist):
     """The tail used to be concatenated onto the clause. Assembling it from
-    separately translated sentences must not change the English spacing."""
-    r = forecast.best_window(250, dominant_pollutant="o3")["rationale"]
-    assert "  " not in r
-    assert r.endswith("wear an N95.")
-    assert "This is a general pattern, not an hourly station forecast." in r
+    separately translated sentences must not change the English spacing.
+
+    The severity tail is asserted on `note` rather than `rationale` now. It
+    moved because no template renders `rationale`: the N95 instruction was
+    reaching the model and never the reader."""
+    at_ist(6)
+    win = forecast.best_window(250, dominant_pollutant="o3")
+    r, note = win["rationale"], win["note"]
+    assert "  " not in r and "  " not in note
+    assert r.endswith("This is a general pattern, not an hourly station forecast.")
+    assert note.endswith("wear an N95.")
 
 
 def test_the_outlook_category_uses_the_shared_band_words():
@@ -174,16 +193,32 @@ def test_the_hindi_window_says_which_half_of_the_day():
     """English suffixes AM/PM; Hindi marks the time of day before the number.
     Dropping the marker left "क़रीब 11 से 3 बजे" readable as 11pm to 3am -- an
     ambiguity in the single line that tells somebody when it is safer to go
-    outside."""
+    outside.
+
+    The four hand-written window strings this used to read are gone; the range
+    is composed now, so the same property is asserted over every range the
+    composer can produce instead of over four fixed ones."""
     from saafsaans.services import i18n
-    marks = ("सुबह", "दोपहर", "शाम", "रात")
-    for key in ("o3", "no2", "winter", "default"):
-        value = i18n.HI["window"][key]
-        assert any(m in value for m in marks), (key, value)
-        # ...and the marker has to be inside the bracket with the clock times,
-        # not only in the label before it.
-        bracket = value[value.index("(") + 1:value.index(")")]
-        assert any(m in bracket for m in marks), (key, bracket)
+
+    # The daypart each start hour must carry. Asserting merely that SOME marker
+    # is present passes an implementation that labels every hour सुबह, which is
+    # the ambiguity above, not a guard against it.
+    expected = {**{h: "सुबह" for h in range(4, 12)},
+                **{h: "दोपहर" for h in range(12, 16)},
+                **{h: "शाम" for h in range(16, 20)},
+                **{h: "रात" for h in list(range(20, 24)) + [0, 1, 2, 3]}}
+    for start in range(6, 24):
+        for end in range(start + 1, min(start + 5, 25)):
+            value = i18n.clock_range("hi", start, end)
+            assert value.startswith(expected[start]), (start, end, value)
+            assert "AM" not in value and "PM" not in value, (start, end, value)
+            # The closing daypart appears only when the range crosses one.
+            closing = expected[end % 24]
+            assert value.count("बजे") == 1, (start, end, value)
+            if closing != expected[start]:
+                assert closing in value, (start, end, value)
+            else:
+                assert value.count(closing) == 1, (start, end, value)
 
 
 def test_the_season_is_decided_in_india_not_on_the_server(monkeypatch):

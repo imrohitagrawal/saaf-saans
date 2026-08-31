@@ -162,6 +162,14 @@ h1, h2, h3 { font-family: var(--disp); margin: 0; }
    the label and the value. */
 .hero-window .caveat { margin: 0; font-size: 12px; color: #F5F4F0; opacity: .65; }
 
+/* DESIGN.md gives full weight to "the verdict, the advice, and what to do"
+   and reserves .caveat for what hedges them. The window's severity line is
+   what to do -- it carries the N95 -- so it cannot wear the hedge's voice,
+   and it sits directly beside the actual hedge, which at one shared style
+   read as a single grey sentence. One step up, near-opaque, still under the
+   value. */
+.hero-window .lever { margin: 0; font-size: 13px; color: #F5F4F0; opacity: .95; }
+
 /* --------------------------------------------------------------- header -- */
 /* Not sticky here. Sticky is granted only inside the (min-width: 900px) block
    near the a11y remedies, because a stuck header covers the top of the
@@ -897,6 +905,7 @@ html *:lang(hi):lang(hi) { letter-spacing: normal; }
    shares a baseline with the label and the value beside it. The old .note had
    no floor of any kind here. */
 :lang(hi) .hero-window .caveat { font-size: 13px; line-height: 1.6; }
+:lang(hi) .hero-window .lever { font-size: 13.5px; line-height: 1.6; }
 
 
 /* Optical centring for Devanagari in pill-shaped controls.
