@@ -363,22 +363,23 @@ select, input[type="text"] {
              color: var(--text); border: 1px solid var(--ink); }
 .term { border: none; background: none; padding: 0; font: inherit; color: inherit;
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
-.scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
+/* 24px: the label needs 11px at `line-height:1` plus the tick's own 11px
+   plus a 2px gap -- at the inherited 17.05px line height the two glyphs
+   overlapped, the tick reading through the digits it marks. Takes 9px of
+   the reading card's 26px foot headroom (test_viewport_browser.py). */
+.scale-wrap { margin-top: 14px; position: relative; padding-top: 24px; }
 /* Absolutely positioned with `left` and no `right`, the label shrinks to fit
-   whatever room is left to the container edge: past about 88% there is less of
-   it than the 33.03px "500 ▾" needs, and the pointer wraps under the digits.
-   nowrap holds one line; the -50% keeps its right edge inside the card
-   (296.91px against a 304px card at the 320px reflow width). */
+   whatever room is left to the container edge: past about 88% there is less
+   of it than "500" needs, and it wraps. nowrap holds one line; -50% keeps
+   its right edge inside the card. line-height 1, not the inherited 17.05px,
+   so the tick below sits clear of the digits, not through them. */
 .scale-mark { position: absolute; top: 0; left: var(--p, 0%); transform: translateX(-50%);
-              white-space: nowrap;
+              white-space: nowrap; line-height: 1;
               font-family: var(--mono); font-size: 11px; font-weight: 600; }
 /* Split from the label: centring one string ("325 ▾") on `--p` put the
-   pointer past the bar at AQI 500, up to half the STRING's width off. This
-   glyph rides `--p` alone, centred on its own ~7px. Anchored to the foot of
-   the label's existing 15px band, not a taller `.scale-wrap`: that padding
-   is load-bearing -- test_viewport_browser.py measures the reading card's
-   foot against it with 26px of headroom. */
-.scale-tick { position: absolute; top: 15px; left: var(--p, 0%);
+   pointer past the bar at AQI 500. This glyph rides `--p` alone, centred on
+   its own ~7px, 2px clear of the label's box above it. */
+.scale-tick { position: absolute; top: 24px; left: var(--p, 0%);
               transform: translate(-50%, -100%);
               font-family: var(--mono); font-size: 11px; line-height: 1; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
@@ -572,14 +573,13 @@ select, input[type="text"] {
 .sysbar .l { color: var(--text-2); }
 .sysbar .v { text-align: right; font-weight: 600; }
 .cols { margin-top: 12px; display: flex; align-items: flex-end; gap: 8px; height: 74px; }
-/* Grid, not flex: a percentage height needs a definite track, not the
-   whole 74px shrunk around neighbours -- measured 31.91px for both 75% and
-   100% under flex, one bar. 1fr is the bar's own track, linear across it.
-   Row 1 is a fixed 15px spacer, not `auto`: the count sat there, pinned to
-   the top regardless of the bar's height, up to 35.6px above a short one.
-   It now lives inside `.b` (`bottom: 100%`), tracking the bar's own top;
-   the spacer caps how tall the always-present p100 bar grows, so its count
-   can never clear `.cols`' own top edge. */
+/* Grid, not flex: a percentage height needs a definite track, not the whole
+   74px shrunk around neighbours -- measured 31.91px for both 75% and 100%
+   under flex, one bar. Row 1 is a fixed 15px spacer, not `auto`: the count
+   used to sit there, pinned to the top regardless of the bar's height, up
+   to 35.6px above a short one. It now lives inside `.b` (`bottom: 100%`),
+   tracking the bar's own top; the spacer caps how tall the always-present
+   p100 bar grows, so its count can never clear `.cols`' own top edge. */
 .col { flex: 1; display: grid; grid-template-rows: 15px 1fr auto; gap: 4px;
        justify-items: center; align-self: stretch; }
 /* `.n` moved inside `.b`, leaving two grid items for three rows; without an

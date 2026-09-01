@@ -334,8 +334,12 @@ def test_the_scale_tick_is_centred_on_its_own_position_in_a_real_browser(served,
     the rendered pixel is where `--p` says, because the pre-split bug also
     shared one class and still centred the wrong box. This measures the
     tick's own rendered centre-x against the scale bar's own left edge plus
-    `--p` percent of its width, at the low, middle and high end of the scale
-    -- where a whole-string centring bug shows up worst."""
+    `--p` percent of its width, on the live reading rendered here (the
+    0/50/100 boundaries are covered separately, synthetically, below). It
+    also checks the tick sits clear of the label above it: splitting them
+    fixed the horizontal drift but, at the label's inherited 17.05px line
+    height, put the tick's box inside the label's own, rendering the glyph
+    through the middle of the digits it marks."""
     from saafsaans.services import waqi
     from tests.conftest import LIVE_READING
 
@@ -353,20 +357,55 @@ def test_the_scale_tick_is_centred_on_its_own_position_in_a_real_browser(served,
         (function () {
           return document.fonts.ready.then(function () {
             var scale = document.querySelector('.scale');
+            var mark = document.querySelector('.scale-mark');
             var tick = document.querySelector('.scale-tick');
-            if (!scale || !tick) { return null; }
+            if (!scale || !mark || !tick) { return null; }
             var sr = scale.getBoundingClientRect();
+            var mr = mark.getBoundingClientRect();
             var tr = tick.getBoundingClientRect();
             var pct = parseFloat(getComputedStyle(tick).getPropertyValue('--p')) || 0;
             var wanted = sr.left + sr.width * pct / 100;
             var got = tr.left + tr.width / 2;
-            return {wanted: wanted, got: got, drift: Math.abs(wanted - got)};
+            return {wanted: wanted, got: got, drift: Math.abs(wanted - got),
+                    markBottom: mr.bottom, tickTop: tr.top};
           });
         })();
     """)
     assert result is not None, "no tick rendered on the live reading, so this proved nothing"
     assert result["drift"] <= 2.0, (
         result, "the tick centre drifted more than 2px from the position it marks")
+    assert result["tickTop"] >= result["markBottom"], (
+        result, "the tick overlaps the label above it -- the glyph renders through the digits")
+
+
+def test_the_scale_tick_stays_clear_of_the_label_at_the_top_of_the_scale(served, browser):
+    """The live reading above lands mid-scale; near AQI 500 the label wraps
+    to shrink-to-fit (`test_the_caret_label_holds_one_line_at_the_top_of_the_
+    scale`'s own subject) and could plausibly grow tall enough to reopen the
+    overlap the previous test only checks at one height. Synthesised at p100,
+    the tallest label case, off the page's own loaded stylesheet."""
+    session = browser
+    session.load(f"{served}/?probe=geometry3", 400)
+    result = session.evaluate("""
+        (function () {
+          return document.fonts.ready.then(function () {
+            var wrap = document.createElement('div'); wrap.className = 'scale-wrap';
+            var mark = document.createElement('div'); mark.className = 'scale-mark p100';
+            mark.textContent = '500';
+            var tick = document.createElement('div'); tick.className = 'scale-tick p100';
+            tick.textContent = '▾';
+            wrap.appendChild(mark); wrap.appendChild(tick);
+            document.body.appendChild(wrap);
+            var mr = mark.getBoundingClientRect();
+            var tr = tick.getBoundingClientRect();
+            var out = {markBottom: mr.bottom, tickTop: tr.top};
+            document.body.removeChild(wrap);
+            return out;
+          });
+        })();
+    """)
+    assert result["tickTop"] >= result["markBottom"], (
+        result, "the tick overlaps the label at the top of the scale")
 
 
 def test_the_caret_label_holds_one_line_at_the_top_of_the_scale():
@@ -391,6 +430,28 @@ def test_the_caret_label_holds_one_line_at_the_top_of_the_scale():
     # against a 304px card edge at the 320px reflow width).
     assert _declares(".scale-mark", "transform") == "translateX(-50%)", (
         "the caret is no longer centred on the position it marks")
+
+
+def test_system_html_actually_nests_the_count_inside_the_bar(monkeypatch):
+    """The CSS rule and the browser measurement below both prove `.n`
+    behaves correctly IF it is nested inside `.b` -- neither says whether the
+    template still renders it that way. Moving `.n` back out to a sibling
+    `<span>` (the pre-fix markup) leaves both of those green, since they
+    build or rely on the nested structure rather than reading it off a
+    rendered page. This reads the real HTML `/system?view=security` sends."""
+    from saafsaans.services import metrics
+
+    monkeypatch.setattr(metrics, "security_stats", lambda c: {"block_rate": 0.5, "by_pattern": []})
+    monkeypatch.setattr(metrics, "security_daily", lambda c, days=7: [
+        {"date": "2026-08-01", "count": 3}, {"date": "2026-08-02", "count": 0}])
+    monkeypatch.setattr(metrics, "recent_security_events", lambda c, limit=40: [])
+    with TestClient(app) as client:
+        body = client.get("/system", params={"view": "security"}).text
+
+    assert re.search(r'<span class="b p\d+"><span class="n">3</span></span>', body), (
+        "a nonzero day's count is no longer nested inside its own bar")
+    assert re.search(r'<span class="b b-nil"><span class="n">0</span></span>', body), (
+        "a zero day's count is no longer nested inside its own baseline")
 
 
 def test_the_day_count_sits_near_its_own_bar_at_every_height(served, browser):
