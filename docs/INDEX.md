@@ -77,7 +77,7 @@ Things you run, not things you read for information.
 
 ## Test baseline
 
-1,738 passing across 46 files, ~140s, no network, at commit `daf50bf`. Run with:
+1,756 passing across 47 files, ~150s, no network, at commit `8dedb94`. Run with:
 
 ```
 cd /Users/rohitagrawal/Projects/saaf-saans && env OPENROUTER_API_KEY= WAQI_TOKEN= \
