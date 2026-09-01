@@ -168,23 +168,48 @@ def clock_range(lang: str, start: int, end: int) -> str:
 # both and name anything missing.
 HI: dict = {
     # presenters._VERDICTS -- the hero headline, the first line anyone reads.
+    # Gate 5 package 5c: High, Very High and Extreme each carry five driver
+    # variants (see presenters.verdict_driver), so the Hindi no longer always
+    # names फेफड़ों (lungs) -- that was the same wrong-organ defect the
+    # English carried, off the same "High" key, until this package.
     "verdict": {
         "Low": "आज का दिन आपके लिए आसान है — बाहर निकलिए और दिन का फ़ायदा उठाइए।",
         "Moderate": "आज का दिन आपके लिए ठीक-ठाक है — रफ़्तार आराम की रखिए।",
-        "High": "आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम कीजिए।",
-        # "आप पर", not "आपके फेफड़ों पर". The English at this band says "for
-        # you" and deliberately stops naming the organ; a Hindi line asserting
-        # a present effect on the reader's lungs would be a stronger claim than
-        # its English twin, off the same unvalidated susceptibility score.
-        "Very High": "आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो "
-                     "ज़रूरी हैं।",
-        "Extreme": "आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल "
-                   "ही न सकें।",
+        "High_none": "आज का दिन आपके लिए मुश्किल है — आज मेहनत कम कीजिए।",
+        "High_lungs": "आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम "
+                      "कीजिए।",
+        "High_heart": "आज का दिन आपके जैसे दिल के लिए मुश्किल है — आज मेहनत कम "
+                      "कीजिए।",
+        "High_pregnancy": "आज का दिन आपके और आपकी गर्भावस्था के लिए मुश्किल है — आज "
+                          "मेहनत कम कीजिए।",
+        "High_age": "आज का दिन आपके जैसे शरीर के लिए मुश्किल है — आज मेहनत कम "
+                    "कीजिए।",
+        "Very High_none": "आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम "
+                          "कीजिए जो ज़रूरी हैं।",
+        "Very High_lungs": "आज का दिन आपके जैसे फेफड़ों पर भारी पड़ रहा है — आज "
+                           "सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।",
+        "Very High_heart": "आज का दिन आपके जैसे दिल पर भारी पड़ रहा है — आज सिर्फ़ "
+                           "वही काम कीजिए जो ज़रूरी हैं।",
+        "Very High_pregnancy": "आज का दिन आप और आपकी गर्भावस्था पर भारी पड़ रहा "
+                               "है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।",
+        "Very High_age": "आज का दिन आपके जैसे शरीर पर भारी पड़ रहा है — आज सिर्फ़ "
+                         "वही काम कीजिए जो ज़रूरी हैं।",
+        "Extreme_none": "आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए "
+                        "जो टल ही न सकें।",
+        "Extreme_lungs": "आज का दिन आपके जैसे फेफड़ों के लिए ख़तरनाक है — बाहर "
+                         "सिर्फ़ वही काम कीजिए जो टल ही न सकें।",
+        "Extreme_heart": "आज का दिन आपके जैसे दिल के लिए ख़तरनाक है — बाहर सिर्फ़ "
+                         "वही काम कीजिए जो टल ही न सकें।",
+        "Extreme_pregnancy": "आज का दिन आपके और आपकी गर्भावस्था के लिए ख़तरनाक "
+                             "है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।",
+        "Extreme_age": "आज का दिन आपके जैसे शरीर के लिए ख़तरनाक है — बाहर सिर्फ़ "
+                       "वही काम कीजिए जो टल ही न सकें।",
     },
     # presenters.no_reading_verdict -- the hero headline when there is no
-    # reading at all. Its own group, not a sixth entry in "verdict": the five
-    # verdicts are keyed by risk band and each asserts something about the air,
-    # and this one exists precisely because no band and no assertion apply.
+    # reading at all. Its own group, not another entry in "verdict": every
+    # verdict is keyed by risk band (and, since Gate 5 package 5c, driver)
+    # and each asserts something about the air, and this one exists precisely
+    # because no band and no assertion apply.
     "hero": {
         "no_reading": "{place} की हवा की कोई रीडिंग अभी हमारे पास नहीं है।",
         # Deliberately not the line above. A held reading IS a reading -- its

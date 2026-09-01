@@ -49,10 +49,16 @@ def _severity_strings(lang):
     Collected from the sources the page renders from, not typed out here, so a
     new band verdict or a reworded advice line is covered the day it is added
     rather than the day someone remembers to update this list.
+
+    Verdicts are swept by every key in ``presenters._VERDICTS``, not by
+    ``risk.RISK_BANDS`` with the default driver: since Gate 5 package 5c a
+    band can print any of up to five driver variants, and a "no reading"
+    page must leak none of them, not only the "none"-driver one.
     """
     out = []
+    for key, text in pr._VERDICTS.items():
+        out.append(i18n.t(lang, "verdict", key, text))
     for band in risk.RISK_BANDS:
-        out.append(i18n.t(lang, "verdict", band, pr.verdict_for(band)))
         out.append(i18n.t(lang, "band_advice", band, risk.BAND_ADVICE[band]))
     for band in BANDS:
         out.append(i18n.t(lang, "band_label", band, band))
@@ -157,7 +163,12 @@ def test_a_real_reading_still_gets_its_severity_language(monkeypatch, lang):
     assert i18n.t(lang, "band_label", band, band) in body, (lang, band)
     assert re.search(r'class="hero-pill">AQI %d' % aqi, body), lang
     risk_band = risk.compute_risk(aqi, "copd", "outdoor_exercise", "senior")["band"]
-    assert i18n.t(lang, "verdict", risk_band, pr.verdict_for(risk_band)) in body
+    # PERSONA is Senior + COPD -- pr.verdict_driver's precedence puts COPD
+    # (lungs) ahead of Senior (age), which is also what main.today() computes
+    # from this same persona.
+    driver = pr.verdict_driver("copd", "senior")
+    key = pr.verdict_key(risk_band, driver)
+    assert i18n.t(lang, "verdict", key, pr.verdict_for(risk_band, driver)) in body
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
@@ -223,9 +234,9 @@ def test_the_share_card_never_carries_severity_without_a_reading(monkeypatch, la
                 for band in BANDS:
                     assert i18n.t(lang, "band_label", band, band) not in content, (
                         lang, loc, key, band)
-                for rb in risk.RISK_BANDS:
-                    verdict = i18n.t(lang, "verdict", rb, pr.verdict_for(rb))
-                    assert verdict not in content, (lang, loc, key, rb)
+                for vkey, text in pr._VERDICTS.items():
+                    verdict = i18n.t(lang, "verdict", vkey, text)
+                    assert verdict not in content, (lang, loc, key, vkey)
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUAGES)
