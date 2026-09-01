@@ -33,14 +33,15 @@ Gate 1a   the window must be true at the hour it is read DONE 2026-08-31
 C1        fonts and payload (was Appendix B)             DONE 2026-08-31
 B1        page-load counts leave Elasticsearch           DONE 2026-08-31
 P1        /health says which commit is running           DONE 2026-08-31
-Gate 1b   copy: orientation + advice + activity ratio    ~1.5 days  <- next
-Gate 1c   card alignment                                 ~2 hours
-Gate 1d   deploy + verify the whole batch                ~1 hour
-          >>> PROMOTE HERE <<<
+Gate 1b   copy: orientation + advice + activity ratio    DONE 2026-08-31
+Gate 1c   card alignment                                 DONE 2026-08-31 (ragged foot open, see below)
+Gate 1d   deploy + verify the whole batch                DONE (folded into 2026-08-31 deploys)
+          >>> PROMOTED — the app has been running master at saafsaans.stackclimb.com <<<
 --- AFTER PROMOTION --------------------------------------------------
-Gate 2    correctness debt (3 groups)                    ~2-3 days
-Gate 3    test guards that bite                          ~1-2 days
-Gate 4    decided by real usage, not in advance          unscheduled
+Scorer honesty  AQI-0/unmeasured severity (found during Gate 2, fixed first)  DONE 2026-09-01
+Gate 2    correctness debt (3 groups)                    DONE 2026-09-01
+Gate 3    test guards that bite                          DONE 2026-09-01
+Gate 4    decided by real usage, not in advance          unscheduled  <- next, if ever
 ```
 
 **"Go live" means PROMOTE.** The app has been deployed at
@@ -877,11 +878,24 @@ owner's call on whether an uneven foot is worth spending copy on at all.
 
 ---
 
-### Gate 2 — Correctness debt
+### Gate 2 — Correctness debt — **DONE 2026-09-01**
 
 **Goal:** close the three groups where the app is currently wrong or self-contradictory.
 
-#### 2a. Devanagari Floor, enforced by measurement not by list — **highest**
+**Found during this gate's execution and fixed first, ahead of 2a/2b/2c — scorer
+honesty.** Not in the original scope above: at AQI 0 ("Good" air), 10 of 60 persona
+combinations scored band "High" (susceptibility points rode on a base that never scaled
+down as AQI approached 0), and `compute_risk()` could return `Extreme 89/100` for an
+unmeasured reading, with nothing in `risk.py` itself guarding it (decision 0002 — a
+sample must never drive severity). Both share one root cause and one fix, in
+`saafsaans/services/risk.py`: susceptibility points are now scaled by
+`base/AQI_BASE_MAX`, so at AQI 0 the scale is ~0.067 and at unmeasured
+(`AQI_BASE_UNKNOWN=50`) it is ~0.667 — same as a known AQI 250, never Extreme. Verified:
+AQI-0 max across all 60 personas is now 8 (Low, was up to 47/High); unmeasured max across
+the full table is 78 (Very High, never Extreme, was 92). Merged as PR #19
+(`5aa616f`), suite 1613 → 1616.
+
+#### 2a. Devanagari Floor, enforced by measurement not by list — **highest** — DONE
 
 Root cause: the floor is policed by hand-maintained selector lists, and every audit
 finds another place a list missed. Seven findings share this one cause:
@@ -908,6 +922,13 @@ brittle selector-list guards and cannot be outflanked by specificity, `@media`, 
 `!important`. The harness is proven: the triage agent drove headless Chrome over CDP
 with `Emulation.setDeviceMetricsOverride` to reach genuine 320/360/414px viewports.
 
+**Shipped 2026-09-01, PR #21 (`c69d9a0`), suite 1626 → 1632.** All 7 findings verified
+live and fixed. `tests/test_devanagari_floor.py` (7 tests, real headless Chrome) replaced
+the four hand-maintained selector-list guards; each was re-applied as a mutation and
+confirmed the new test catches it. Item 7 (the Latin wordmark losing display tracking on
+Hindi pages) was resolved as accepted collateral of the broader reset, with the new test
+also protecting the Latin tracking case.
+
 #### 2b. Honest zeros on System
 
 `has_index` is threaded into some number-printing sites but not all, so the card can
@@ -930,6 +951,15 @@ contradict itself in a single render.
 **The single fix:** thread `has_index` through every number-printing site, plus one
 test that separates "measured zero" from "not measured".
 
+**Shipped 2026-09-01, PR #20 (`8c925b8`), suite 1616 → 1626.** Item 1: the one specific
+example quoted ("0% stopped pre-model") was already fixed by an earlier gate; two sibling
+raw-count tiles were still real and are now fixed. Item 6 (`assert "3" in body`) was
+investigated and found not reproducible — the "3" was grounded in real injected data, not
+vacuous. All other items (2, 3, 4, 5, 7, 8) verified real and fixed, each with a bite-proof
+test. `today.html`'s refusal card no longer claims "audited in security-events" when
+`es=none` (production's actual configuration) — the claim is now conditional on
+`es.index_answers(client)` actually succeeding.
+
 #### 2c. Geometry step-class residue
 
 `859d86c` correctly moved geometry from inline styles to step classes under CSP
@@ -948,17 +978,27 @@ test that separates "measured zero" from "not measured".
 6. Two CSS comments describe inline margins the change removed.
 7. The Guide's closing paragraph lost its 16px separation (now 8px).
 
+**Shipped 2026-09-01, PR #22 (`7ce1c7b`), suite 1632 → 1641.** All 7 findings verified
+real and fixed. Item 1 (the backwards chart): `.col .b:not(.b-nil){min-height:3px}`
+guarantees a nonzero bar is never shorter than the 2px `.b-nil` baseline — advisory debt
+below. Item 3 (the caret): required two attempts — the first fix caused a new vertical
+overlap between the caret and its label, caught by the domain reviewer and by CI running
+on Linux Chrome (macOS Chrome had more headroom and didn't show it); reworked to need no
+extra height, re-verified clean at AQI 25/168/325/500.
+
 **Exit criteria**
 
-- [ ] The Devanagari sweep test exists, is browser-measured, and bites on each of the
-      seven cases above.
-- [ ] No System surface prints an unqualified zero when nothing was measured.
-- [ ] A zero-count day can never draw taller than a nonzero day.
-- [ ] Full suite green on master; count recorded.
+- [x] The Devanagari sweep test exists, is browser-measured, and bites on each of the
+      seven cases above. `tests/test_devanagari_floor.py`, PR #21.
+- [x] No System surface prints an unqualified zero when nothing was measured. PR #20.
+- [x] A zero-count day can never draw taller than a nonzero day. PR #22 —
+      `.col .b:not(.b-nil){min-height:3px}`, with a real-Chrome pixel-height test.
+- [x] Full suite green on master; count recorded. **1641**, verified independently by
+      the main orchestrator by running the suite itself (not from a subagent report).
 
 ---
 
-### Gate 3 — Guards that bite
+### Gate 3 — Guards that bite — **DONE 2026-09-01**
 
 **Goal:** make the test suite trustworthy. (The counterfactual that used to live here is
 deferred — see 3a.)
@@ -997,10 +1037,24 @@ The honest number that ships instead is the **activity** ratio, in Gate 1b.
 10. The uppercase carve-out guard's `endswith` fallback (also in Gate 2a).
 11. The `SOURCE_GLOSS_HI` comment states a uniqueness rule two of its own rows break.
 
+**Shipped 2026-09-01, PR #23 (`df907c1`), suite 1641 → 1641** (guards strengthened in
+place; no new tests added). Items 1 and 6 were found already fixed by Gate 2a/2b's work
+and verified as such rather than re-fixed. Items 8 and 11 were comment-only defects,
+corrected. The remaining 7 (2, 3, 4, 5, 7, 9, 10) were real and fixed. An adversarial
+review round found real holes in the first-pass fixes for items 3 (missed a child-
+combinator `.scale > span` form), 7 (assumed a border shorthand's first token is always
+the width, breaking on `border: solid 1px red`), and 10 (a token-set comparison fooled by
+a descendant selector sharing class tokens with a compound selector) — all three closed
+in the one allowed fix round and re-verified against the reviewer's exact counterexamples.
+Spot-checked independently by the main orchestrator: reintroducing an uppercasing rule
+with no `:lang(hi)` reset, and stripping `role="region"` from the Guide's scroll ports,
+both correctly failed the strengthened guards.
+
 **Exit criteria**
 
-- [ ] Each of the 11 guards demonstrably goes RED under a stated mutation.
-- [ ] Full suite green on master; count recorded.
+- [x] Each of the 11 guards demonstrably goes RED under a stated mutation. Confirmed for
+      all 11 (2 already-fixed, 2 comment-only, 7 fixed this gate) — see above.
+- [x] Full suite green on master; count recorded. **1641**, verified independently.
 
 ---
 
@@ -1058,6 +1112,18 @@ Ranked by expected damage, not by likelihood.
 ## Appendix B — Non-blocking leftovers not yet scheduled
 
 Recorded so nothing is silently dropped. None of these blocks a gate.
+
+**From Gate 2c (2026-09-01), advisory, not blocking.** `.col .b:not(.b-nil){min-height:3px}`
+fixes the backwards-reading chart (a nonzero day can no longer draw shorter than the zero
+baseline) but flattens every very-small nonzero count to the same 3px height — no longer
+backwards, but not proportionally distinct either. Accepted as a legibility floor, the same
+idea as `.b-nil` itself already was.
+
+**From Gate 3b (2026-09-01), advisory, not blocking.** The new `_resolve_color`/`_border`
+helpers (contrast and layout-budget guards) handle hex colours and simple border shorthands
+but not `rgb()`/named-color literals or a `border-width`-without-`border-style` form.
+Confirmed to fail loud (`ValueError`) on those forms rather than silently passing, so there
+is no false-pass risk — just forms not present in the current corpus and therefore untested.
 
 **Design system:** `.pat` paints Very Poor severity tokens (`--n5`/`--g5`) on a
 non-severity security tag · `.caption` is a third quiet-qualification tier below
