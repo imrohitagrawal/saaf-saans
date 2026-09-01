@@ -41,7 +41,8 @@ Gate 1d   deploy + verify the whole batch                DONE (folded into 2026-
 Scorer honesty  AQI-0/unmeasured severity (found during Gate 2, fixed first)  DONE 2026-09-01
 Gate 2    correctness debt (3 groups)                    DONE 2026-09-01
 Gate 3    test guards that bite                          DONE 2026-09-01
-Gate 4    decided by real usage, not in advance          unscheduled  <- next, if ever
+Gate 4    decided by real usage, not in advance          unscheduled
+Gate 5    persona truth, and the Hindi sign-off          PLANNED 2026-09-01  <- next
 ```
 
 **"Go live" means PROMOTE.** The app has been deployed at
@@ -1097,6 +1098,49 @@ Ranked by expected damage, not by likelihood.
 | R8 | Manual deploy drifts from master | 1d | There is no CI. Production sat months behind master until 2026-08-10 and nobody knew | **Superseded 2026-08-31.** `/health` now reports the commit the image was built from, so a deploy is verified by comparing that against `origin/master`. The asset-hash check this row recommended is the *weaker* one: it hashes `app.css` alone, and on 2026-08-31 it reported "parity OK" against an instance nine files behind master, because the release that day changed fonts, `main.py` and a template and touched no CSS. Keep it as a second signal; never as the only one |
 | R9 | The card fix breaks tests that pin card structure | 1c | Several tests assert the reading card's contents and order | Expected and cheap; repair them in the same commit |
 | R10 | The timing counterfactual gets built anyway | 4 | It is the most attractive idea in the backlog and the least defensible without hourly data | It is written down as deferred, with the reason. Revisit only alongside a data-layer decision |
+
+---
+
+### Gate 5 — Persona truth, and the Hindi sign-off — **PLANNED 2026-09-01**
+
+**Design document:**
+[`superpowers/specs/2026-09-01-persona-truth-design.md`](superpowers/specs/2026-09-01-persona-truth-design.md).
+It carries the measurements, the eight decisions the owner took, the per-package
+exit criteria and the risk register. This entry is the ledger stub only.
+
+**Why:** four problems reported by the owner and a Hindi reviewer, three
+confirmed by measurement and one by reading the render, plus one defect found
+while confirming them.
+
+- The verdict headline produces **4 distinct sentences across 240 states**, and
+  is unchanged between AQI 120 and 180 for every persona.
+- **10 of the 29** personas told "hard on lungs like yours" at AQI 180 selected
+  Heart condition or Pregnancy — the wrong organ, contradicting
+  `normalize.py:228`.
+- **Child + Pregnancy is selectable** and renders a full health advisory. Three
+  independent selects, no cross-field validation, no JavaScript to add one.
+- **Ages 11 to 21 map to no option.** `risk.py:71-72` records that only 3 of
+  EPA Table 6-2's 14 brackets were carried, so the adolescent rows exist in a
+  source already cited.
+- A first visitor is never told what the app is for; the orientation line is a
+  differentiator, and the Guide is a glossary.
+
+**Packages, in order.** 5a's human phase overlaps 5b; 5c is hard-blocked on 5b
+because the persona space it sweeps must be final.
+
+```
+5a  Hindi corpus pass, 515 strings, reviewer sign-off, banner removed
+5b  Teen (11-15) and Youth (16-20); pregnancy restricted server-side
+5c  Verdict keyed to its driver, not to the band alone
+5d  First-screen orientation                       owner-directed, unscheduled
+```
+
+**The persona space after 5b:** 100 combinations, 12 blocked, **88 reachable**.
+
+**Two rules this gate must not break.** No inhalation rate is written from
+memory — both new rows are read off EPA Table 6-2 and cited in the same commit.
+And the Hindi banner comes down only behind a test that bites when a signed-off
+string is edited; a sign-off nothing pins decays silently.
 
 ---
 
