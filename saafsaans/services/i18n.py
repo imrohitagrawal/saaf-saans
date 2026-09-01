@@ -499,6 +499,11 @@ HI: dict = {
         # the form submits stays English, because normalize and the query
         # string are keyed on it (see main._option_labels).
         "age_child": "बच्चा",
+        # D9 (generic masculine). किशोर alone spans RKSK's own 10-19 --
+        # 5a.1 -- so the bracket goes in the label itself, as it does in
+        # English, rather than relying on the word to draw the line.
+        "age_teen": "किशोर (11–15 साल)",
+        "age_youth": "युवा (16–20 साल)",
         "age_adult": "बड़ा व्यक्ति",
         "age_senior": "बुज़ुर्ग",
         "cond_fit": "सेहतमंद",
@@ -516,6 +521,10 @@ HI: dict = {
         "risk_notice": "इस स्कोर में मेहनत वाला हिस्सा प्रकाशित साँस लेने की दरों से आता है "
                        "(US EPA, जिसका भरोसा मध्यम आँका गया है)। बीमारी और उम्र वाला हिस्सा "
                        "हमारा अपना आकलन है, कोई जाँचा-परखा मेडिकल मॉडल नहीं।",
+        # D2/D5: shown when Pregnancy was picked for an age it is refused for
+        # (Child, Teen, Senior), so the change is stated rather than silent.
+        "pregnancy_blocked_notice": "इस उम्र के लिए गर्भावस्था अभी उपलब्ध नहीं है, इसलिए "
+                                    "यहाँ सेहतमंद दिखाया जा रहा है।",
 
         # --- today.html: reading card ---
         "sec_reading": "रीडिंग",
@@ -952,7 +961,7 @@ HI: dict = {
                             "कितना ज़्यादा, यह मापा जा चुका है, और हम अंदाज़ा लगाने के बजाय वही "
                             "माप इस्तेमाल करते हैं। नीचे के आँकड़े प्रति मिनट ली गई हवा के हैं "
                             "(घन मीटर प्रति मिनट में, वही इकाई जो स्रोत इस्तेमाल करता है), इस "
-                            "साइट के तीनों उम्र-समूहों के लिए।",
+                            "साइट के पाँचों उम्र-समूहों के लिए।",
         "th_age": "उम्र-समूह",
         "th_rest": "आराम में",
         "th_light": "हल्का",
@@ -962,6 +971,8 @@ HI: dict = {
         # out as "11 साल से कम" because Hindi puts the comparison after the
         # number, and a bare "<" before a numeral reads as a stray glyph.
         "age_band_child": "6 से 11 साल से कम",
+        "age_band_teen": "11 से 16 साल से कम",
+        "age_band_youth": "16 से 21 साल से कम",
         "age_band_adult": "21 से 31 साल से कम",
         "age_band_senior": "61 से 71 साल से कम",
         # The four exertion levels, printed inside "बाहर कसरत = ज़्यादा".
@@ -1006,6 +1017,8 @@ HI: dict = {
     # below are whole strings with reordered fields, not fragments joined in code.
     "persona": {
         "age_child": "एक बच्चा",
+        "age_teen": "एक किशोर",
+        "age_youth": "एक युवा",
         "age_adult": "एक बड़ा व्यक्ति",
         "age_senior": "एक बुज़ुर्ग",
         "condition_fit": "जो सेहतमंद है",

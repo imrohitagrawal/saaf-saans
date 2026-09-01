@@ -26,6 +26,8 @@ ACTIVITY_MAP = {
 }
 AGE_MAP = {
     "Child": "child",
+    "Teen": "teen",
+    "Youth": "youth",
     "Adult": "adult",
     "Senior": "senior",
 }

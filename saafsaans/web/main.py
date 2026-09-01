@@ -115,8 +115,13 @@ def _asset(name: str) -> str:
         version = _ASSET_VERSIONS[name] = digest.hexdigest()[:12]
     return f"/static/{name}?v={version}"
 
-AGES = ["Child", "Adult", "Senior"]
+AGES = ["Child", "Teen", "Youth", "Adult", "Senior"]
 CONDITIONS = ["Fit", "Asthma", "Heart condition", "Pregnancy", "COPD"]
+# D5: pregnancy is a condition only these two ages may select. Child, Teen
+# and Senior are downgraded to Fit by read_persona below, and the downgrade
+# is surfaced to the reader via pregnancy_blocked_age -- constraint (i)
+# forbids a silent fallback that answers a question nobody asked.
+PREGNANCY_ALLOWED_AGES = {"Youth", "Adult"}
 ACTIVITIES = ["Outdoor exercise", "Commute", "School run", "Stay home"]
 TERMS = ["AQI", "PM2.5", "PM10"]
 # Derived from the seeded data rather than hand-typed, so a new advisory
@@ -204,12 +209,35 @@ def read_persona(request: Request) -> dict:
         value = q.get(key)
         return value if value in options else default
 
+    age = pick("age", AGES, "Adult")
+    condition = pick("condition", CONDITIONS, "Asthma")
+    # D2/D5: Child, Teen and Senior + Pregnancy is an impossible persona --
+    # zero JavaScript means nothing in the <select> markup can stop it being
+    # asked for, so it is refused here instead. pregnancy_blocked_age below
+    # detects the same downgrade from the raw query string, for the page to
+    # say what changed.
+    if condition == "Pregnancy" and age not in PREGNANCY_ALLOWED_AGES:
+        condition = "Fit"
     return {
         "locality": pick("locality", waqi.LOCALITIES, "Anand Vihar"),
-        "age": pick("age", AGES, "Adult"),
-        "condition": pick("condition", CONDITIONS, "Asthma"),
+        "age": age,
+        "condition": condition,
         "activity": pick("activity", ACTIVITIES, "Outdoor exercise"),
     }
+
+
+def pregnancy_blocked_age(request: Request) -> str:
+    """The requested age, when Pregnancy was asked for and D5 forbids it there.
+
+    Empty string otherwise. Mirrors read_persona's own picks rather than
+    reading the persona dict back: by the time a caller holds that dict the
+    downgrade has already happened, and the fact that it happened is gone
+    with it.
+    """
+    q = request.query_params
+    age = q.get("age") if q.get("age") in AGES else "Adult"
+    condition = q.get("condition") if q.get("condition") in CONDITIONS else "Asthma"
+    return age if condition == "Pregnancy" and age not in PREGNANCY_ALLOWED_AGES else ""
 
 
 def persona_applied(request: Request) -> bool:
@@ -283,6 +311,11 @@ def _option_labels(lang: str) -> dict:
     """
     return {
         "Child": i18n.t(lang, "ui", "age_child", "Child"),
+        # 5a.1: no single Hindi noun carries "11 to <16" or "16 to <21" --
+        # किशोर spans both, so the numeric range is put in the label itself,
+        # in both languages, rather than relied on to disambiguate alone.
+        "Teen": i18n.t(lang, "ui", "age_teen", "Teen (11-15)"),
+        "Youth": i18n.t(lang, "ui", "age_youth", "Youth (16-20)"),
         "Adult": i18n.t(lang, "ui", "age_adult", "Adult"),
         "Senior": i18n.t(lang, "ui", "age_senior", "Senior"),
         "Fit": i18n.t(lang, "ui", "cond_fit", "Fit"),
@@ -751,6 +784,13 @@ def today(request: Request):
         "transcript": turns, "open_prov": open_prov,
         "condition_help": normalize.condition_help(persona["condition"]),
         "conditions_help": normalize.CONDITION_HELP,
+        # D2/D5, constraint (i): a blocked Pregnancy pair must say so rather
+        # than silently answering as Fit. Empty string when nothing changed.
+        "pregnancy_blocked_notice": (
+            i18n.t(lang, "ui", "pregnancy_blocked_notice",
+                  "Pregnancy isn't available for this age yet, so this "
+                  "shows Fit instead.")
+            if pregnancy_blocked_age(request) else ""),
         # The score is half published figure and half the author's judgement.
         # Saying so next to the number is the point; saying it only in the
         # README would repeat the mistake this project exists to record.
@@ -1452,7 +1492,7 @@ def simulate(request: Request):
 # a Hindi page; these builders name each row instead. The persona words reuse
 # the picker's own labels, so a condition cannot be called one thing in the
 # editor and another in the Guide.
-_EPA_AGE_ORDER = ("child", "adult", "senior")
+_EPA_AGE_ORDER = ("child", "teen", "youth", "adult", "senior")
 # risk.py's scoring keyword -> the persona option it stands for.
 _FACTOR_OPTION = {
     "copd": "COPD", "heart": "Heart condition", "pregnancy": "Pregnancy",
@@ -1491,6 +1531,8 @@ def _epa_rows(lang: str) -> list:
     labels = _option_labels(lang)
     bands = {
         "child": i18n.t(lang, "guide", "age_band_child", "6 to <11 years"),
+        "teen": i18n.t(lang, "guide", "age_band_teen", "11 to <16 years"),
+        "youth": i18n.t(lang, "guide", "age_band_youth", "16 to <21 years"),
         "adult": i18n.t(lang, "guide", "age_band_adult", "21 to <31 years"),
         "senior": i18n.t(lang, "guide", "age_band_senior", "61 to <71 years"),
     }

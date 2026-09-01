@@ -26,7 +26,7 @@ AQI_VALUES = [0, 50, 51, 100, 101, 150, 151, 200, 201, 250, 300, 301, 350,
 
 def test_the_sweep_covers_the_whole_reachable_persona_space():
     """If the maps were read wrongly this file would prove nothing on 0 personas."""
-    assert len(CONDITIONS) == 5 and len(ACTIVITIES) == 4 and len(AGES) == 3
+    assert len(CONDITIONS) == 5 and len(ACTIVITIES) == 4 and len(AGES) == 5
 
 
 @pytest.mark.parametrize("condition,activity,age",

@@ -29,6 +29,8 @@
   },
   "app_bracket_for_age": {
     "child": "6 to <11",
+    "teen": "11 to <16",
+    "youth": "16 to <21",
     "adult": "21 to <31",
     "senior": "61 to <71"
   }
