@@ -121,7 +121,7 @@ RULES = [
         # the size of the rule. "It protects your lungs" and "यह आपके फेफड़ों की
         # रक्षा करता है" are the same promise as "it will protect them", and
         # until 2026-08-31 neither was caught. Widened, not loosened: the
-        # 640-string corpus gains no hit, and the allowed twin below still
+        # corpus (640 strings then, 649 now) gains no hit, and the allowed twin still
         # passes, so nothing honest was blocked to close it.
         # Third person, passive and the Hindi plural are here for the same
         # reason as the present tense: "a respirator protects the lungs",

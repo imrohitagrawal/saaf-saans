@@ -1,0 +1,35 @@
+{
+  "_source": {
+    "document": "U.S. EPA, Exposure Factors Handbook 2011 Edition (Final Report)",
+    "report_number": "EPA/600/R-09/052F",
+    "chapter": "Chapter 6 - Inhalation Rates",
+    "table": "Table 6-2. Recommended Short-Term Exposure Values for Inhalation (males and females combined)",
+    "pages": "6-4 and 6-5",
+    "column": "Mean",
+    "units": "m3/minute",
+    "url": "https://www.epa.gov/sites/default/files/2015-09/documents/efh-chapter06.pdf",
+    "transcribed": "2026-09-01",
+    "note": "The Mean column only. Table 6-2 also publishes a 95th-percentile column and a Sleep-or-Nap activity row; neither is carried, because the app scores a waking persona against mean short-term rates. Verified on transcription: the twelve values covering the three brackets already in risk.INHALATION_RATES match it exactly, which is what tests/test_epa_table.py pins."
+  },
+  "brackets": {
+    "Birth to <1": {"sedentary": 3.1e-3, "light": 7.6e-3, "moderate": 1.4e-2, "high": 2.6e-2},
+    "1 to <2":     {"sedentary": 4.7e-3, "light": 1.2e-2, "moderate": 2.1e-2, "high": 3.8e-2},
+    "2 to <3":     {"sedentary": 4.8e-3, "light": 1.2e-2, "moderate": 2.1e-2, "high": 3.9e-2},
+    "3 to <6":     {"sedentary": 4.5e-3, "light": 1.1e-2, "moderate": 2.1e-2, "high": 3.7e-2},
+    "6 to <11":    {"sedentary": 4.8e-3, "light": 1.1e-2, "moderate": 2.2e-2, "high": 4.2e-2},
+    "11 to <16":   {"sedentary": 5.4e-3, "light": 1.3e-2, "moderate": 2.5e-2, "high": 4.9e-2},
+    "16 to <21":   {"sedentary": 5.3e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.9e-2},
+    "21 to <31":   {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},
+    "31 to <41":   {"sedentary": 4.3e-3, "light": 1.2e-2, "moderate": 2.7e-2, "high": 4.9e-2},
+    "41 to <51":   {"sedentary": 4.8e-3, "light": 1.3e-2, "moderate": 2.8e-2, "high": 5.2e-2},
+    "51 to <61":   {"sedentary": 5.0e-3, "light": 1.3e-2, "moderate": 2.9e-2, "high": 5.3e-2},
+    "61 to <71":   {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.7e-2},
+    "71 to <81":   {"sedentary": 5.0e-3, "light": 1.2e-2, "moderate": 2.5e-2, "high": 4.7e-2},
+    ">=81":        {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.5e-2, "high": 4.8e-2}
+  },
+  "app_bracket_for_age": {
+    "child": "6 to <11",
+    "adult": "21 to <31",
+    "senior": "61 to <71"
+  }
+}
