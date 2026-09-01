@@ -128,7 +128,7 @@
   </div>
 
 {% else %}
-  <div class="kpis">
+  <div class="kpis kpis-narrow">
     {% for k in sec_kpis %}
     <div class="kpi"{% if k.v == '--' %} role="group" aria-label="{{ k.l }}: {{ T('ui', 'sys_not_measured', 'not measured') }}"{% endif %}><div class="v">{{ k.v }}</div><div class="l">{{ k.l }}</div></div>
     {% endfor %}
@@ -141,8 +141,7 @@
         <div class="cols">
           {% for d in days %}
           <div class="col">
-            <span class="n">{{ d.n }}</span>
-            <span class="b {{ pos(d.h) if d.n else 'b-nil' }}"></span>
+            <span class="b {{ pos(d.h) if d.n else 'b-nil' }}"><span class="n">{{ d.n }}</span></span>
             <span class="d">{{ d.d }}</span>
           </div>
           {% endfor %}
