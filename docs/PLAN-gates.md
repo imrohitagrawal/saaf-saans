@@ -858,7 +858,7 @@ owner's call on whether an uneven foot is worth spending copy on at all.
 - [ ] The clock-freezing fixture exists and bites: the pre-fix code goes RED at 17:00.
 - [x] No `band_advice` or `headline` string is prohibition-only, in either language. Gate 1b widened this to `presenters._VERDICTS` as well — the set a reader actually meets — and made it executable: `tests/test_i18n.py::test_no_band_keyed_sentence_opens_with_a_prohibition`, over all fifteen band-keyed sentences in both languages, with a partner that proves the rule fires on the four it replaced.
 - [x] `window_none` names a lever, and deliberately names **no** hour. Amended by Gate 1b, 2026-08-31. "A least-bad hour" cannot be delivered: Gate 1a's floor forbids naming an hour on the severe and no-reading branches at all, and "least bad" is itself one of the ten superlatives `tests/test_window_at_the_hour.py` bans, in both languages. The reader's actual problem — a refusal and nothing else — is fixed by the lever. `window/none` ("No safe outdoor window today") is left as it stands: it is accurate, and with a lever beside it it is no longer empty-handed.
-- [x] Every new sentence checked against the evidence checklist; the check is recorded in the Gate 1b pull request, per sentence, per language, with the D-item that licenses it. `tests/test_health_claims.py` sweeps all of it mechanically (corpus 640 strings).
+- [x] Every new sentence checked against the evidence checklist; the check is recorded in the Gate 1b pull request, per sentence, per language, with the D-item that licenses it. `tests/test_health_claims.py` sweeps all of it mechanically (corpus 640 strings at the Gate 1b commit; 649 at `300838c`).
 - [x] **A real browser measures a rendered card height, and two guards keep it honest.**
       *(Written by this gate for itself, replacing the criterion below. A gate that can add
       a criterion and tick it in the same commit is weaker than one that cannot; it is
@@ -1149,13 +1149,21 @@ against copy that then moves must be reviewed twice.
 **The persona space after 5b:** 100 combinations, 12 blocked, **88 reachable**.
 
 **Three rules this gate must not break.** No inhalation rate is written from
-memory — both new rows are reproduced from a committed transcription of Table
-6-2 and pinned cell by cell, because a citation in a comment is satisfied by
-writing one beside a fabricated number. The banner comes down only behind a test
-that fails closed and carries a non-vacuity partner; an empty signed-off set
-must be red, not green. And adding a teen rate above the current maximum
-rescales `dose_points` for every existing persona (`risk.py:108`) — measured at
-one point per persona around +10%, and it must not happen silently.
+memory — a citation in a comment is satisfied by writing one beside a fabricated
+number. **Done ahead of 5b:** `tests/epa_table_6_2.json` transcribes all 14
+brackets of EPA Table 6-2 with its provenance and `tests/test_epa_table.py` pins
+`risk.INHALATION_RATES` to it cell by cell, proven to bite by three mutations.
+The banner comes down only behind a test that fails closed and carries a
+non-vacuity partner; an empty signed-off set must be red, not green. And a rate
+above the current maximum would rescale `dose_points` for every existing persona
+(`risk.py:108`) — **measured not to fire here**, since Teen and Youth
+high-intensity are both 4.9e-2 against adult/high's 5.0e-2.
+
+**Two claims in the first plan were refuted by reading the source.** Adolescents
+do *not* carry the highest exertion rates — 51 to <61 does, at 5.3e-2. The case
+for 5b rests instead on the bracket being wrong for the body: a 13-year-old on a
+school run is scored 14% low. Both claims had been marked uncertain rather than
+asserted, which is why refuting them cost a paragraph rather than a correction.
 
 **5d is not a new item.** It is Gate 4's "fold problem" bullet, specified. See
 that entry above and `DESIGN.md:236`.

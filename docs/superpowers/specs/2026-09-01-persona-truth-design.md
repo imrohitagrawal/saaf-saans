@@ -89,11 +89,14 @@ a gap to close rather than a claim to invent.
 > rate exactly as a 16-year-old is. Adolescence is being closed first because it
 > was asked for and because the exertion term makes it the most consequential —
 > not because it is the only one.
-> **(b)** *That* adolescents carry the highest exertion rates in Table 6-2 is a
-> **hypothesis, not a measurement.** No copy of the table is in this repo. It is
-> the reason to go and read it. It must not be restated as fact until 5b has
-> read the rows, and if it turns out false the case for 5b rests on (a) alone,
-> which is sufficient.
+> **(b) REFUTED 2026-09-01, by reading the table.** The first draft asserted
+> that adolescents carry the highest exertion rates in Table 6-2. A review
+> demoted it to a hypothesis; reading the source then killed it. The highest
+> high-intensity mean is **51 to <61 (5.3e-2)**; Teen and Youth are both 4.9e-2,
+> mid-table. The case for 5b therefore rests on (a) alone, as that draft said it
+> would have to: the bracket is simply wrong for that body. Measured cost of the
+> current mis-bracketing for a 13-year-old — **14% understated** on a school run
+> (scored 2.2e-2 as a child, correct 2.5e-2), 13% at rest.
 
 ### 1.5 A new visitor is not told what the app is for
 
@@ -159,10 +162,17 @@ reachable                              =  88
 
 ## 3. Package 5b — Teen and Youth *(first)*
 
-- Read EPA Exposure Factors Handbook 2011 **Table 6-2** rows for
-  **11 to <16 years** and **16 to <21 years**. **These values are read off the
-  source, never recalled.** An invented rate is the one thing this repository
-  forbids outright, and §1.4(b) is a hypothesis until those rows are read.
+- The rates are **already transcribed and pinned**. `tests/epa_table_6_2.json`
+  carries all 14 brackets of EPA EFH 2011 Table 6-2 (Mean column, m³/minute, pp.
+  6-4/6-5) with its provenance, and `tests/test_epa_table.py` asserts
+  `risk.INHALATION_RATES` equals it cell by cell. The twelve values covering the
+  three brackets already shipped matched the source exactly on transcription,
+  which is the evidence that both are right. Teen (11 to <16) is
+  5.4e-3/1.3e-2/2.5e-2/4.9e-2; Youth (16 to <21) is 5.3e-3/1.2e-2/2.6e-2/4.9e-2.
+  **Still never write a rate from memory or round one to taste** — add the age to
+  `INHALATION_RATES` and to the fixture's bracket map, and the test will hold you
+  to the published figures. Adding an age without recording its bracket is red by
+  design.
 - Extend `risk.INHALATION_RATES`, `main._epa_rows` bands, the age lists in
   `main.py` and `normalize.py`, and both language corpora.
 - **Validation (D2, D5):** pregnancy permitted on Youth and Adult only. Child,
@@ -175,14 +185,15 @@ reachable                              =  88
   "our own judgement, not a validated medical model" is `HEURISTIC_NOTICE` at
   `risk.py:66-67`. The value of this package is that it lands in the *grounded*
   half of the score; an invented weight on top would spend exactly that.
-- **The rescaling consequence, which the first draft missed.** `_MAX_RATIO`
-  (`risk.py:108`) is derived from `INHALATION_RATES` itself, and `_DOSE_SCALE`
-  from it. A teen row above the current maximum (adult/high, 5.0e-2) rescales
-  `dose_points` for **every existing persona**. Measured: at +10% an adult on
-  outdoor exercise goes 14 → 13; at +30% a child on a school run goes 9 → 8. The
-  comment at `risk.py:102-104` says the current mapping was chosen so that
-  "grounding the shape of the curve does not silently rescale the bands" — this
-  package must not undo that silently.
+- **The rescaling consequence — real hazard, closed by measurement.**
+  `_MAX_RATIO` (`risk.py:108`) is derived from `INHALATION_RATES` itself, and
+  `_DOSE_SCALE` from it, so a new row above the current maximum would rescale
+  `dose_points` for **every existing persona** (at +10%, an adult on outdoor
+  exercise goes 14 → 13). **It does not fire here:** Teen and Youth
+  high-intensity are both 4.9e-2, below adult/high's 5.0e-2, so `_MAX_RATIO` is
+  unchanged and no existing score moves. Confirm that rather than assuming it —
+  the exit criterion below still requires before/after figures, because the
+  guard is what makes the next row safe too.
 - **Hindi terms (D9, and see §5).** `किशोर` for Teen, `युवा` for Youth. `युवा`
   is form-invariant. `किशोर` is not, and is generic-masculine per D9.
 
@@ -196,12 +207,14 @@ reachable                              =  88
 - [ ] A blocked pair renders a visible line naming what was changed and why, in
       both languages, tested.
 - [ ] The Guide's EPA table shows five rows, each with its own cited bracket.
-- [ ] The two new rates are reproduced from a **committed transcription of the
-      two Table 6-2 rows** (source and page cited), and a test asserts
-      `risk.INHALATION_RATES` equals it cell by cell — so the number and its
-      source are two artefacts that must agree, and editing one goes red. A
-      citation in a comment is not sufficient: it is satisfied by writing the
-      comment beside a hallucinated number.
+- [x] **Done 2026-09-01, ahead of the package.** The two new rates are
+      reproduced from a committed transcription of Table 6-2 (source, page and
+      URL cited) and `tests/test_epa_table.py` asserts `risk.INHALATION_RATES`
+      equals it cell by cell. Proven to bite by three named mutations: changing
+      one digit of one rate (1 red), emptying the fixture (17 red — the
+      non-vacuity partner), and adding an age with no bracket recorded (1 red).
+      A citation in a comment was never sufficient: it is satisfied by writing
+      the comment beside a hallucinated number.
 - [ ] `dose_points` for every pre-existing persona is recorded before and after.
       Any change is stated in the pull request with its cause, or `_DOSE_SCALE`
       is pinned so there is none.
@@ -449,7 +462,7 @@ Prefixed `G5-` because `PLAN-gates.md` §5 already owns bare `R1`–`R10`.
 | G5-R1 | An invented inhalation rate ships | 5b | A committed transcription of the two Table 6-2 rows, and a test asserting the table equals it cell by cell. A citation in a comment is **not** a mitigation — it is satisfied by writing one beside a fabricated number |
 | G5-R2 | The banner comes down over a corpus not really reviewed | 5a | The coverage floor and the non-vacuity partner in §5a.3 |
 | G5-R3 | The banner comes down and later work adds unreviewed Hindi | all | D6's reversal: 5a runs last. The pinning test fails closed, so a later string cannot ship silently |
-| G5-R4 | Adding teen rates silently rescales every existing score | 5b | Before/after `dose_points` recorded, or `_DOSE_SCALE` pinned |
+| G5-R4 | Adding teen rates silently rescales every existing score | 5b | **Closed by measurement 2026-09-01** — Teen and Youth high-intensity are 4.9e-2, below adult/high's 5.0e-2, so `_MAX_RATIO` does not move. Before/after `dose_points` still recorded, because the guard is what makes the next row safe |
 | G5-R5 | A blocked pregnancy pair silently answers a different question | 5b | The page states what was changed; tested in both languages |
 | G5-R6 | The driver rewrite reintroduces a health claim | 5c | `test_health_claims.py` plus the per-sentence checklist |
 | G5-R7 | The reviewer's verdicts are applied wrongly | 5a | One commit per surface, **and** a second cheap pass over the rendered app after application — "one commit per surface" makes a bad application revertible, not detectable |
@@ -504,6 +517,11 @@ removal reds; the six surfaces asserting the banner stays; `share_for`, the
 double em-dash and the Latin full stop; the vacuous exit criteria; the
 `DESIGN.md` contradiction; the dangling reference in §8; that किशोर spans both
 brackets; that the picker labels already use the proposed verbal-noun forms.
+
+**Refuted later, by reading the source (2026-09-01):** §1.4(b)'s
+adolescent-exertion hypothesis, and G5-R4's rescaling risk. Both were marked
+uncertain rather than asserted, which is why finding them false cost a paragraph
+each rather than a merged falsehood.
 
 **Rejected:** that four tests fail on `fontTools` and it must be installed —
 an artefact of a reviewer running system `python3` rather than `.venv/bin/python`;

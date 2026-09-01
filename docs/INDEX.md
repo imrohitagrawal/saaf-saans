@@ -77,7 +77,7 @@ Things you run, not things you read for information.
 
 ## Test baseline
 
-993 passing, ~2.9s, no network, at commit `5146e9e`. Run with:
+1,641 passing across 44 files, ~114s, no network, at commit `300838c`. Run with:
 
 ```
 cd /Users/rohitagrawal/Projects/saaf-saans && env OPENROUTER_API_KEY= WAQI_TOKEN= \
@@ -88,9 +88,12 @@ The trailing-equals form is **required**. `env -u NAME` does not work: `services
 calls `load_dotenv()` at import, which refills an unset name from `.env` and produces a
 live-credential run. `load_dotenv` does not overwrite a name that is present but empty.
 
-> Note: `README.md:174` and `RETROSPECTIVE.md:52` both state 773 tests / 25 files. The
-> measured figure is 993 tests across 30 files in `tests/`. Those are stale, unpinned, present-tense claims and should
-> be corrected by measurement. This baseline itself was left at `882 … 3bac090` for seven
-> commits — pinned, so not false, but read as current by anyone following the reading
-> order this file prescribes. Re-pin it in the same commit that changes the count. (`CASE-STUDY.md:32`'s 831 is *pinned to commit `b26256d`*
-> and is therefore a correct historical statement, not a stale one.)
+> **Re-pin this in the same commit that changes the count.** Every test-count
+> claim in this repository carries a commit SHA for that reason. The figures in
+> `README.md` and `RETROSPECTIVE.md` were left unpinned and present-tense at
+> "773 tests / 25 files" while the real count passed 993 and then 1,641; this
+> baseline itself sat at `882 … 3bac090` for seven commits, and at `993 …
+> 5146e9e` for longer. Pinned is not the same as current — but an unpinned
+> number is read as current by anyone following the reading order above, and
+> that is how it becomes a lie. (`CASE-STUDY.md:58`'s 831 is pinned to
+> `b26256d` and is correct history, not staleness. Leave it alone.)
