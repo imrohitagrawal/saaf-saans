@@ -1,0 +1,2138 @@
+[
+  {
+    "key": "a11y.spark",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:101-200:pregnancy:commute:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:151-200:pregnancy:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:201-300:pregnancy:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:301-400:pregnancy:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:401-999:pregnancy:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACOG-airquality:51-150:pregnancy:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.ACSM-guidance:301-400:any:outdoor_exercise:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:101-200:heart:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:101-200:heart:commute:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:201-300:heart:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:201-300:heart:commute:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:301-999:heart:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:301-999:heart:any:senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AHA-airpollution:51-150:heart:outdoor_exercise:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.AIIMS-advisory:101-200:any:any:senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:0-100:any:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:101-200:any:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:101-200:any:outdoor_exercise:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:201-300:any:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:201-300:any:outdoor_exercise:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:301-400:any:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.CPCB-AQI-scale:401-999:any:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.EPA-indoor-air:151-999:any:stay_home:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.EPA-indoor-air:201-300:any:stay_home:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GINA-guidance:101-200:asthma:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GINA-guidance:201-300:asthma:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GINA-guidance:301-999:asthma:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GINA-guidance:51-150:asthma:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GOLD-guidance:101-200:copd:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GOLD-guidance:201-300:copd:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GOLD-guidance:301-400:copd:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GOLD-guidance:401-999:copd:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.GOLD-guidance:51-150:copd:any:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.Lancet-Planetary-Health:101-300:asthma:outdoor_exercise:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-AQG-2021:201-300:any:commute:any",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-AQG-2021:201-300:any:commute:senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-AQG-2021:401-999:any:any:senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-AQG-2021:51-150:any:outdoor_exercise:senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-children-air:101-200:any:school_run:child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-children-air:151-400:any:outdoor_exercise:child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-children-air:201-300:any:school_run:child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-children-air:401-999:any:any:child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "advisory.WHO-children-air:51-150:any:school_run:child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_cycling",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_generic",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_running",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_sport",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_swimming",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.activity_walking",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.generic_advisory",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.held_suffix",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_cycling",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_mask_high",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_mask_low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_running",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_sport",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_swimming",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.precaution_walking",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.stale_suffix",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.symptom_stop",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.symptom_urgent",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.why_ok",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.why_severe",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.why_unhealthy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.why_unknown",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.window_default",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "answer.window_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Good",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Poor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Satisfactory",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Severe",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Unknown",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "aqi_meaning.Very Poor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_advice.Extreme",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_advice.High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_advice.Low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_advice.Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_advice.Very High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Good",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Poor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Satisfactory",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Severe",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Unknown",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "band_label.Very Poor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "city.summary",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "city.summary_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "city.summary_stale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.gap_plain",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.gap_with_reasons",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_asthma",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_condition",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_copd",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_join",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.reason_senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "compare.same",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "condition_help.Asthma",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "condition_help.COPD",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "condition_help.Fit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "condition_help.Heart condition",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "condition_help.Pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.fri",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.mon",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.sat",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.sun",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.thu",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.today",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.tue",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "day.wed",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.act_commute",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.act_outdoor_exercise",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.act_school_run",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.age_child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.age_senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.aqi",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.cond_asthma",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.cond_copd",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.cond_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.cond_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "driver.no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.ACOG-airquality",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.ACSM-guidance",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.AHA-airpollution",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.AIIMS-advisory",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.AQI",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.CPCB",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.CPCB-AQI-scale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.Dominant pollutant",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.EPA-indoor-air",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.GINA-guidance",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.GOLD-guidance",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.Lancet-Planetary-Health",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.N95",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.PM10",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.PM2.5",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.Risk score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.WHO-AQG-2021",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.WHO-children-air",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "glossary.µg/m³",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_data_source_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_data_source_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_how_score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_ignores",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_medical",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_privacy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.a_score_vs_aqi",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.age_band_adult",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.age_band_child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.age_band_senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.age_band_teen",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.age_band_youth",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.bands_intro",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_bands",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_conditions",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_faq",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_judgement",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_numbers",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_researched",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_risk",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_risk_words",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_scale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.h_who",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.judgement_body",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.level_high",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.level_light",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.level_moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.level_sedentary",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.mapping_ours",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.open_code",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_data_source",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_how_score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_ignores",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_medical",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_privacy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.q_score_vs_aqi",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.researched_intro",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.risk_intro",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.scale_1",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.scale_2",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.scale_3",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.source_unvalidated",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.sub",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.term_dominant",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.term_risk_score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_age",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_band",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_called",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_factor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_hard",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_light",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_means",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_points",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_rest",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.th_score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.who_1_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.who_1_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.who_1_unit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "guide.who_2",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "headline.Extreme",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "headline.High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "headline.Low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "headline.Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "headline.Very High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "hero.held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "hero.no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Anand Vihar",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Ashok Vihar",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.DTU",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Delhi",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Delhi (city)",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Dwarka",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Faridabad",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Ghaziabad",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Greater Noida",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Gurugram",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.ITO",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Jahangirpuri",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Mandir Marg",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.NCR",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Najafgarh",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Nehru Nagar",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Noida",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Okhla",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Patparganj",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Punjabi Bagh",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.RK Puram",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Rohini",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "locality.Wazirpur",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.activity_commute",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.activity_exercise",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.activity_school_run",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.activity_stay_home",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.age_adult",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.age_child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.age_senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.age_teen",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.age_youth",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.condition_asthma",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.condition_copd",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.condition_fit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.condition_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.condition_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.kicker",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.plain",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.with_activity",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.with_activity_and_place",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "persona.with_place",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "prov.cached",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "prov.live",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "prov.no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.act_commute",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.act_outdoor_exercise",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.act_school_run",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.act_stay_home",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.advice_for",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.advice_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.advice_no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_adult",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_child",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_senior",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_teen",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_unit_days",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_unit_hours",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_unit_min",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.age_youth",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.answer_error",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.answered_for",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_chip_best_time",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_chip_mask_today",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_chip_outside_now",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_chip_symptoms",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_chips_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_hint",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_placeholder",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_sub",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.ask_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.banner_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.baseline_chip",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.btn_ask",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.btn_change",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.btn_done",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.btn_update",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cond_asthma",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cond_copd",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cond_fit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cond_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cond_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cpcb_scale_both",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cpcb_scale_pm10",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.cpcb_scale_pm25",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.disclaimer",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.dominant_tag",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.effort",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.example_for_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.example_for_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.example_prefix",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.example_risk",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_advisories",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_not_a_device",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_sources_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_sources_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_sources_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.footer_sources_waqi_only",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.gap_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.heading_seek_help",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.heading_verdict",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.heading_what_to_do",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.hint_session",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.lang_group",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.last_24h",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.last_reported_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.last_reported_here",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.lbl_activity",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.lbl_age",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.lbl_condition",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.lbl_locality",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.link_numbers",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.link_score",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.link_who",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.meaning_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_1",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_10",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_11",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_12",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_2",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_3",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_4",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_5",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_6",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_7",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_8",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.month_9",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.nav_city",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.nav_guide",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.nav_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.nav_system",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.nav_today",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.no_obs_time",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.no_trend_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.no_trend_number_note",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.no_trend_tail",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.now",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.orient",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.outlook_absent",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.outlook_caption",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.outlook_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.persona_path_lead",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.persona_path_link",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.pregnancy_blocked_notice",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_count_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_count_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_count_before_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_count_before_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_dominant",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_feed_figure",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_feed_scale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_group_general",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_group_persona",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_live",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_measured",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_measured_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_not_measured",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_our_scale_both",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_our_scale_pm10",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_our_scale_pm25",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_published",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_source_cpcb_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.prov_source_cpcb_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.q_mark",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.refusal_audit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.refusal_body",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.refusal_no_audit",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.refusal_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.region_delhi",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.region_ncr",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_band_Extreme",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_band_High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_band_Low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_band_Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_band_Very High",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.risk_notice",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.scale_high",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.scale_low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_ask",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_now",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_outlook",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_persona",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sec_trend",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_for",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_held",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_site_desc",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_site_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.share_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.skip",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.spark_caption",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.stale_note",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_blocked_premodel",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_btn_simulate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_attempts",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_attempts_after_sim",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_attempts_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_blocked_7d",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_blocked_7d_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_localities",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_localities_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_telemetry",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_viewport",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_empty_viewport_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_events_caption",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_excerpt_caption",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_h_attempts",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_h_blocked_7d",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_h_events",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_h_localities",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_h_viewport",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_answered",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_blocked_7d",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_events",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_feed_fallback",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_p50",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_p95",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_patterns",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_premodel",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_rule_fallback",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_kpi_tokens",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_not_measured",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_sim_note_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_sim_note_after_no_index",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_sim_note_after_unlisted",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_sim_note_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_sub",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_view_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_view_obs",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_view_sec",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.sys_viewport_caveat",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_cached",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_cached_def",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_legend",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_no_reading_def",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_old",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_partial",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_partial_def",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.tag_partial_legend",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.theme_day",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.theme_group",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.theme_night",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.throttled_body",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.throttled_minutes",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.throttled_title",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.throttled_wait",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.window_label",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.window_note",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "ui.your_risk",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Extreme_age",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Extreme_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Extreme_lungs",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Extreme_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Extreme_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.High_age",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.High_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.High_lungs",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.High_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.High_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Low",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Very High_age",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Very High_heart",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Very High_lungs",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Very High_none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "verdict.Very High_pregnancy",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.about_at",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.below",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.far_more",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_10",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_100",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_2",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_20",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_200",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_3",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_30",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_300",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_4",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_40",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_400",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_5",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_50",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_500",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_6",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_60",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_7",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_70",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_8",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_80",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_9",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.multiple_90",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "who.no_fine_particles",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.default_rationale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.general_note",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.hours_alike",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.no2_edge_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.no2_rationale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.none",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.none_rationale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.note_moderate",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.note_no_reading",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.note_poor",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.note_severe",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.o3_edge_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.o3_edge_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.o3_rationale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.pm_edge_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.today_after",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.today_before",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.today_window",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  },
+  {
+    "key": "window.winter_rationale",
+    "reason": "no reviewer assigned yet -- Gate 5a Deliverable 2 not started"
+  }
+]
