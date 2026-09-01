@@ -363,25 +363,25 @@ select, input[type="text"] {
              color: var(--text); border: 1px solid var(--ink); }
 .term { border: none; background: none; padding: 0; font: inherit; color: inherit;
         border-bottom: 1px dotted var(--text-3); cursor: pointer; }
-/* 24px: the label needs 11px at `line-height:1` plus the tick's own 11px
-   plus a 2px gap -- at the inherited 17.05px line height the two glyphs
-   overlapped, the tick reading through the digits it marks. Takes 9px of
-   the reading card's 26px foot headroom (test_viewport_browser.py). */
-.scale-wrap { margin-top: 14px; position: relative; padding-top: 24px; }
+.scale-wrap { margin-top: 14px; position: relative; padding-top: 15px; }
 /* Absolutely positioned with `left` and no `right`, the label shrinks to fit
    whatever room is left to the container edge: past about 88% there is less
    of it than "500" needs, and it wraps. nowrap holds one line; -50% keeps
    its right edge inside the card. line-height 1, not the inherited 17.05px,
-   so the tick below sits clear of the digits, not through them. */
+   so the tick below sits clear of the digits -- the 15px reservation is
+   read elsewhere (test_viewport_browser.py's reading-card foot), so the fix
+   stays inside it rather than growing it. */
 .scale-mark { position: absolute; top: 0; left: var(--p, 0%); transform: translateX(-50%);
               white-space: nowrap; line-height: 1;
               font-family: var(--mono); font-size: 11px; font-weight: 600; }
 /* Split from the label: centring one string ("325 ▾") on `--p` put the
-   pointer past the bar at AQI 500. This glyph rides `--p` alone, centred on
-   its own ~7px, 2px clear of the label's box above it. */
-.scale-tick { position: absolute; top: 24px; left: var(--p, 0%);
-              transform: translate(-50%, -100%);
-              font-family: var(--mono); font-size: 11px; line-height: 1; }
+   pointer past the bar at AQI 500. Rides `--p` alone now, centred on its own
+   width. A tight line-height keeps it just below the label, inside the same
+   15px band, tucked against `.scale`'s top -- a caret on the track, not
+   floating apart from it. */
+.scale-tick { position: absolute; top: 11.5px; left: var(--p, 0%);
+              transform: translateX(-50%);
+              font-family: var(--mono); font-size: 11px; line-height: .6; }
 .scale { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
 /* The legend reuses .band-g1..g6, which already expose --ink, rather than
    repeating the six hexes a second time. Widths mirror the CPCB ranges each
