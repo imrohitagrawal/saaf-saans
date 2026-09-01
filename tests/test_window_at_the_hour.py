@@ -739,7 +739,8 @@ def test_the_severity_word_list_would_notice_one(lang):
     the test."""
     shipped = " ".join([
         i18n.t(lang, "aqi_meaning", "Severe", normalize.AQI_MEANING["Severe"]),
-        i18n.t(lang, "verdict", "Extreme", presenters.verdict_for("Extreme")),
+        i18n.t(lang, "verdict", presenters.verdict_key("Extreme"),
+              presenters.verdict_for("Extreme")),
     ]).lower()
     assert any(w in shipped for w in SEVERITY_WORDS[lang]), (lang, shipped)
 

@@ -677,14 +677,21 @@ def today(request: Request):
     turns = list(reversed(read_turns(sid)))
     open_prov = q.get("prov")
     band = data["risk"]["band"]
+    # 5c: which organ/driver the headline names, from the same normalized
+    # keywords advisor_data already fed compute_risk -- condition always
+    # outranks age (pr.verdict_driver's docstring records why).
+    driver = pr.verdict_driver(normalize.norm_condition(persona["condition"]),
+                               normalize.norm_age(persona["age"]))
+    verdict_key = pr.verdict_key(band, driver)
     # The verdict is the single largest health directive on the site, and every
-    # one of the five band verdicts is a claim about the air ("this air is
+    # one of the band verdicts is a claim about the air ("this air is
     # dangerous for you"). With no reading there is no air to make a claim
     # about, so the headline names the absence instead. It used to inherit the
     # verdict for whatever band the unknown-AQI base score happened to land in,
     # which is how a place the app had never measured got told its lungs needed
     # it indoors today.
-    verdict = (i18n.t(lang, "verdict", band, pr.verdict_for(band)) if is_current
+    verdict = (i18n.t(lang, "verdict", verdict_key, pr.verdict_for(band, driver))
+               if is_current
                else (pr.held_verdict(persona["locality"], lang=lang) if has_reading
                      else pr.no_reading_verdict(persona["locality"], lang=lang)))
     ctx["has_reading"] = has_reading

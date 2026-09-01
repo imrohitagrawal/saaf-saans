@@ -563,17 +563,18 @@ def test_every_hindi_verdict_tells_the_reader_what_to_do():
     one layer up: severity has to increase monotonically with the band, and a
     ramp that reverses is worst exactly where it matters most. Colour was
     caught by computing luminance; this one needed a Hindi speaker to read it.
+    Swept over every key in ``i18n.HI["verdict"]``, not ``risk.RISK_BANDS``:
+    since Gate 5 package 5c, High/Very High/Extreme each carry five driver
+    variants and there is no bare "High" key to iterate by band alone.
     """
-    from saafsaans.services import risk
-    for band in risk.RISK_BANDS:
-        verdict = i18n.HI["verdict"][band]
-        assert carries_an_imperative(verdict), (band, verdict)
+    for key, verdict in i18n.HI["verdict"].items():
+        assert carries_an_imperative(verdict), (key, verdict)
 
 
 def test_the_hindi_verdicts_are_all_different():
-    """Two bands sharing a line would flatten the ramp just as effectively."""
-    from saafsaans.services import risk
-    verdicts = [i18n.HI["verdict"][b] for b in risk.RISK_BANDS]
+    """Two keys sharing a line would flatten the ramp, or collapse two
+    drivers into one sentence, just as effectively."""
+    verdicts = list(i18n.HI["verdict"].values())
     assert len(set(verdicts)) == len(verdicts)
 
 
@@ -669,13 +670,20 @@ def _band_keyed_sentences(lang):
     that added this rule -- a rule over the two invisible-to-the-reader sets
     and not over the visible one would be the exact hole PLAN-gates.md's
     2026-08-31 correction is about.
+
+    "verdict" walks `presenters._VERDICTS` by its own keys, not by
+    `risk.RISK_BANDS`: since Gate 5 package 5c, High/Very High/Extreme each
+    carry five driver variants ("High_lungs", "High_heart", ...), and
+    `_VERDICTS` has no bare "High" key any more. band_advice and headline
+    stay one-per-band.
     """
     from saafsaans.services import risk
     from saafsaans.web import presenters
 
+    for key, text in presenters._VERDICTS.items():
+        yield "verdict", key, i18n.t(lang, "verdict", key, text)
     for band in risk.RISK_BANDS:
-        for group, source in (("verdict", presenters._VERDICTS),
-                              ("band_advice", risk.BAND_ADVICE),
+        for group, source in (("band_advice", risk.BAND_ADVICE),
                               ("headline", risk._HEADLINE)):
             yield group, band, i18n.t(lang, group, band, source[band])
 
@@ -711,8 +719,8 @@ def _is_prohibition(text: str, lang: str) -> bool:
 
 @pytest.mark.parametrize("lang", ("en", "hi"))
 def test_no_band_keyed_sentence_opens_with_a_prohibition(lang):
-    """Turns red when: any of the fifteen sentences a band can put in front of a
-    reader starts by naming what not to do instead of what to do."""
+    """Turns red when: any of the twenty-seven sentences a band can put in
+    front of a reader starts by naming what not to do instead of what to do."""
     offenders = [f"{group}/{band}: {text}"
                  for group, band, text in _band_keyed_sentences(lang)
                  if _is_prohibition(text, lang)]
@@ -727,8 +735,8 @@ def test_the_prohibition_rule_catches_the_sentences_it_replaced(lang):
 
     So it is run against the four sentences per language that shipped until
     2026-08-31, one from each of the three groups plus the Extreme verdict,
-    all of which it must catch; and against the fifteen that ship now, none of
-    which it may.
+    all of which it must catch; and against the twenty-seven that ship now,
+    none of which it may.
 
     What it does NOT claim: a prohibition moved out of the opening clause is
     not caught. "Keep trips short and wear an N95 outside. Skip outdoor
@@ -812,22 +820,47 @@ def test_the_imperative_rule_rejects_a_sentence_that_only_describes(description)
 # verdicts, so Extreme printed "Today is an easy one for you", and the whole
 # suite stayed green. Severity order in prose is not decidable by machine, and
 # no rule here pretends to decide it. What this does is make any change to the
-# ten sentences a reader meets first show up as a diff a person has to read,
-# with the bands in order beside them.
+# seventeen sentences a reader can meet first show up as a diff a person has
+# to read, with the bands (and, since Gate 5 package 5c, the drivers within
+# each band) in order beside them.
 GOLDEN_VERDICTS = """
-Low        | Today is an easy one for you — go and use it.
-Moderate   | Today is manageable for you — take it at an easy pace.
-High       | Today is hard on lungs like yours — cut the exertion.
-Very High  | Today is a serious strain for you — keep it to what has to be done.
-Extreme    | Today is dangerous for you — let only the unavoidable take you outside.
+Low                  | Today is an easy one for you — go and use it.
+Moderate             | Today is manageable for you — take it at an easy pace.
+High_none            | Today is hard on you — cut the exertion.
+High_lungs           | Today is hard on lungs like yours — cut the exertion.
+High_heart           | Today is hard on a heart like yours — cut the exertion.
+High_pregnancy       | Today is hard on you and your pregnancy — cut the exertion.
+High_age             | Today is hard on a body like yours — cut the exertion.
+Very High_none       | Today is a serious strain for you — keep it to what has to be done.
+Very High_lungs      | Today is a serious strain on lungs like yours — keep it to what has to be done.
+Very High_heart      | Today is a serious strain on a heart like yours — keep it to what has to be done.
+Very High_pregnancy  | Today is a serious strain on you and your pregnancy — keep it to what has to be done.
+Very High_age        | Today is a serious strain on a body like yours — keep it to what has to be done.
+Extreme_none         | Today is dangerous for you — let only the unavoidable take you outside.
+Extreme_lungs        | Today is dangerous for lungs like yours — let only the unavoidable take you outside.
+Extreme_heart        | Today is dangerous for a heart like yours — let only the unavoidable take you outside.
+Extreme_pregnancy    | Today is dangerous for you and your pregnancy — let only the unavoidable take you outside.
+Extreme_age          | Today is dangerous for a body like yours — let only the unavoidable take you outside.
 """
 
 GOLDEN_VERDICTS_HI = """
-Low        | आज का दिन आपके लिए आसान है — बाहर निकलिए और दिन का फ़ायदा उठाइए।
-Moderate   | आज का दिन आपके लिए ठीक-ठाक है — रफ़्तार आराम की रखिए।
-High       | आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम कीजिए।
-Very High  | आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
-Extreme    | आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+Low                  | आज का दिन आपके लिए आसान है — बाहर निकलिए और दिन का फ़ायदा उठाइए।
+Moderate             | आज का दिन आपके लिए ठीक-ठाक है — रफ़्तार आराम की रखिए।
+High_none            | आज का दिन आपके लिए मुश्किल है — आज मेहनत कम कीजिए।
+High_lungs           | आज का दिन आपके जैसे फेफड़ों के लिए मुश्किल है — आज मेहनत कम कीजिए।
+High_heart           | आज का दिन आपके जैसे दिल के लिए मुश्किल है — आज मेहनत कम कीजिए।
+High_pregnancy       | आज का दिन आपके और आपकी गर्भावस्था के लिए मुश्किल है — आज मेहनत कम कीजिए।
+High_age             | आज का दिन आपके जैसे शरीर के लिए मुश्किल है — आज मेहनत कम कीजिए।
+Very High_none       | आज का दिन आप पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Very High_lungs      | आज का दिन आपके जैसे फेफड़ों पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Very High_heart      | आज का दिन आपके जैसे दिल पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Very High_pregnancy  | आज का दिन आप और आपकी गर्भावस्था पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Very High_age        | आज का दिन आपके जैसे शरीर पर भारी पड़ रहा है — आज सिर्फ़ वही काम कीजिए जो ज़रूरी हैं।
+Extreme_none         | आज का दिन आपके लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+Extreme_lungs        | आज का दिन आपके जैसे फेफड़ों के लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+Extreme_heart        | आज का दिन आपके जैसे दिल के लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+Extreme_pregnancy    | आज का दिन आपके और आपकी गर्भावस्था के लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
+Extreme_age          | आज का दिन आपके जैसे शरीर के लिए ख़तरनाक है — बाहर सिर्फ़ वही काम कीजिए जो टल ही न सकें।
 """
 
 
@@ -835,16 +868,15 @@ Extreme    | आज का दिन आपके लिए ख़तरना�
                          (("en", GOLDEN_VERDICTS), ("hi", GOLDEN_VERDICTS_HI)),
                          ids=("en", "hi"))
 def test_the_verdict_ramp_is_what_a_reader_gets(lang, golden):
-    """Turns red when: any of the five verdicts a reader meets first changes, in
-    either language, including a change that only reorders them.
+    """Turns red when: any of the seventeen verdicts a reader can meet first
+    changes, in either language, including a change that only reorders them.
 
     It cannot see whether the new order is monotone -- that is a reading, and it
     is the reviewer's, not this file's. It can refuse to let the order change
     without a person seeing it."""
-    from saafsaans.services import risk
     from saafsaans.web import presenters
 
-    rows = [f"{band:<10} | {i18n.t(lang, 'verdict', band, presenters._VERDICTS[band])}"
-            for band in risk.RISK_BANDS]
+    rows = [f"{key:<20} | {i18n.t(lang, 'verdict', key, text)}"
+            for key, text in presenters._VERDICTS.items()]
     assert "\n".join(rows) == golden.strip(), (
-        "the verdict ramp changed; bands are in RISK_BANDS order")
+        "the verdict ramp changed; keys are in presenters._VERDICTS order")

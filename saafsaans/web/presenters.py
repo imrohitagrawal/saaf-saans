@@ -54,7 +54,8 @@ def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
 # hard on -> a serious strain -> dangerous. That is the copy-layer form of
 # DESIGN.md's Monotone Severity rule, and the defect it guards against has
 # already happened here once, in the Hindi (see
-# test_every_hindi_verdict_tells_the_reader_what_to_do).
+# test_every_hindi_verdict_tells_the_reader_what_to_do). Driver variants below
+# never touch this clause -- only the subject after it changes.
 #
 # The subject is "Today", not "Today's air". This dict is keyed on the
 # persona-adjusted band, which knows the reader and not the air, so a sentence
@@ -62,31 +63,113 @@ def _fmt(lang: str, group: str, key: str, english: str, **fields) -> str:
 # AQI 0 a child with COPD on a school run scores band High, and a draft h1
 # reading "Today's air is hard on lungs like yours" sat directly above a band
 # meaning reading "Air is clean. Outdoor activity is fine for everyone."
+#
+# Gate 5 package 5c: High, Very High and Extreme each carry five variants,
+# keyed by the DOMINANT DRIVER (see verdict_driver below) rather than always
+# naming lungs -- design doc section 1.2 measured 19 of 38 non-lung personas
+# at AQI 180 told "hard on lungs like yours". Low and Moderate keep their one
+# line each: at those severities nothing is claimed to be hard on any part of
+# the reader, so there is no organ to get wrong, and inventing one would be a
+# claim this package has no evidence for.
 _VERDICTS = {
     "Low": "Today is an easy one for you — go and use it.",
     "Moderate": "Today is manageable for you — take it at an easy pace.",
-    # None of the five says "indoors". Placement is the advice line's job, and
-    # a first draft of this set ended three of them on the same word the advice
+    # None of these says "indoors". Placement is the advice line's job, and a
+    # first draft of this set ended three of them on the same word the advice
     # directly beneath opened on -- measured in a real browser at High, Very
     # High and Extreme, in both languages. The verdict says HOW MUCH to do; the
     # advice says WHERE to do it. Both still carry an instruction, because a
     # verdict that only describes is the weaker-at-the-top defect
     # test_every_hindi_verdict_tells_the_reader_what_to_do was written for.
-    "High": "Today is hard on lungs like yours — cut the exertion.",
-    "Very High": "Today is a serious strain for you — keep it to what has to "
-                 "be done.",
+    "High_none": "Today is hard on you — cut the exertion.",
+    "High_lungs": "Today is hard on lungs like yours — cut the exertion.",
+    "High_heart": "Today is hard on a heart like yours — cut the exertion.",
+    "High_pregnancy": "Today is hard on you and your pregnancy — cut the "
+                      "exertion.",
+    "High_age": "Today is hard on a body like yours — cut the exertion.",
+    "Very High_none": "Today is a serious strain for you — keep it to what "
+                      "has to be done.",
+    "Very High_lungs": "Today is a serious strain on lungs like yours — keep "
+                       "it to what has to be done.",
+    "Very High_heart": "Today is a serious strain on a heart like yours — "
+                       "keep it to what has to be done.",
+    "Very High_pregnancy": "Today is a serious strain on you and your "
+                           "pregnancy — keep it to what has to be done.",
+    "Very High_age": "Today is a serious strain on a body like yours — keep "
+                     "it to what has to be done.",
     # Not "treat going out as the exception": that hedge is looser than Very
     # High's line directly above it, and a ramp that reverses is weakest exactly
     # where it matters most. The exception is named with a bar on it instead of
     # left open.
-    "Extreme": "Today is dangerous for you — let only the unavoidable take "
-               "you outside.",
+    "Extreme_none": "Today is dangerous for you — let only the unavoidable "
+                    "take you outside.",
+    "Extreme_lungs": "Today is dangerous for lungs like yours — let only the "
+                     "unavoidable take you outside.",
+    "Extreme_heart": "Today is dangerous for a heart like yours — let only "
+                     "the unavoidable take you outside.",
+    "Extreme_pregnancy": "Today is dangerous for you and your pregnancy — "
+                         "let only the unavoidable take you outside.",
+    "Extreme_age": "Today is dangerous for a body like yours — let only the "
+                   "unavoidable take you outside.",
 }
 
 
-def verdict_for(band: str) -> str:
-    """The hero headline for a risk band. Unknown bands get the cautious one."""
-    return _VERDICTS.get(band, _VERDICTS["High"])
+def verdict_driver(condition_kw: str, age_kw: str) -> str:
+    """Which organ/driver word the verdict headline should name.
+
+    D1 (design doc section 4): pick the wording from the dominant driver
+    rather than the band alone. The mapping and its precedence:
+
+        asthma, copd  -> lungs
+        heart         -> heart
+        pregnancy     -> pregnancy (its own line, normalize.py:228)
+        no condition, but child or senior -> age
+        anything else -> none (no organ claim)
+
+    **Driver precedence, decided here rather than left open.** The design
+    doc flags "senior with COPD" as a judgement call. CONDITION always beats
+    AGE: a condition is the more specific, higher-weighted driver
+    (CONDITION_PTS tops out at 18; AGE_SUSCEPTIBILITY_PTS at 10), and "age"
+    in the table above is reached only when nothing else applies -- so a
+    senior with COPD is told about lungs, never age. Unrecognised or "any"
+    condition keywords fall through to the age/none branch, matching
+    normalize.norm_condition's own "any" fallback for an unrecognised label.
+    """
+    if condition_kw in ("asthma", "copd"):
+        return "lungs"
+    if condition_kw == "heart":
+        return "heart"
+    if condition_kw == "pregnancy":
+        return "pregnancy"
+    if age_kw in ("child", "senior"):
+        return "age"
+    return "none"
+
+
+def verdict_key(band: str, driver: str = "none") -> str:
+    """The ``_VERDICTS`` key ``verdict_for`` resolves to.
+
+    Exposed so a caller building an ``i18n.t`` lookup (main.py's ``today``)
+    asks for the same key ``verdict_for`` used for its English fallback --
+    the two must agree on which of a band's variants they mean, or the
+    Hindi translation served would be for the wrong driver.
+
+    Unknown bands or drivers never produce a softer line than what is known:
+    a band with driver variants falls back to its own "none" key rather than
+    to a different band, and an unknown band falls back to the cautious
+    High/none line.
+    """
+    keyed = f"{band}_{driver}"
+    if keyed in _VERDICTS:
+        return keyed
+    if band in _VERDICTS:
+        return band
+    return "High_none"
+
+
+def verdict_for(band: str, driver: str = "none") -> str:
+    """The hero headline for a risk band, worded for its dominant driver."""
+    return _VERDICTS[verdict_key(band, driver)]
 
 
 def no_reading_verdict(locality: str, lang: str = "en") -> str:
