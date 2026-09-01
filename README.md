@@ -179,7 +179,7 @@ saafsaans/
     metrics · llm · i18n
   data/advisories.py    43 seed advisories
   setup_indices.py · seed_demo_history.py · attack_demo.py
-tests/                  1,641 tests, 44 files at `300838c`
+tests/                  1,738 tests, 46 files at `daf50bf`
 docs/                   design brief, screenshots, specs
 ```
 

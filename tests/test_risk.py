@@ -90,8 +90,8 @@ def test_no_persona_scores_high_or_worse_at_aqi_zero():
     push the score into High, Very High or Extreme when there is nothing in
     the air to be susceptible to.
 
-    Sweeps the whole reachable persona space (5 conditions x 4 activities x 3
-    ages = 60), matching the space tests/test_advisory_relevance.py sweeps
+    Sweeps the whole reachable persona space (5 conditions x 4 activities x 5
+    ages = 100), matching the space tests/test_advisory_relevance.py sweeps
     from the same normalize.py maps.
 
     Turns red when: susceptibility points are added to the AQI base without
@@ -104,14 +104,14 @@ def test_no_persona_scores_high_or_worse_at_aqi_zero():
     conditions = sorted(set(CONDITION_MAP.values()))
     activities = sorted(set(ACTIVITY_MAP.values()))
     ages = sorted(set(AGE_MAP.values()))
-    assert len(conditions) == 5 and len(activities) == 4 and len(ages) == 3
+    assert len(conditions) == 5 and len(activities) == 4 and len(ages) == 5
 
     bad = []
     for cond, act, age in itertools.product(conditions, activities, ages):
         r = compute_risk(0, cond, act, age)
         if r["band"] not in ("Low", "Moderate"):
             bad.append((cond, act, age, r["score"], r["band"]))
-    assert not bad, f"{len(bad)} of 60 personas score High or worse at AQI 0: {bad}"
+    assert not bad, f"{len(bad)} of 100 personas score High or worse at AQI 0: {bad}"
 
 
 def test_an_unmeasured_reading_never_reaches_the_worst_band():
@@ -253,15 +253,19 @@ def test_only_the_inhalation_rates_are_claimed_as_grounded():
 
 
 def test_inhalation_rates_match_the_published_table():
-    """EPA EFH 2011 Table 6-2, mean column, m3/min, for the three age bands
+    """EPA EFH 2011 Table 6-2, mean column, m3/min, for the five age bands
     the persona picker offers. Transcription errors here would silently move
-    every score, so the figures are pinned."""
+    every score, so the figures are pinned. tests/test_epa_table.py pins the
+    same numbers cell-by-cell against a committed transcription of the source
+    with its provenance; this is the second, independent hand-typed copy."""
     assert risk.INHALATION_RATES == {
         "child":  {"sedentary": 4.8e-3, "light": 1.1e-2, "moderate": 2.2e-2, "high": 4.2e-2},
+        "teen":   {"sedentary": 5.4e-3, "light": 1.3e-2, "moderate": 2.5e-2, "high": 4.9e-2},
+        "youth":  {"sedentary": 5.3e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.9e-2},
         "adult":  {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},
         "senior": {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.7e-2},
     }
-    # The bracket labels for these three ages used to sit beside the rates as
+    # The bracket labels for these ages used to sit beside the rates as
     # risk.EPA_AGE_BANDS, and this line checked the two dicts covered the same
     # ages. Nothing rendered that dict -- the Guide carries its own translated
     # copy -- so it was deleted and the check moved to where the surviving copy

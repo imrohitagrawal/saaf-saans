@@ -182,6 +182,15 @@
       <p class="caveat">{{ option_label[persona.condition] }} — {{ T('condition_help', persona.condition, condition_help) }}</p>
     {% endif %}
 
+    {#- D2/D5: Child, Teen and Senior + Pregnancy is refused server-side.
+        This says so rather than silently answering as Fit -- constraint (i),
+        and shown whether the editor is open or not, unlike the caveat above,
+        because it is a correction the reader asked for, not a qualification
+        of the current selection. -#}
+    {% if pregnancy_blocked_notice %}
+      <p class="caveat">{{ pregnancy_blocked_notice }}</p>
+    {% endif %}
+
     {% if persona_open %}
     {#- The lever, where the choice is made. It qualifies its own mapping
         ("we count"), so it is a caveat and takes the one qualification style.

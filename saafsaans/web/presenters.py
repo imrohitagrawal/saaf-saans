@@ -122,7 +122,8 @@ def held_verdict(locality: str, lang: str = "en") -> str:
 # The persona appears in three places and must read as a sentence in all of
 # them. Joining the raw values with dots ("Senior · copd · school run · Noida")
 # reads as a database row, not as a description of a person.
-_AGE_PHRASE = {"Child": "a child", "Adult": "an adult", "Senior": "a senior"}
+_AGE_PHRASE = {"Child": "a child", "Teen": "a teenager", "Youth": "a young adult",
+               "Adult": "an adult", "Senior": "a senior"}
 _CONDITION_PHRASE = {
     "Fit": "in good health",
     "None": "in good health",
@@ -155,7 +156,8 @@ _AGE_REASON = {"Child": "being a child", "Senior": "being a senior"}
 # and a key derived from it would silently orphan its Hindi. "Fit" and "None"
 # share a key: they are the same phrase, and two keys would invite two
 # different translations of one idea.
-_AGE_KEYS = {"Child": "age_child", "Adult": "age_adult", "Senior": "age_senior"}
+_AGE_KEYS = {"Child": "age_child", "Teen": "age_teen", "Youth": "age_youth",
+             "Adult": "age_adult", "Senior": "age_senior"}
 _CONDITION_KEYS = {
     "Fit": "condition_fit",
     "None": "condition_fit",

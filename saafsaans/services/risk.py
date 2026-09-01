@@ -68,13 +68,21 @@ HEURISTIC_NOTICE = (
 )
 
 # --- Inhalation rates (grounded) ------------------------------------------
-# m3/min, mean short-term values from EPA EFH 2011 Table 6-2. Only the three
+# m3/min, mean short-term values from EPA EFH 2011 Table 6-2. Only the five
 # age bands the persona picker offers are carried; EPA's full table has 14.
 # The bracket labels ("6 to <11 years") live in web/main._epa_rows, which is
 # the only place that renders them and translates them; a second copy here was
 # never read by anything but a test.
+#
+# Teen and Youth (Gate 5 package 5b) carry no susceptibility bump --
+# AGE_SUSCEPTIBILITY_PTS below has no "teen"/"youth" entry and
+# `.get(age_kw, 0)` reads that as 0. Both ages' high-intensity rate is 4.9e-2,
+# below adult/high's 5.0e-2, so `_MAX_RATIO` below is still set by adult and
+# no pre-existing persona's dose_points moves.
 INHALATION_RATES = {
     "child":  {"sedentary": 4.8e-3, "light": 1.1e-2, "moderate": 2.2e-2, "high": 4.2e-2},
+    "teen":   {"sedentary": 5.4e-3, "light": 1.3e-2, "moderate": 2.5e-2, "high": 4.9e-2},
+    "youth":  {"sedentary": 5.3e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.9e-2},
     "adult":  {"sedentary": 4.2e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 5.0e-2},
     "senior": {"sedentary": 4.9e-3, "light": 1.2e-2, "moderate": 2.6e-2, "high": 4.7e-2},
 }

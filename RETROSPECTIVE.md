@@ -49,7 +49,7 @@ The engineering was fine. That was not the problem.
 | Glossary stranded at page bottom | Definitions open in place, next to the term |
 | Cached and live data styled identically | a `CACHED` tag carrying the reading's age, a `SAMPLE` tag where no reading is held, a dead-feed notice, and fallbacks logged as fallbacks |
 | Emoji as icons | None |
-| 142 tests | 1,641 at `300838c`, including end-to-end tests that assert no page ships JavaScript |
+| 142 tests | 1,738 at `daf50bf`, including end-to-end tests that assert no page ships JavaScript |
 
 Bugs the rebuild surfaced, all of which had been live:
 
