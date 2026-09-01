@@ -147,9 +147,33 @@ def _edges(shorthand, axis):
     return top + bottom if axis == "y" else left + right
 
 
+def _shorthand_width(value):
+    """The px width token in a `border`/`border-<side>` shorthand, wherever it
+    sits -- `1px solid red` and `solid 1px red` are both valid CSS, and a
+    fixed `[0]` index silently read the wrong token (or a non-px one) for the
+    style-first form."""
+    for token in (value or "").split():
+        width = _px(token)
+        if width is not None:
+            return width
+    return None
+
+
 def _border(decls, axis):
-    width = _px((decls.get("border", "").split() or [""])[0])
-    return 2 * width if width else 0.0
+    """Total border width on the given axis, in px. Reads the shorthand and,
+    when it is absent, the per-side longhand -- a border authored as
+    `border-left`/`border-right` (or `-width`) paints identically but was
+    invisible to a sum that only ever read `border`."""
+    shorthand = _shorthand_width(decls.get("border", ""))
+    if shorthand:
+        return 2 * shorthand
+    total = 0.0
+    for side in (("left", "right") if axis == "x" else ("top", "bottom")):
+        width = _shorthand_width(decls.get(f"border-{side}", ""))
+        if width is None:
+            width = _px(decls.get(f"border-{side}-width"))
+        total += width or 0.0
+    return total
 
 
 # --- Rendered markup --------------------------------------------------------
@@ -398,6 +422,10 @@ def test_scroll_ports_without_a_focusable_child_are_reachable_by_keyboard(sheet,
                 assert _named(node, ids), (
                     f"{name}: .{css_class} is a keyboard-reachable scroll region with no "
                     "resolvable accessible name -- it announces as an unnamed region")
+                assert node["attrs"].get("role") == "region", (
+                    f"{name}: .{css_class} has a resolvable name and a tab stop but no "
+                    'role="region", so it never becomes a landmark and the name above is '
+                    "never actually announced")
     assert checked, ("no scroll container without a focusable child was rendered -- the "
                      "markup scan found nothing, so this test proved nothing")
 
@@ -622,16 +650,28 @@ def _horizontal_padding(sheet, css_class):
     return _edges(decls.get("padding"), "x")
 
 
+def _horizontal_border(sheet, css_class):
+    """A class's horizontal border at 320px: the narrow media query wins,
+    same precedence as `_horizontal_padding`."""
+    decls = _decls(sheet["top"], f".{css_class}")
+    decls.update(_decls(sheet["narrow"], f".{css_class}"))
+    return _border(decls, "x")
+
+
 def _budget(sheet, pages, css_class):
     """Width available to an element of this class at 320px: the viewport less
-    the horizontal padding of every ancestor it is actually rendered inside.
-    The worst case across all pages is the one that has to fit."""
+    the horizontal padding AND border of every ancestor it is actually
+    rendered inside. The worst case across all pages is the one that has to
+    fit. Border matters exactly as much as padding here -- both eat into the
+    content box -- and a class dropping padding into `.station-list`'s 1px
+    solid border (2px total) went unspent for as long as this only summed
+    padding."""
     widths = []
     for root in pages.values():
         for node in _walk(root):
             if css_class not in _classes(node):
                 continue
-            spent = sum(_horizontal_padding(sheet, c)
+            spent = sum(_horizontal_padding(sheet, c) + _horizontal_border(sheet, c)
                         for ancestor in _ancestors(node) for c in _classes(ancestor))
             widths.append(VIEWPORT - spent)
     return min(widths) if widths else float(VIEWPORT)
@@ -954,6 +994,20 @@ def _token(css, block, name):
     return re.search(rf"{name}:\s*(#[0-9A-Fa-f]{{6}})", chunk).group(1)
 
 
+def _resolve_color(css, block, value):
+    """A colour declaration's actual hex value: either the token a `var()`
+    reference names, or the literal value itself. Every colour this
+    stylesheet has ever declared happened to be a `var()` reference, so a
+    bare `.fullmatch(...).group(1)` never crashed -- but a literal colour
+    (e.g. authored as a one-off `#rrggbb`, same as the pattern already used
+    at `.hero-window .caveat`) makes `fullmatch` return None, and `.group(1)`
+    on None raises AttributeError instead of measuring anything. This
+    resolves both forms so a literal is measured, not crashed on."""
+    value = value.strip()
+    ref = re.fullmatch(r"var\((--[\w-]+)\)", value)
+    return _token(css, block, ref.group(1)) if ref else value
+
+
 THEMES = (("light", ":root {"), ("dark", '[data-theme="dark"] {'))
 AA_TEXT = 4.5
 
@@ -976,8 +1030,7 @@ def test_the_caveat_palette_clears_the_text_floor_in_both_themes(sheet):
                 ("caveat on a tint", _decls(sheet["top"], ".caveat.on-tint"),
                  _token(css, block, "--surface-2")),
                 ("meaning", _decls(sheet["top"], ".meaning"), surface)):
-            token = re.fullmatch(r"var\((--[\w-]+)\)", decls["color"]).group(1)
-            ratio = _ratio(_token(css, block, token), backdrop)
+            ratio = _ratio(_resolve_color(css, block, decls["color"]), backdrop)
             measured[f"{theme} {label}"] = ratio
             assert ratio >= AA_TEXT, f"{theme} {label}: {ratio:.2f}:1"
 
@@ -1018,8 +1071,7 @@ def test_no_link_in_running_prose_is_marked_by_colour_alone(sheet):
         if not own:
             continue
         for theme, block in THEMES:
-            ratio = _ratio(_token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", link).group(1)),
-                           _token(css, block, re.fullmatch(r"var\((--[\w-]+)\)", own).group(1)))
+            ratio = _ratio(_resolve_color(css, block, link), _resolve_color(css, block, own))
             if ratio >= AA_NON_TEXT:
                 continue
             stripped = _decls(sheet["top"], f".{css_class} a").get("text-decoration")
@@ -1082,23 +1134,59 @@ def test_every_uppercasing_rule_has_a_lang_hi_reset(sheet):
     carries the Hindi spelling of the locality, and the rule that shouts it
     was never named in the carve-out."""
     shouts, resets = [], []
-    for selector, decls in sheet["top"]:
+    for order, (selector, decls) in enumerate(sheet["top"]):
         parts = [s.strip() for s in selector.split(",")]
         if decls.get("text-transform") == "uppercase":
-            shouts += parts
+            shouts += [(p, order) for p in parts]
         if decls.get("text-transform") == "none":
-            resets += [p[len(":lang(hi)"):].strip()
-                       for p in parts if p.startswith(":lang(hi)")]
+            resets += [(p, order) for p in parts if p.startswith(":lang(hi)")]
+    stripped_resets = [r[len(":lang(hi)"):].strip() for r, _order in resets]
     for required in (".hero-pill", ".chip-risk", ".band-chip", ".hero-meta .place"):
-        assert required in resets, (
+        assert required in stripped_resets, (
             f"{required} uppercases, and the :lang(hi) reset list does not name it")
+
     # A reset on the bare class also covers a tag-qualified shout of the same
-    # class: (0,2,0) outranks (0,1,1) and the reset sits later in source.
-    uncovered = [s for s in shouts
-                 if s not in resets
-                 and not any(s.endswith("." + r.lstrip(".")) for r in resets)]
+    # class only when it actually wins the cascade: higher specificity
+    # outright, or a tie broken by sitting later in source -- (0,2,0) outranks
+    # (0,1,1), so `.kicker`'s reset covers `h2.kicker` regardless of order,
+    # but two selectors this test would call "the same class" can still tie
+    # in specificity, and a same-specificity reset written BEFORE the shout it
+    # is meant to cover loses to it. String-suffix matching (the old
+    # `.endswith(...)` fallback) could not tell that gap from a genuine one.
+    #
+    # Compounds are compared position by position, not as one merged token
+    # set: a descendant shout `.foo .bar` and a compound reset naming
+    # `.bar.foo` share a token set but target different things -- the reset
+    # needs both classes on one element, the shout only needs `.bar` on the
+    # last one, so a bare token-set subset check would wrongly call that
+    # covered. `.answer h3` is the opposite trap: its distinguishing class
+    # sits in the FIRST compound, not the last, so comparing only the last
+    # compound misses it. Both are only resolved by requiring the same
+    # number of compounds, aligned start to end, each one a subset in place.
+    def _class_compounds(selector):
+        return [set(re.findall(r"\.[\w-]+", part))
+                for part in re.split(r"\s*>\s*|\s+", selector.strip())]
+
+    uncovered = []
+    for shout, shout_order in shouts:
+        shout_compounds = _class_compounds(shout)
+        shout_rank = (_specificity(shout), shout_order)
+        covered = False
+        for reset, reset_order in resets:
+            reset_compounds = _class_compounds(reset[len(":lang(hi)"):].strip())
+            if (len(reset_compounds) != len(shout_compounds)
+                    or not any(reset_compounds)
+                    or not all(rc <= sc for rc, sc
+                               in zip(reset_compounds, shout_compounds))):
+                continue
+            if (_specificity(reset), reset_order) > shout_rank:
+                covered = True
+                break
+        if not covered:
+            uncovered.append(shout)
     assert not uncovered, (
-        "uppercasing rules with no Devanagari reset: " + ", ".join(uncovered))
+        "uppercasing rules with no Devanagari reset that wins the cascade: "
+        + ", ".join(uncovered))
 
 
 # --- 6. Devanagari never renders below the floor ----------------------------
@@ -1861,9 +1949,7 @@ def test_the_selected_ask_chip_clears_the_text_floor_in_both_themes(sheet):
     chip = _decls(sheet["top"], '.ask-chips [aria-current="true"]')
     assert chip, "the selected ask chip has no rule -- this test would prove nothing"
     for theme, block in THEMES:
-        fg = _token(css, block,
-                    re.fullmatch(r"var\((--[\w-]+)\)", chip["color"]).group(1))
-        bg = _token(css, block,
-                    re.fullmatch(r"var\((--[\w-]+)\)", chip["background"]).group(1))
+        fg = _resolve_color(css, block, chip["color"])
+        bg = _resolve_color(css, block, chip["background"])
         ratio = _ratio(fg, bg)
         assert ratio >= AA_TEXT, f"{theme} selected ask chip: {ratio:.2f}:1"

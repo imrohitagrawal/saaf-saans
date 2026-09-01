@@ -5,6 +5,7 @@ renders without JavaScript, that a blocked prompt looks like a refusal rather
 than an answer, that provenance is reachable, and that the raw model response
 never leaks onto the page.
 """
+import html
 import re
 
 import pytest
@@ -341,7 +342,13 @@ def test_source_tag_link_keeps_the_provenance_panel_open(client, live_feed):
 # itself, never what that body publishes: the assertion runs against the one
 # definition the slot rendered, so a phrase that would be ambiguous across the
 # whole corpus is still exact there, and only the institution name catches a
-# gloss that credits the wrong institution. The
+# gloss that credits the wrong institution -- except where two sources share
+# one body: WHO-children-air and WHO-AQG-2021 are both World Health
+# Organization documents, so the bare institution name would render identical
+# text for both and a content swap between them would pass unnoticed. Those
+# two phrases instead carry enough of what the body published to stay
+# distinguishable from each other, which is why they are the two exceptions
+# to "never what that body publishes" among these eleven. The
 # def-slot in today.html is the only surface that renders these eleven; the
 # Guide's glossary excludes them (main.py builds it with `k not in
 # SOURCE_TERMS`).
@@ -395,7 +402,8 @@ def test_every_source_tag_definition_names_its_body_in_hindi(client, monkeypatch
     assert slot, f"{source} was not cited by this turn, so no definition opened"
     assert names_the_body in slot.group(1), (
         f"the Hindi definition of {source} does not name its body: {slot.group(1)[:120]}")
-    assert normalize.GLOSSARY[source] not in opened, "the English fallback rendered instead"
+    assert normalize.GLOSSARY[source] not in html.unescape(opened), (
+        "the English fallback rendered instead")
 
 
 def test_the_hindi_source_gloss_table_covers_every_source_tag():

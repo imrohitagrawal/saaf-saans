@@ -493,6 +493,7 @@ def test_every_class_the_no_reading_state_emits_is_styled():
 # misinform a reader about air quality rather than merely look wrong.
 
 _SCALE_SPAN = re.compile(r"^\.scale\s+span(?::nth-child\(([^)]*)\))?$")
+_SCALE_SPAN_LOOSE = re.compile(r"\.scale\s*>?\s*span")
 
 
 def _scale_span_widths(rules):
@@ -503,6 +504,11 @@ def _scale_span_widths(rules):
         winner = None
         for selector, decls, order in rules:
             for part in (s.strip() for s in selector.split(",")):
+                assert not (_SCALE_SPAN_LOOSE.search(part) and not _SCALE_SPAN.match(part)), (
+                    f"{part!r} reaches .scale span elements -- possibly a "
+                    ":lang() or other higher-specificity override -- and is not "
+                    "the plain form this resolver understands; extend it rather "
+                    "than silently skipping the override")
                 found = _SCALE_SPAN.match(part)
                 if not found or "width" not in decls:
                     continue
@@ -538,7 +544,7 @@ def test_the_scale_band_widths_are_the_segments_the_marker_is_placed_on(today):
     assert sum(expected) == 100, ("the segments no longer tile the bar", expected)
 
     rules, at_rules = _rules(CSS_PATH.read_text())
-    assert ".scale span" not in at_rules, (
+    assert not _SCALE_SPAN_LOOSE.search(at_rules), (
         "an at-rule now re-widths the scale bar; this test resolves the top "
         "level only, so extend it rather than letting the rule go unranked")
     resolved = _scale_span_widths(rules)
@@ -609,6 +615,9 @@ def test_the_baseline_head_rows_still_outrank_the_row_they_sit_on(today):
     rules, at_rules = _rules(CSS_PATH.read_text())
     for name in ("reading-head", "ask-head"):
         assert name not in at_rules, f"an at-rule now sets .{name}"
+    assert not re.search(r"\.row(?![\w-])", at_rules), (
+        "an at-rule now sets .row; this test resolves the top level only, so "
+        "extend it rather than letting the rule go unranked")
 
     reading, reading_order = _class_cascade(rules, {"row", "reading-head"})
     assert reading["align-items"] == "baseline", reading

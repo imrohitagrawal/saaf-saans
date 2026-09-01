@@ -412,7 +412,7 @@ def test_a_page_with_no_reading_at_all_still_lists_its_drivers(monkeypatch, lang
     body = _today(lang)
     assert 'class="drivers"' in body, lang
     # No band-word assertion here: the Hindi no-reading chip reads "कोई रीडिंग
-    # नहीं — हवा ख़राब मानकर चलें", and ख़राब is character-for-character the band
+    # नहीं — हवा ख़राब मानी गई", and ख़राब is character-for-character the band
     # label for Poor. It names a severity the app is CHOOSING to assume and
     # says so in the same breath -- test_severity_needs_a_measurement exempts
     # this exact sentence from its sweep for the same reason.
