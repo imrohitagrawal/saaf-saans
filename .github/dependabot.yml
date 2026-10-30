@@ -1,0 +1,55 @@
+# Dependabot version updates. Policy: never ignore major versions; group only minor and patch
+# updates, so each major arrives as its own pull request with its own review and revert; wait 7 days
+# after a release before proposing it (cooldown; use `default-days` only, since per-level days are
+# not supported for every ecosystem). Security updates are separate: not grouped, not delayed and not
+# counted against the limit below.
+#
+# Keep an entry only for an ecosystem whose manifest or lock file the repository really has. npm and
+# pip split minor and patch updates by dependency type (development and production); uv, docker and
+# docker-compose do not support dependency-type in groups, so they use one minor-patch group.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      pip-development-minor-patch:
+        applies-to: version-updates
+        dependency-type: "development"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      pip-production-minor-patch:
+        applies-to: version-updates
+        dependency-type: "production"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      docker-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
